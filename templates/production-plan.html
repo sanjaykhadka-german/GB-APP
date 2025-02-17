@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Plan</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Production Plan</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item Master</a></li>
+                <li><a href="{{ url_for('production_plan') }}">Production Plan</a></li>
+                <li><a href="{{ url_for('raw_material') }}">Raw Material</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe Master</a></li>
+                <li><a href="{{ url_for('soh') }}">SOH</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Production Plan List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Week Commencing</th>
+                    <th>Item ID</th>
+                    <th>Item Type</th>
+                    <th>Units to Produce</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plans %}
+                <tr>
+                    <td>{{ plan.id }}</td>
+                    <td>{{ plan.week_commencing }}</td>
+                    <td>{{ plan.item_id }}</td>
+                    <td>{{ plan.item_type }}</td>
+                    <td>{{ plan.units_to_produce }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

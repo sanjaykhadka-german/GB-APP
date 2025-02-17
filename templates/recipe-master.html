@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Master</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Recipe</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Recipe List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Recipe ID</th>
+                    <th>Recipe Name</th>
+                    <th>Item ID</th>
+                    <th>Usage Material</th>
+                    <th>UOM</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for recipe in recipes %}
+                <tr>
+                    <td>{{ recipe.recipeID }}</td>
+                    <td>{{ recipe.recipeName }}</td>
+                    <td>{{ recipe.itemID }}</td>
+                    <td>{{ recipe.usageMaterial }}</td>
+                    <td>{{ recipe.uom }}</td>
+                    <td>{{ recipe.percentage }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Add New Recipe</h2>
+        <form action="{{ url_for('add_recipe') }}" method="POST">
+            <label for="recipeID">Recipe ID:</label>
+            <input type="text" id="recipeID" name="recipeID" required>
+
+            <label for="recipeName">Recipe Name:</label>
+            <input type="text" id="recipeName" name="recipeName" required>
+
+            <label for="itemID">Item ID:</label>
+            <input type="text" id="itemID" name="itemID" required>
+
+            <label for="usageMaterial">Usage Material:</label>
+            <input type="number" step="0.01" id="usageMaterial" name="usageMaterial" required>
+
+            <label for="uom">UOM:</label>
+            <input type="text" id="uom" name="uom" required>
+
+            <label for="percentage">Percentage:</label>
+            <input type="number" step="0.01" id="percentage" name="percentage" required>
+
+            <button type="submit">Add Recipe</button>
+        </form>
+    </main>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raw Material</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Raw Material</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item Master</a></li>
+                <li><a href="{{ url_for('production_plan') }}">Production Plan</a></li>
+                <li><a href="{{ url_for('raw_material') }}">Raw Material</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe Master</a></li>
+                <li><a href="{{ url_for('soh') }}">SOH</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Raw Material List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for material in materials %}
+                <tr>
+                    <td>{{ material.id }}</td>
+                    <td>{{ material.raw_material_description }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

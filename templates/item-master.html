@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Master</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Item</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Item List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Department</th>
+                    <th>Machine</th>
+                    <th>KG per Box</th>
+                    <th>KG per Each</th>
+                    <th>Units per Box</th>
+                    <th>Stock Item</th>
+                    <th>Min Stocks</th>
+                    <th>Max Stocks</th>
+                    <th>Fill Weight</th>
+                    <th>Casing</th>
+                    <th>Ideal Batch Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.itemID }}</td>
+                    <td>{{ item.itemName }}</td>
+                    <td>{{ item.itemDescription }}</td>
+                    <td>{{ item.itemTypeID }}</td>
+                    <td>{{ item.categoryID }}</td>
+                    <td>{{ item.departmentID }}</td>
+                    <td>{{ item.machineID }}</td>
+                    <td>{{ item.kg_per_box }}</td>
+                    <td>{{ item.kg_per_each }}</td>
+                    <td>{{ item.units_per_box }}</td>
+                    <td>{{ 'Yes' if item.stock_item else 'No' }}</td>
+                    <td>{{ item.min_stocks_in_boxes }}</td>
+                    <td>{{ item.max_stocks_in_boxes }}</td>
+                    <td>{{ item.fill_weight }}</td>
+                    <td>{{ item.casing }}</td>
+                    <td>{{ item.ideal_batch_size }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Add New Item</h2>
+        <form action="{{ url_for('add_item') }}" method="POST">
+            <label for="itemID">Item ID:</label>
+            <input type="text" id="itemID" name="itemID" required>
+
+            <label for="itemName">Item Name:</label>
+            <input type="text" id="itemName" name="itemName" required>
+
+            <label for="itemDescription">Description:</label>
+            <input type="text" id="itemDescription" name="itemDescription" required>
+
+            <label for="itemTypeID">Item Type:</label>
+            <input type="text" id="itemTypeID" name="itemTypeID">
+
+            <label for="categoryID">Category:</label>
+            <input type="text" id="categoryID" name="categoryID">
+            <button type="button" onclick="showCategoryForm()">Add Category</button>
+
+            <label for="departmentID">Department:</label>
+            <input type="text" id="departmentID" name="departmentID">
+            <button type="button" onclick="showDepartmentForm()">Add Department</button>
+
+            <label for="machineID">Machine:</label>
+            <input type="text" id="machineID" name="machineID">
+            <button type="button" onclick="showMachineForm()">Add Machine</button>
+
+            <label for="kg_per_box">KG per Box:</label>
+            <input type="number" step="0.01" id="kg_per_box" name="kg_per_box">
+
+            <label for="kg_per_each">KG per Each:</label>
+            <input type="number" step="0.01" id="kg_per_each" name="kg_per_each">
+
+            <label for="units_per_box">Units per Box:</label>
+            <input type="number" id="units_per_box" name="units_per_box">
+
+            <label for="stock_item">Stock Item:</label>
+            <input type="checkbox" id="stock_item" name="stock_item" checked>
+
+            <label for="min_stocks_in_boxes">Min Stocks (Boxes):</label>
+            <input type="number" id="min_stocks_in_boxes" name="min_stocks_in_boxes">
+
+            <label for="max_stocks_in_boxes">Max Stocks (Boxes):</label>
+            <input type="number" id="max_stocks_in_boxes" name="max_stocks_in_boxes">
+
+            <label for="fill_weight">Fill Weight:</label>
+            <input type="number" step="0.01" id="fill_weight" name="fill_weight">
+
+            <label for="casing">Casing:</label>
+            <input type="text" id="casing" name="casing">
+
+            <label for="ideal_batch_size">Ideal Batch Size:</label>
+            <input type="number" id="ideal_batch_size" name="ideal_batch_size">
+
+            <button type="submit">Add Item</button>
+        </form>
+
+        <div id="categoryForm" style="display: none;">
+            <h2>Add Category</h2>
+            <form action="{{ url_for('add_category') }}" method="POST">
+                <label for="categoryID">Category ID:</label>
+                <input type="text" id="categoryID" name="categoryID" required>
+                <label for="categoryName">Category Name:</label>
+                <input type="text" id="categoryName" name="categoryName" required>
+                <button type="submit">Add Category</button>
+            </form>
+        </div>
+
+        <div id="departmentForm" style="display: none;">
+            <h2>Add Department</h2>
+            <form action="{{ url_for('add_department') }}" method="POST">
+                <label for="departmentID">Department ID:</label>
+                <input type="text" id="departmentID" name="departmentID" required>
+                <label for="departmentName">Department Name:</label>
+                <input type="text" id="departmentName" name="departmentName" required>
+                <button type="submit">Add Department</button>
+            </form>
+        </div>
+
+        <div id="machineForm" style="display: none;">
+            <h2>Add Machine</h2>
+            <form action="{{ url_for('add_machine') }}" method="POST">
+                <label for="machineID">Machine ID:</label>
+                <input type="text" id="machineID" name="machineID" required>
+                <label for="machineryName">Machine Name:</label>
+                <input type="text" id="machineryName" name="machineryName" required>
+                <button type="submit">Add Machine</button>
+            </form>
+        </div>
+
+        <script>
+            function showCategoryForm() {
+                document.getElementById('categoryForm').style.display = 'block';
+            }
+            function showDepartmentForm() {
+                document.getElementById('departmentForm').style.display = 'block';
+            }
+            function showMachineForm() {
+                document.getElementById('machineForm').style.display = 'block';
+            }
+        </script>
+    </main>
+</body>
+</html>
