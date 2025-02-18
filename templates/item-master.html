@@ -76,18 +76,38 @@
             <input type="text" id="itemDescription" name="itemDescription" required>
 
             <label for="itemTypeID">Item Type:</label>
-            <input type="text" id="itemTypeID" name="itemTypeID">
-
+            <select id="itemTypeID" name="itemTypeID">
+                <option value="">Select Item Type</option>
+                {% for item_type in types %} 
+                <option value="{{ item_type.itemTypeID }}">{{ item_type.itemTypeName }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" onclick="showItemTypeForm()">Add Item Type</button>
             <label for="categoryID">Category:</label>
-            <input type="text" id="categoryID" name="categoryID">
+            <select id="categoryID" name="categoryID">
+                <option value="">Select Category</option>
+                {% for category in categories %}
+                <option value="{{ category.categoryID }}">{{ category.categoryName }}</option>
+                {% endfor %}
+            </select>
             <button type="button" onclick="showCategoryForm()">Add Category</button>
 
             <label for="departmentID">Department:</label>
-            <input type="text" id="departmentID" name="departmentID">
+            <select id="departmentID" name="departmentID">
+                <option value="">Select Department</option>
+                {% for department in departments %}
+                <option value="{{ department.departmentID }}">{{ department.departmentName }}</option>
+                {% endfor %}
+            </select>
             <button type="button" onclick="showDepartmentForm()">Add Department</button>
 
             <label for="machineID">Machine:</label>
-            <input type="text" id="machineID" name="machineID">
+            <select id="machineID" name="machineID">
+                <option value="">Select Machine</option>
+                {% for machine in machines %}
+                <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
+                {% endfor %}
+            </select>
             <button type="button" onclick="showMachineForm()">Add Machine</button>
 
             <label for="kg_per_box">KG per Box:</label>
@@ -119,42 +139,77 @@
 
             <button type="submit">Add Item</button>
         </form>
+		
+		<div id="itemTypeForm" style="display: none;">
+            <h2>Add Item Type</h2>
+            <form id="itemTypeFormInner" action="{{ url_for('add_item_type') }}" method="POST">
+                <div id="itemTypeInputs">
+                    <div>
+                        <label for="newItemTypeID">Item Type ID:</label>
+                        <input type="text" id="newItemTypeID" name="itemTypeID" required>
+                        <label for="newItemTypeName">Item Type Name:</label>
+                        <input type="text" id="newItemTypeName" name="itemTypeName" required>
+                    </div>
+                </div>
+               <!-- <button type="button" onclick="addItemTypeInput()">Add Another Item Type</button> -->
+                <button type="submit" style="display: inline-block; vertical-align:middle;">Add Item Types</button>
+            </form>
+        </div>
 
         <div id="categoryForm" style="display: none;">
             <h2>Add Category</h2>
-            <form action="{{ url_for('add_category') }}" method="POST">
-                <label for="categoryID">Category ID:</label>
-                <input type="text" id="categoryID" name="categoryID" required>
-                <label for="categoryName">Category Name:</label>
-                <input type="text" id="categoryName" name="categoryName" required>
-                <button type="submit">Add Category</button>
+            <form id="categoryFormInner" action="{{ url_for('add_category') }}" method="POST">
+                <div id="categoryInputs">
+                    <div>
+                        <label for="newCategoryID">Category ID:</label>
+                        <input type="text" id="newCategoryID" name="categoryID" required>
+                        <label for="newCategoryName">Category Name:</label>
+                        <input type="text" id="newCategoryName" name="categoryName" required>
+                    </div>
+                </div>
+               <!-- <button type="button" onclick="addCategoryInput()">Add Another Category</button> -->
+                <button type="submit">Add Categories</button>
             </form>
         </div>
+
 
         <div id="departmentForm" style="display: none;">
             <h2>Add Department</h2>
-            <form action="{{ url_for('add_department') }}" method="POST">
-                <label for="departmentID">Department ID:</label>
-                <input type="text" id="departmentID" name="departmentID" required>
-                <label for="departmentName">Department Name:</label>
-                <input type="text" id="departmentName" name="departmentName" required>
-                <button type="submit">Add Department</button>
+            <form id="departmentFormInner" action="{{ url_for('add_department') }}" method="POST">
+                <div id="departmentInputs">
+                    <div>
+                        <label for="newDepartmentID">Department ID:</label>
+                        <input type="text" id="newDepartmentID" name="departmentID" required>
+                        <label for="newDepartmentName">Department Name:</label>
+                        <input type="text" id="newDepartmentName" name="departmentName" required>
+                    </div>
+                </div>
+               <!-- <button type="button" onclick="addDepartmentInput()">Add Another Department</button> -->
+                <button type="submit">Add Departments</button>
             </form>
         </div>
-
+		
         <div id="machineForm" style="display: none;">
             <h2>Add Machine</h2>
-            <form action="{{ url_for('add_machine') }}" method="POST">
-                <label for="machineID">Machine ID:</label>
-                <input type="text" id="machineID" name="machineID" required>
-                <label for="machineryName">Machine Name:</label>
-                <input type="text" id="machineryName" name="machineryName" required>
-                <button type="submit">Add Machine</button>
+            <form id="machineFormInner" action="{{ url_for('add_machine') }}" method="POST">
+                <div id="machineInputs">
+                    <div>
+						<label for="newMachineID">Machine ID:</label>
+						<input type="text" id="newMachineID" name="machineID" required>
+						<label for="newMachineryName">Machine Name:</label>
+                        <input type="text" id="newMachineryName" name="machineryName" required>
+                    </div>
+				</div>
+			<!--	<button type="button" onclick="addMachineryInput()">Add Another Machinery</button> -->
+                <button type="submit">Add Machinery</button>
             </form>
         </div>
-
-        <script>
-            function showCategoryForm() {
+		
+		<script>
+            function showItemTypeForm() {
+                document.getElementById('itemTypeForm').style.display = 'block';
+            }
+			function showCategoryForm() {
                 document.getElementById('categoryForm').style.display = 'block';
             }
             function showDepartmentForm() {

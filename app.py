@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from sqlalchemy.orm import relationship
 from sqlalchemy import String, Integer, DECIMAL, Boolean, Date, ForeignKey
+from decimal import Decimal
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:german@localhost/gbdb'
@@ -23,15 +24,20 @@ class Category(db.Model):
     categoryID = db.Column(db.String(255), primary_key=True)
     categoryName = db.Column(db.String(50), nullable=False, unique=True)
 
+    def __repr__(self):
+        return f'<Category {self.name}>'
+
 class Department(db.Model):
     __tablename__ = 'department'
     departmentID = db.Column(db.String(255), primary_key=True)
     departmentName = db.Column(db.String(50), nullable=False, unique=True)
 
+
 class Machinery(db.Model):
     __tablename__ = 'machinery'
     machineID = db.Column(db.String(255), primary_key=True)
     machineryName = db.Column(db.String(50), nullable=False, unique=True)
+
 
 class ItemMaster(db.Model):
     __tablename__ = 'item_master'
@@ -57,79 +63,61 @@ class RecipeMaster(db.Model):
     recipeID = db.Column(db.String(255), primary_key=True)
     recipeName = db.Column(db.String(255), nullable=False)
     itemID = db.Column(db.String(255), db.ForeignKey('item_master.itemID'), nullable=False)
-    usageMaterial = db.Column(db.Numeric(10, 2), nullable=False)
+    rawMaterial = db.Column(db.String(255), nullable=False)
+    usageMaterial = db.Column(db.Numeric(20, 2), nullable=False)
     uom = db.Column(db.String(50), nullable=False)
-    percentage = db.Column(db.Numeric(5, 2), nullable=False)
-
-# class SOH_Master(db.Model):
-#     __tablename__ = 'SOH_Master'
-#     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-#     item_id = db.Column(db.Integer, ForeignKey('ItemMaster.id', ondelete='CASCADE'), nullable=False)
-#     soh = db.Column(DECIMAL(10, 2), nullable=False)
-#     uom = db.Column(db.String(50), nullable=False)
-#     start_date = db.Column(Date, nullable=False)
-#     week_commencing = db.Column(Date, nullable=False)
-#     item = relationship("ItemMaster", back_populates="soh_entries")
-
-
-
-# class ProductionPlanMaster(db.Model):
-#     __tablename__ = 'ProductionPlanMaster'
-#     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-#     week_commencing = db.Column(Date, nullable=False)
-#     start_date = db.Column(Date)
-#     item_id = db.Column(db.Integer, ForeignKey('ItemMaster.id', ondelete='CASCADE'), nullable=False)
-#     item_type = db.Column(db.String(255), nullable=False)
-#     SOH = db.Column(db.Integer)
-#     UOM = db.Column(db.String(50))
-#     unit_produce_theoretical = db.Column(db.Integer)
-#     kg_produce_theoretical = db.Column(db.Integer)
-#     batches_theoretical = db.Column(db.Integer)
-#     actual_batches_to_produce = db.Column(db.Integer)
-#     adjustment_column_kg = db.Column(DECIMAL(10, 2))
-#     kg_to_produce = db.Column(DECIMAL(10, 2))
-#     units_to_produce = db.Column(db.Integer)
-#     item = relationship("ItemMaster", back_populates="production_plans")
+    percentage = db.Column(db.Numeric(5, 2))
 
 
 @app.route('/')
 def index():
+    categories = Category.query.all()
     return render_template('index.html')
 
-@app.route('/item-master')
+@app.route('/item-master', methods=['GET', 'POST'])
 def item_master():
-    items = ItemMaster.query.all()
-    return render_template('item-master.html', items=items)
+    #items = ItemMaster.query.all()
+    categories = Category.query.all()  # Fetch all categories
+    departments = Department.query.all() #fetch all departments
+    machines = Machinery.query.all() #fetch all machines
+    types = ItemType.query.all() #fetch all item types
+    if request.method == 'POST':
+        selected_category_id = request.form.get('categoryID') #Get the selected category
+        print(f"Selected Category ID: {selected_category_id}") #Check the selected category in the backend
+
+        if selected_category_id:
+            #Filter the items based on the selected category
+            items = ItemMaster.query.filter_by(categoryID=selected_category_id).all()
+        else:
+            #If no category is selected, show all items
+            items = ItemMaster.query.all()
+
+    else:
+        items = ItemMaster.query.all()
+
+    return render_template('item-master.html', items=items, categories=categories, departments=departments, machines=machines, types=types)
+    
+    
 
 @app.route('/recipe-master')
 def recipe_master():
     recipes = RecipeMaster.query.all()
-    return render_template('recipe-master.html', recipes=recipes)
 
-# @app.route('/production-plan')
-# def production_plan():
-#     plans = ProductionPlanMaster.query.all()
-#     return render_template('production-plan.html', plans=plans)
+    #calculate percentage
+    percentages = {}
+    for recipe in recipes:
+        total_usage_for_name = db.session.query(db.func.sum(RecipeMaster.usageMaterial)).filter(RecipeMaster.recipeName == recipe.recipeName).scalar()
+        
+        # Convert total_usage_for_name to float before division
+        total_usage_for_name = float(total_usage_for_name) if total_usage_for_name else 0.0
+
+        percentage = (float(recipe.usageMaterial) / total_usage_for_name) * 100 if total_usage_for_name else 0
+        percentages[recipe.recipeID] = percentage
 
 
-# @app.route('/soh')
-# def soh():
-#     if request.method == 'POST':
-#         # Handle form submission
-#         new_soh = SOH_Master(
-#             item_id=request.form['item_id'],
-#             soh=float(request.form['soh']),
-#             uom=request.form['uom'],
-#             start_date=datetime.strptime(request.form['start_date'], '%Y-%m-%d').date(),
-#             week_commencing=datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date()
-#         )
-#         db.session.add(new_soh)
-#         db.session.commit()
-#         return redirect(url_for('soh'))
+    return render_template('recipe-master.html', recipes=recipes, percentages=percentages)
 
-#     # GET request: display SOH items
-#     soh_items = SOH_Master.query.all()
-#     return render_template('soh.html', soh_items=soh_items)
+
 
 @app.route('/add_category', methods=['POST'])
 def add_category():
@@ -158,6 +146,15 @@ def add_machine():
     db.session.commit()
     return redirect(url_for('item_master'))
 
+@app.route('/add_item_type', methods=['POST'])
+def add_item_type():
+    itemTypeID = request.form['itemTypeID']
+    itemTypeName = request.form['itemTypeName']
+    new_item_type = ItemType(itemTypeID=itemTypeID, itemTypeName=itemTypeName)
+    db.session.add(new_item_type)
+    db.session.commit()
+    return redirect(url_for('item_master'))
+
 
 @app.route('/add_item', methods=['POST'])
 def add_item():
@@ -177,6 +174,10 @@ def add_item():
     fill_weight = request.form.get('fill_weight')
     casing = request.form.get('casing')
     ideal_batch_size = request.form.get('ideal_batch_size')
+
+    # Set machineID to None if it's empty
+    if machineID == '':
+        machineID = None
 
     new_item = ItemMaster(
         itemID=itemID,
@@ -200,26 +201,70 @@ def add_item():
     db.session.commit()
     return redirect(url_for('item_master'))
 
+
 @app.route('/add_recipe', methods=['POST'])
 def add_recipe():
-    recipeID = request.form['recipeID']
-    recipeName = request.form['recipeName']
-    itemID = request.form['itemID']
-    usageMaterial = request.form['usageMaterial']
-    uom = request.form['uom']
-    percentage = request.form['percentage']
+    recipe_items = []
+    current_recipe = {}  # Store data for the current recipe item
 
-    new_recipe = RecipeMaster(
-        recipeID=recipeID,
-        recipeName=recipeName,
-        itemID=itemID,
-        usageMaterial=usageMaterial,
-        uom=uom,
-        percentage=percentage
-    )
-    db.session.add(new_recipe)
+    for key, value in request.form.items():
+        key_parts = key.split('-')  # Split the key to extract field name and index
+        if len(key_parts) == 2:
+            field_name, item_index = key_parts
+            item_index = int(item_index)
+
+            # If this is a new item index, start a new recipe item
+            if not current_recipe or current_recipe.get('item_index', None)!= item_index:
+                if current_recipe:
+                    recipe_items.append(current_recipe)  # Append the previous recipe
+                    print("print the current recipes................",current_recipe)
+                current_recipe = {'item_index': item_index}  # Create a new recipe item
+
+            # Assign the value to the correct field in the current recipe
+            if field_name == 'recipeID':
+                current_recipe['recipeID'] = value
+            elif field_name == 'recipeName':
+                current_recipe['recipeName'] = value
+            elif field_name == 'itemID':
+                current_recipe['itemID'] = value
+            elif field_name == 'rawMaterial':
+                current_recipe['rawMaterial'] = value
+            elif field_name == 'usageMaterial':
+                current_recipe['usageMaterial'] = float(value)
+            elif field_name == 'uom':
+                current_recipe['uom'] = value
+
+    # Append the last recipe item
+    if current_recipe:
+        recipe_items.append(current_recipe)
+
+
+    # Calculate percentages after adding all items
+    percentages = {}
+    for item in recipe_items:
+        total_usage_for_name = sum(item['usageMaterial'] for item in recipe_items if item['recipeName'] == item['recipeName'])
+        percentage = (item['usageMaterial'] / total_usage_for_name) * 100 if total_usage_for_name else 0
+        percentages[item['recipeID']] = percentage
+
+    # Add recipes to the database
+    for item in recipe_items:
+        new_recipe = RecipeMaster(
+            recipeID=item['recipeID'],
+            recipeName=item['recipeName'],
+            itemID=item['itemID'],
+            rawMaterial=item['rawMaterial'],
+            usageMaterial=item['usageMaterial'],
+            uom=item['uom'],
+            percentage=percentages[item['recipeID']]
+        )
+        db.session.add(new_recipe)
+
     db.session.commit()
     return redirect(url_for('recipe_master'))
+
+
+
+
 
 if __name__ == '__main__':
     with app.app_context():
