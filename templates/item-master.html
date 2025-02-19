@@ -8,7 +8,7 @@
 </head>
 <body>
     <header>
-        <h1>Item</h1>
+        <h1>Item </h1>
         <nav>
             <ul>
                 <li><a href="{{ url_for('index') }}">Home</a></li>
@@ -18,54 +18,9 @@
         </nav>
     </header>
     <main>
-        <h2>Item List</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Type</th>
-                    <th>Category</th>
-                    <th>Department</th>
-                    <th>Machine</th>
-                    <th>KG per Box</th>
-                    <th>KG per Each</th>
-                    <th>Units per Box</th>
-                    <th>Stock Item</th>
-                    <th>Min Stocks</th>
-                    <th>Max Stocks</th>
-                    <th>Fill Weight</th>
-                    <th>Casing</th>
-                    <th>Ideal Batch Size</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                <tr>
-                    <td>{{ item.itemID }}</td>
-                    <td>{{ item.itemName }}</td>
-                    <td>{{ item.itemDescription }}</td>
-                    <td>{{ item.itemTypeID }}</td>
-                    <td>{{ item.categoryID }}</td>
-                    <td>{{ item.departmentID }}</td>
-                    <td>{{ item.machineID }}</td>
-                    <td>{{ item.kg_per_box }}</td>
-                    <td>{{ item.kg_per_each }}</td>
-                    <td>{{ item.units_per_box }}</td>
-                    <td>{{ 'Yes' if item.stock_item else 'No' }}</td>
-                    <td>{{ item.min_stocks_in_boxes }}</td>
-                    <td>{{ item.max_stocks_in_boxes }}</td>
-                    <td>{{ item.fill_weight }}</td>
-                    <td>{{ item.casing }}</td>
-                    <td>{{ item.ideal_batch_size }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
+        
         <h2>Add New Item</h2>
-        <form action="{{ url_for('add_item') }}" method="POST">
+        <form action="{{ url_for('add_item') }}" method="POST" id="itemForm">
             <label for="itemID">Item ID:</label>
             <input type="text" id="itemID" name="itemID" required>
 
@@ -136,8 +91,13 @@
 
             <label for="ideal_batch_size">Ideal Batch Size:</label>
             <input type="number" id="ideal_batch_size" name="ideal_batch_size">
-
-            <button type="submit">Add Item</button>
+			
+			<button type="button" class="remove-item" onclick="removeItem(this)">Remove</button>
+		<!--	<button type="button" onclick="addMaterialItem()">Add Material</button> -->
+			<button type="submit" style="background-color: green; color: white;">Add Item</button>
+			<div id="materialInputs">
+			</div>
+            
         </form>
 		
 		<div id="itemTypeForm" style="display: none;">
@@ -205,6 +165,71 @@
             </form>
         </div>
 		
+		<h2>Item List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Department</th>
+                    <th>Machine</th>
+                    <th>KG per Box</th>
+                    <th>KG per Each</th>
+                    <th>Units per Box</th>
+                    <th>Stock Item</th>
+                    <th>Min Stocks</th>
+                    <th>Max Stocks</th>
+                    <th>Fill Weight</th>
+                    <th>Casing</th>
+                    <th>Ideal Batch Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td>{{ item.itemID }}</td>
+                    <td>{{ item.itemName }}</td>
+                    <td>{{ item.itemDescription }}</td>
+                    <td>{{ item.itemTypeID }}</td>
+                    <td>
+                        {% for category in categories %}
+                            {% if category.categoryID == item.categoryID %}
+                                {{ category.categoryName }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for department in departments %}
+                            {% if department.departmentID == item.departmentID %}
+                                {{ department.departmentName }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for machine in machines %}
+                            {% if machine.machineID == item.machineID %}
+                                {{ machine.machineryName }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>{{ item.kg_per_box }}</td>
+                    <td>{{ item.kg_per_each }}</td>
+                    <td>{{ item.units_per_box }}</td>
+                    <td>{{ 'Yes' if item.stock_item else 'No' }}</td>
+                    <td>{{ item.min_stocks_in_boxes }}</td>
+                    <td>{{ item.max_stocks_in_boxes }}</td>
+                    <td>{{ item.fill_weight }}</td>
+                    <td>{{ item.casing }}</td>
+                    <td>{{ item.ideal_batch_size }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+		
 		<script>
             function showItemTypeForm() {
                 document.getElementById('itemTypeForm').style.display = 'block';
@@ -218,6 +243,7 @@
             function showMachineForm() {
                 document.getElementById('machineForm').style.display = 'block';
             }
+			
         </script>
     </main>
 </body>

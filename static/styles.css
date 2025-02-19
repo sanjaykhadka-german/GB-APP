@@ -80,3 +80,49 @@ tr:hover {
 #machineFormInner label {
     margin-left: 5px;
 }
+
+.btn-red {
+    background-color: red;
+    color: white;
+}
+
+.btn-blue {
+    background-color: blue;
+    color: white;
+}
+
+.btn-green {
+    background-color: green;
+    color: white;
+}
+
+.recipe-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.recipe-item label, .recipe-item input, .recipe-item select {
+    margin-right: 10px;
+    margin-bottom: 5px;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+}
+
+.button-group {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 10px;
+}
+
+.button-group button {
+    margin-right: 10px;
+}
+
+.remove-ingredient {
+    margin-left: 10px;
+}

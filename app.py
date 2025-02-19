@@ -48,13 +48,13 @@ class ItemMaster(db.Model):
     categoryID = db.Column(db.String(255), db.ForeignKey('category.categoryID'))
     departmentID = db.Column(db.String(255), db.ForeignKey('department.departmentID'))
     machineID = db.Column(db.String(255), db.ForeignKey('machinery.machineID'))
-    kg_per_box = db.Column(db.Numeric(10, 2))
-    kg_per_each = db.Column(db.Numeric(10, 2))
+    kg_per_box = db.Column(db.Numeric(20, 3))
+    kg_per_each = db.Column(db.Numeric(20, 3))
     units_per_box = db.Column(db.Integer)
     stock_item = db.Column(db.Boolean, default=True)
     min_stocks_in_boxes = db.Column(db.Integer)
     max_stocks_in_boxes = db.Column(db.Integer)
-    fill_weight = db.Column(db.Numeric(10, 2))
+    fill_weight = db.Column(db.Numeric(20, 3))
     casing = db.Column(db.String(255))
     ideal_batch_size = db.Column(db.Integer)
 
@@ -64,9 +64,9 @@ class RecipeMaster(db.Model):
     recipeName = db.Column(db.String(255), nullable=False)
     itemID = db.Column(db.String(255), db.ForeignKey('item_master.itemID'), nullable=False)
     rawMaterial = db.Column(db.String(255), nullable=False)
-    usageMaterial = db.Column(db.Numeric(20, 2), nullable=False)
+    usageMaterial = db.Column(db.Numeric(20, 3), nullable=False)
     uom = db.Column(db.String(50), nullable=False)
-    percentage = db.Column(db.Numeric(5, 2))
+    percentage = db.Column(db.Numeric(5, 3))
 
 
 @app.route('/')
