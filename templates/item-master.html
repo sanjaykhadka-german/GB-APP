@@ -10,162 +10,197 @@
     <header>
         <h1>Item </h1>
         <nav>
-            <ul>
+                    <ul>
                 <li><a href="{{ url_for('index') }}">Home</a></li>
                 <li><a href="{{ url_for('item_master') }}">Item</a></li>
                 <li><a href="{{ url_for('recipe_master') }}">Recipe</a></li>
             </ul>
         </nav>
     </header>
+
     <main>
-        
         <h2>Add New Item</h2>
         <form action="{{ url_for('add_item') }}" method="POST" id="itemForm">
-            <label for="itemID">Item ID:</label>
-            <input type="text" id="itemID" name="itemID" required>
+            <div class="form-group">
+                <label for="itemID">Item ID</label>
+                <input type="text" id="itemID" name="itemID" required>
+            </div>
 
-            <label for="itemName">Item Name:</label>
-            <input type="text" id="itemName" name="itemName" required>
+            <div class="form-group">
+                <label for="itemName">Item Name</label>
+                <input type="text" id="itemName" name="itemName" required>
+            </div>
 
-            <label for="itemDescription">Description:</label>
-            <input type="text" id="itemDescription" name="itemDescription" required>
+            <div class="form-group">
+                <label for="itemDescription">Description</label>
+                <input type="text" id="itemDescription" name="itemDescription" required>
+            </div>
 
-            <label for="itemTypeID">Item Type:</label>
-            <select id="itemTypeID" name="itemTypeID">
-                <option value="">Select Item Type</option>
-                {% for item_type in types %} 
-                <option value="{{ item_type.itemTypeID }}">{{ item_type.itemTypeName }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" onclick="showItemTypeForm()">Add Item Type</button>
-            <label for="categoryID">Category:</label>
-            <select id="categoryID" name="categoryID">
-                <option value="">Select Category</option>
-                {% for category in categories %}
-                <option value="{{ category.categoryID }}">{{ category.categoryName }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" onclick="showCategoryForm()">Add Category</button>
+            <div class="form-group">
+                <label for="itemTypeID">Item Type</label>
+                <div class="button-group">
+                    <select id="itemTypeID" name="itemTypeID">
+                        <option value="">Select Item Type</option>
+                        {% for item_type in types %}
+                        <option value="{{ item_type.itemTypeID }}">{{ item_type.itemTypeName }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="showItemTypeForm()">Add Type</button>
+                </div>
+            </div>
 
-            <label for="departmentID">Department:</label>
-            <select id="departmentID" name="departmentID">
-                <option value="">Select Department</option>
-                {% for department in departments %}
-                <option value="{{ department.departmentID }}">{{ department.departmentName }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" onclick="showDepartmentForm()">Add Department</button>
+            <div class="form-group">
+                <label for="categoryID">Category</label>
+                <div class="button-group">
+                    <select id="categoryID" name="categoryID">
+                        <option value="">Select Category</option>
+                        {% for category in categories %}
+                        <option value="{{ category.categoryID }}">{{ category.categoryName }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="showCategoryForm()">Add Category</button>
+                </div>
+            </div>
 
-            <label for="machineID">Machine:</label>
-            <select id="machineID" name="machineID">
-                <option value="">Select Machine</option>
-                {% for machine in machines %}
-                <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
-                {% endfor %}
-            </select>
-            <button type="button" onclick="showMachineForm()">Add Machine</button>
+            <div class="form-group">
+                <label for="departmentID">Department</label>
+                <div class="button-group">
+                    <select id="departmentID" name="departmentID">
+                        <option value="">Select Department</option>
+                        {% for department in departments %}
+                        <option value="{{ department.departmentID }}">{{ department.departmentName }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="showDepartmentForm()">Add Department</button>
+                </div>
+            </div>
 
-            <label for="kg_per_box">KG per Box:</label>
-            <input type="number" step="0.01" id="kg_per_box" name="kg_per_box">
+            <div class="form-group">
+                <label for="machineID">Machine</label>
+                <div class="button-group">
+                    <select id="machineID" name="machineID">
+                        <option value="">Select Machine</option>
+                        {% for machine in machines %}
+                        <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="showMachineForm()">Add Machine</button>
+                </div>
+            </div>
 
-            <label for="kg_per_each">KG per Each:</label>
-            <input type="number" step="0.01" id="kg_per_each" name="kg_per_each">
+            <div class="form-group">
+                <label for="kg_per_box">KG per Box</label>
+                <input type="number" step="0.01" id="kg_per_box" name="kg_per_box">
+            </div>
 
-            <label for="units_per_box">Units per Box:</label>
-            <input type="number" id="units_per_box" name="units_per_box">
+            <div class="form-group">
+                <label for="kg_per_each">KG per Each</label>
+                <input type="number" step="0.01" id="kg_per_each" name="kg_per_each">
+            </div>
 
-            <label for="stock_item">Stock Item:</label>
-            <input type="checkbox" id="stock_item" name="stock_item" checked>
+            <div class="form-group">
+                <label for="units_per_box">Units per Box</label>
+                <input type="number" id="units_per_box" name="units_per_box">
+            </div>
 
-            <label for="min_stocks_in_boxes">Min Stocks (Boxes):</label>
-            <input type="number" id="min_stocks_in_boxes" name="min_stocks_in_boxes">
+            <div class="form-group">
+                <label for="stock_item">Stock Item</label>
+                <input type="checkbox" id="stock_item" name="stock_item" checked>
+            </div>
 
-            <label for="max_stocks_in_boxes">Max Stocks (Boxes):</label>
-            <input type="number" id="max_stocks_in_boxes" name="max_stocks_in_boxes">
+            <div class="form-group">
+                <label for="min_stocks_in_boxes">Min Stocks (Boxes)</label>
+                <input type="number" id="min_stocks_in_boxes" name="min_stocks_in_boxes">
+            </div>
 
-            <label for="fill_weight">Fill Weight:</label>
-            <input type="number" step="0.01" id="fill_weight" name="fill_weight">
+            <div class="form-group">
+                <label for="max_stocks_in_boxes">Max Stocks (Boxes)</label>
+                <input type="number" id="max_stocks_in_boxes" name="max_stocks_in_boxes">
+            </div>
 
-            <label for="casing">Casing:</label>
-            <input type="text" id="casing" name="casing">
+            <div class="form-group">
+                <label for="fill_weight">Fill Weight</label>
+                <input type="number" step="0.01" id="fill_weight" name="fill_weight">
+            </div>
 
-            <label for="ideal_batch_size">Ideal Batch Size:</label>
-            <input type="number" id="ideal_batch_size" name="ideal_batch_size">
-			
-			<button type="button" class="remove-item" onclick="removeItem(this)">Remove</button>
-		<!--	<button type="button" onclick="addMaterialItem()">Add Material</button> -->
-			<button type="submit" style="background-color: green; color: white;">Add Item</button>
-			<div id="materialInputs">
-			</div>
-            
+            <div class="form-group">
+                <label for="casing">Casing</label>
+                <input type="text" id="casing" name="casing">
+            </div>
+
+            <div class="form-group">
+                <label for="ideal_batch_size">Ideal Batch Size</label>
+                <input type="number" id="ideal_batch_size" name="ideal_batch_size">
+            </div>
+
+            <div class="form-group button-group">
+                <button type="button" class="remove-item" onclick="removeItem(this)">Remove</button>
+                <button type="submit">Add Item</button>
+            </div>
         </form>
-		
-		<div id="itemTypeForm" style="display: none;">
+
+        <!-- Popup Forms -->
+        <div id="itemTypeForm" class="popup-form">
             <h2>Add Item Type</h2>
             <form id="itemTypeFormInner" action="{{ url_for('add_item_type') }}" method="POST">
-                <div id="itemTypeInputs">
-                    <div>
-                        <label for="newItemTypeID">Item Type ID:</label>
-                        <input type="text" id="newItemTypeID" name="itemTypeID" required>
-                        <label for="newItemTypeName">Item Type Name:</label>
-                        <input type="text" id="newItemTypeName" name="itemTypeName" required>
-                    </div>
+                <div class="form-group">
+                    <label for="newItemTypeID">Item Type ID</label>
+                    <input type="text" id="newItemTypeID" name="itemTypeID" required>
                 </div>
-               <!-- <button type="button" onclick="addItemTypeInput()">Add Another Item Type</button> -->
-                <button type="submit" style="display: inline-block; vertical-align:middle;">Add Item Types</button>
+                <div class="form-group">
+                    <label for="newItemTypeName">Item Type Name</label>
+                    <input type="text" id="newItemTypeName" name="itemTypeName" required>
+                </div>
+                <button type="submit">Add Item Types</button>
             </form>
         </div>
 
-        <div id="categoryForm" style="display: none;">
+        <div id="categoryForm" class="popup-form">
             <h2>Add Category</h2>
             <form id="categoryFormInner" action="{{ url_for('add_category') }}" method="POST">
-                <div id="categoryInputs">
-                    <div>
-                        <label for="newCategoryID">Category ID:</label>
-                        <input type="text" id="newCategoryID" name="categoryID" required>
-                        <label for="newCategoryName">Category Name:</label>
-                        <input type="text" id="newCategoryName" name="categoryName" required>
-                    </div>
+                <div class="form-group">
+                    <label for="newCategoryID">Category ID</label>
+                    <input type="text" id="newCategoryID" name="categoryID" required>
                 </div>
-               <!-- <button type="button" onclick="addCategoryInput()">Add Another Category</button> -->
+                <div class="form-group">
+                    <label for="newCategoryName">Category Name</label>
+                    <input type="text" id="newCategoryName" name="categoryName" required>
+                </div>
                 <button type="submit">Add Categories</button>
             </form>
         </div>
 
-
-        <div id="departmentForm" style="display: none;">
+        <div id="departmentForm" class="popup-form">
             <h2>Add Department</h2>
             <form id="departmentFormInner" action="{{ url_for('add_department') }}" method="POST">
-                <div id="departmentInputs">
-                    <div>
-                        <label for="newDepartmentID">Department ID:</label>
-                        <input type="text" id="newDepartmentID" name="departmentID" required>
-                        <label for="newDepartmentName">Department Name:</label>
-                        <input type="text" id="newDepartmentName" name="departmentName" required>
-                    </div>
+                <div class="form-group">
+                    <label for="newDepartmentID">Department ID</label>
+                    <input type="text" id="newDepartmentID" name="departmentID" required>
                 </div>
-               <!-- <button type="button" onclick="addDepartmentInput()">Add Another Department</button> -->
+                <div class="form-group">
+                    <label for="newDepartmentName">Department Name</label>
+                    <input type="text" id="newDepartmentName" name="departmentName" required>
+                </div>
                 <button type="submit">Add Departments</button>
             </form>
         </div>
-		
-        <div id="machineForm" style="display: none;">
+
+        <div id="machineForm" class="popup-form">
             <h2>Add Machine</h2>
             <form id="machineFormInner" action="{{ url_for('add_machine') }}" method="POST">
-                <div id="machineInputs">
-                    <div>
-						<label for="newMachineID">Machine ID:</label>
-						<input type="text" id="newMachineID" name="machineID" required>
-						<label for="newMachineryName">Machine Name:</label>
-                        <input type="text" id="newMachineryName" name="machineryName" required>
-                    </div>
-				</div>
-			<!--	<button type="button" onclick="addMachineryInput()">Add Another Machinery</button> -->
+                <div class="form-group">
+                    <label for="newMachineID">Machine ID</label>
+                    <input type="text" id="newMachineID" name="machineID" required>
+                </div>
+                <div class="form-group">
+                    <label for="newMachineryName">Machine Name</label>
+                    <input type="text" id="newMachineryName" name="machineryName" required>
+                </div>
                 <button type="submit">Add Machinery</button>
             </form>
         </div>
-		
-		<h2>Item List</h2>
+
+        <h2>Item List</h2>
         <table>
             <thead>
                 <tr>
@@ -227,6 +262,7 @@
                 </tr>
                 {% endfor %}
             </tbody>
+        </table>
         </table>
 
 		
