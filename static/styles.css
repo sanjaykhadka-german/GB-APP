@@ -201,3 +201,167 @@ input[type="checkbox"] {
     gap: 10px;
     align-items: center;
 }
+
+/* Add this to your styles.css file */
+.popup-form {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+	background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 500px;  /* Adjust this value */
+    max-width: 90%; 
+}
+
+.popup-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    max-width: 500px;
+    width: 90%;
+}
+
+.error-popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+
+#errorPopup button {
+    margin-top: 15px;
+    padding: 8px 15px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#errorPopup button:hover {
+    background-color: #d32f2f;
+}
+
+/* Flash message styling */
+.flash-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 240000px;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 1000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.flash-message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border-left: 5px solid #f5c6cb;
+}
+
+.flash-message.success {
+    background-color: #d4edda;
+    color: #155724;
+    border-left: 5px solid #c3e6cb;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    margin-left: 10px;
+    color: inherit;
+}
+
+#flashText {
+    flex-grow: 1;
+}
+
+
+
+
+.popup.show {
+  visibility: visible;
+  opacity: 1;
+}
+
+	
+#itemTypeForm form {
+    width: 650px; 
+}
+
+#categoryForm form {
+    width: 650px; 
+}
+
+#departmentForm form {
+    width: 700px; 
+}
+
+#machineForm form {
+    width: 650px; 
+}
+
+#uom-1Form form {
+    width: 950px; 
+}
+
+.error-popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.error-popup-content {
+    background-color: white;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    max-width: 450px;
+    width: 90%;
+    text-align: center;
+    position: relative;
+}
+
+.error-popup button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}

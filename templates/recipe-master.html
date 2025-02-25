@@ -18,6 +18,31 @@
         </nav>
     </header>
     <main>
+<div id="flashMessage" class="flash-message" style="display: none;">
+    <span id="flashText"></span>
+    <button onclick="closeFlashMessage()" class="close-button">×</button>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                {% for category, message in messages %}
+                    var flashDiv = document.getElementById('flashMessage');
+                    flashDiv.className = 'flash-message {{ category }}';
+                    document.getElementById('flashText').textContent = "{{ message }}";
+                    flashDiv.style.display = 'flex';
+                    // Auto-hide after 5 seconds
+                    setTimeout(function() {
+                        if (flashDiv.style.display !== 'none') {
+                            flashDiv.style.display = 'none';
+                        }
+                    }, 5000);
+                {% endfor %}
+            });
+        </script>
+    {% endif %}
+{% endwith %}
         <h2>Add New Recipe</h2>
         <form id="recipeForm" action="{{ url_for('add_recipe') }}" method="POST">
             <div id="recipeInputs">
@@ -47,17 +72,20 @@
                         <input type="number" step="0.01" id="usageMaterial-1" name="usageMaterial-1" required>
                     </div>
 
-                    <div>
-                        <label for="uom-1">UOM</label>
-                        <select id="uom-1" name="uom-1" required>
-                            <option value="Box">Box</option>
-                            <option value="Bucket">Bucket</option>
-                            <option value="Caddy">Caddy</option>
-                            <option value="KG">KG</option>
-                            <option value="Rolls">Rolls</option>
-                            <option value="Unit">Unit</option>
-                        </select>
-                    </div>
+					
+				<div class="form-group">
+                <label for="uom-1">UOM</label>
+                <div class="button-group">
+                    <select id="uom-1" name="uom-1">
+                        <option value="">Select UOM</option>
+                        {% for uom in uoms %}
+                        <option value="{{ uom_type.UOMID }}">{{ UOM_type.UOMName }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" onclick="showUOMTypeForm()">Add UOM</button>
+					</div>
+				</div>
+				
                     <button type="button" class="remove-ingredient" onclick="removeRecipeItem(this)">Remove</button>
                 </div>
             </div>
@@ -66,6 +94,26 @@
                 <button type="submit">Add Recipe</button>
             </div>
         </form>
+		
+		<!-- Popup Forms -->
+        <div id="uom-1" class="popup-form">
+		<div class="modal-content"></div>
+            <form id="uom-1FormInner" action="{{ url_for('add_item_type') }}" method="POST">
+                <h3>Add UOM </h3>
+                <div class="form-group">
+                    <label for="newUOMID">UOM ID</label>
+                    <input type="text" id="newUOMID" name="UOMID" required>
+                </div>
+                <div class="form-group">
+                    <label for="newUOMIDName">UOM Name</label>
+                    <input type="text" id="newUOMName" name="UOMName" required>
+                </div>
+                <div class="form-group button-group">
+                    <button type="button" onclick="closePopupForm('UOMTypeForm')">Cancel</button>
+                    <button type="submit">Add </button>
+                </div>
+            </form>
+        </div>
         
         <h2>Recipe List</h2>
         <table>
@@ -96,6 +144,10 @@
         </table>
 
         <script>
+		/ Show popup forms
+        function showUOMTypeForm() {
+            document.getElementById('UOMTypeForm').style.display = 'flex';
+        }
             let recipeItemCount = 1;
 
             function addRecipeItem() {
@@ -144,6 +196,15 @@
                 `;
                 recipeInputs.appendChild(newRecipeItem);
             }
+			
+			// Close error popup
+        function closeErrorPopup() {
+        document.getElementById('errorPopup').style.display = 'none';
+        // Remove error parameter from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('error');
+        window.history.replaceState({}, '', url);
+    }
 
             function removeRecipeItem(button) {
                 const recipeItem = button.closest('.recipe-item');
@@ -156,6 +217,22 @@
                     alert('Cannot remove the last ingredient entry.');
                 }
             }
+			
+			function closeFlashMessage() {
+    document.getElementById('flashMessage').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+        // Only check for error parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const errorMsg = urlParams.get('error');
+  
+        
+
+        if (errorMsg) {
+            document.getElementById('errorMessage').textContent = errorMsg;
+            document.getElementById('errorPopup').style.display = 'flex';
+        }
         </script>
   </main>
 </body>
