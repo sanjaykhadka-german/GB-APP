@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Master - Add Recipe</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Add Recipe</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item Master</a></li>
+                <li><a href="{{ url_for('production_plan') }}">Production Plan</a></li>
+                <li><a href="{{ url_for('raw_material') }}">Raw Material</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe Master</a></li>
+                <li><a href="{{ url_for('soh') }}">SOH</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Add Recipe</h2>
+        <form action="{{ url_for('recipe_add') }}" method="POST">
+            <label for="item_no">Item No:</label>
+            <input type="text" id="item_no" name="item_no" required>
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required>
+
+            <h3>Recipe Details</h3>
+            <table id="recipe_details">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Raw Material</th>
+                        <th>Usage</th>
+                        <th>UOM</th>
+                        <th>Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="text" name="ingredient_name[]" required></td>
+                        <td><input type="text" name="raw_material[]" required></td>
+                        <td><input type="number" name="usage[]" step="0.01" required></td>
+                        <td><input type="text" name="uom[]" required></td>
+                        <td><input type="number" name="percentage[]" step="0.01" required></td>
+                    </tr>
+                </tbody>
+            </table>
+            <button type="button" onclick="addIngredient()">Add Ingredient</button>
+            <button type="submit">Save Recipe</button>
+        </form>
+    </main>
+    <script>
+        function addIngredient() {
+            const tbody = document.querySelector('#recipe_details tbody');
+            const newRow = tbody.insertRow();
+            newRow.innerHTML = `
+                <td><input type="text" name="ingredient_name[]" required></td>
+                <td><input type="text" name="raw_material[]" required></td>
+                <td><input type="number" name="usage[]" step="0.01" required></td>
+                <td><input type="text" name="uom[]" required></td>
+                <td><input type="number" name="percentage[]" step="0.01" required></td>
+            `;
+        }
+    </script>
+</body>
+</html>

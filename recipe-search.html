@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Master - Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Search Recipe</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item Master</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe Master</a></li>
+                
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>Recipe Search</h2>
+        <form action="{{ url_for('recipe_master') }}" method="GET">
+            <label for="item_no">Item No:</label>
+            <input type="text" id="item_no" name="item_no">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name">
+            <button type="submit">Search</button>
+        </form>
+
+        <h3>Recipe List</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Item No</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Department</th>
+                    <th>Machine</th>
+                    <th>KG/Box</th>
+                    <th>KG/Each</th>
+                    <th>Units/Box</th>
+                    <th>StockItem</th>
+                    <th>Min Stock in Boxes</th>
+                    <th>Max Stock in Boxes</th>
+                    <th>FillWeight</th>
+                    <th>Casing</th>
+                    <th>Ideal Batch Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for recipe in recipes %}
+                <tr>
+                    <td>{{ recipe.item_no }}</td>
+                    <td>{{ recipe.name }}</td>
+                    <td>{{ recipe.type }}</td>
+                    <td>{{ recipe.category }}</td>
+                    <td>{{ recipe.department }}</td>
+                    <td>{{ recipe.machine }}</td>
+                    <td>{{ recipe.kg_per_box }}</td>
+                    <td>{{ recipe.kg_per_each }}</td>
+                    <td>{{ recipe.units_per_box }}</td>
+                    <td>{{ recipe.stock_item }}</td>
+                    <td>{{ recipe.min_stock_boxes }}</td>
+                    <td>{{ recipe.max_stock_boxes }}</td>
+                    <td>{{ recipe.fill_weight }}</td>
+                    <td>{{ recipe.casing }}</td>
+                    <td>{{ recipe.ideal_batch_size }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

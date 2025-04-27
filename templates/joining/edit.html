@@ -1,0 +1,37 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Edit Joining</h2>
+
+    <form method="POST" action="{{ url_for('joining.joining_edit', id=joining.id) }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="mb-3">
+            <label for="fg_code" class="form-label">FG Code</label>
+            <input type="text" class="form-control" id="fg_code" name="fg_code" value="{{ joining.fg_code }}" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <input type="text" class="form-control" id="description" name="description" value="{{ joining.description }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="production" class="form-label">Production</label>
+            <input type="text" class="form-control" id="production" name="production" value="{{ joining.production }}">
+        </div>
+
+        <button type="submit" class="btn btn-warning">Update Joining</button>
+    </form>
+</div>
+{% endblock %}

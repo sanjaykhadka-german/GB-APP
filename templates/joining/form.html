@@ -1,0 +1,44 @@
+<div class="mb-3">
+    <label>FG Code</label>
+    <input type="text" name="fg_code" class="form-control" value="{{ joining.fg_code if joining else '' }}" required>
+</div>
+<div class="mb-3">
+    <label>Description</label>
+    <input type="text" name="description" class="form-control" value="{{ joining.description if joining else '' }}">
+</div>
+<div class="form-check mb-3">
+    <input type="checkbox" name="fw" class="form-check-input" id="fwCheck" {% if joining and joining.fw %}checked{% endif %}>
+    <label class="form-check-label" for="fwCheck">FW</label>
+</div>
+<div class="form-check mb-3">
+    <input type="checkbox" name="make_to_order" class="form-check-input" id="makeOrderCheck" {% if joining and joining.make_to_order %}checked{% endif %}>
+    <label class="form-check-label" for="makeOrderCheck">Make to Order</label>
+</div>
+<div class="mb-3">
+    <label>Min Level</label>
+    <input type="number" step="any" name="min_level" class="form-control" value="{{ joining.min_level if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Max Level</label>
+    <input type="number" step="any" name="max_level" class="form-control" value="{{ joining.max_level if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Kg Per Unit</label>
+    <input type="number" step="any" name="kg_per_unit" class="form-control" value="{{ joining.kg_per_unit if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Loss</label>
+    <input type="number" step="any" name="loss" class="form-control" value="{{ joining.loss if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Filling Code</label>
+    <input type="text" name="filling_code" class="form-control" value="{{ joining.filling_code if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Filling Description</label>
+    <input type="text" name="filling_description" class="form-control" value="{{ joining.filling_description if joining else '' }}">
+</div>
+<div class="mb-3">
+    <label>Production</label>
+    <input type="text" name="production" class="form-control" value="{{ joining.production if joining else '' }}">
+</div>

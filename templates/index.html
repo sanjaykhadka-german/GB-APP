@@ -12,14 +12,19 @@
         <nav>
             <ul>
                 <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('item_master') }}">Item</a></li>
-                <li><a href="{{ url_for('recipe_master') }}">Recipe</a></li>
+                <li><a href="{{ url_for('recipe_add') }}">Item</a></li>
+                <li><a href="{{ url_for('recipe_search') }}">Recipe</a></li>
+                <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li> <!-- Added Joining -->
             </ul>
         </nav>
     </header>
+
     <main>
+        {% block content %}
+        <!-- Default content here if needed -->
         <h2>Welcome to the German Butchery Production and Inventory Management System</h2>
         <p>Select a section from the navigation menu to get started.</p>
+        {% endblock %}
     </main>
 </body>
 </html>

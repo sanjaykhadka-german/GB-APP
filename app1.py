@@ -1,140 +1,110 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+import pandas as pd
+from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
-import uuid
+import os
 
+# Define the path to your Excel file
+# Update this path to where your file is located on your local machine
+excel_file_path = "Production_Plan_1.0.xlsm"
+
+# Check if file exists
+if not os.path.exists(excel_file_path):
+    print(f"Error: File '{excel_file_path}' not found")
+    exit(1)
+
+# Read the Excel file
+try:
+    df = pd.read_excel(excel_file_path, sheet_name='Joining')
+    print(f"Successfully loaded {len(df)} rows from 'Joining' sheet")
+    
+    # Display the first few rows to verify the data structure
+    print("\nFirst 5 rows of data:")
+    print(df.head())
+except Exception as e:
+    print(f"Error reading Excel file: {e}")
+    exit(1)
+
+# Configure Flask app and database connection
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:german@localhost/gbdb'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:german@localhost/gbdb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'your-secret-key'  # Required for flash messages
 db = SQLAlchemy(app)
 
-# Keep your existing model definitions
+# Define your model (matching your existing table)
+class Joining(db.Model):
+    __tablename__ = 'joining'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    fg_code = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.String(255))
+    fw = db.Column(db.Boolean, default=False)
+    make_to_order = db.Column(db.Boolean, default=False)
+    min_level = db.Column(db.Float)
+    max_level = db.Column(db.Float)
+    kg_per_unit = db.Column(db.Float)
+    loss = db.Column(db.Float)
+    filling_code = db.Column(db.String(50))
+    filling_description = db.Column(db.String(255))
+    production = db.Column(db.String(50))
 
-def generate_id(prefix):
-    return f"{prefix}-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:4]}"
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/item-master')
-def item_master():
-    # Fetch all required data for the page
-    items = db.session.query(
-        ItemMaster,
-        ItemType.itemTypeName,
-        Category.categoryName,
-        Department.departmentName,
-        Machinery.machineryName
-    ).outerjoin(ItemType).outerjoin(Category).outerjoin(Department).outerjoin(Machinery).all()
+# Upload data to MySQL
+with app.app_context():
+    # Track progress
+    total_rows = len(df)
+    print(f"Starting to upload {total_rows} rows...")
     
-    item_types = ItemType.query.all()
-    categories = Category.query.all()
-    departments = Department.query.all()
-    machines = Machinery.query.all()
+    # Insert data row by row
+    for index, row in df.iterrows():
+        try:
+            # Handle potential NaN values
+            row = row.fillna('')
+            
+            # Convert boolean columns properly
+            fw_value = False
+            if 'FW' in df.columns:
+                if pd.notna(row['FW']):
+                    if isinstance(row['FW'], str):
+                        fw_value = row['FW'].lower() in ['yes', 'true', '1', 'y']
+                    else:
+                        fw_value = bool(row['FW'])
+            
+            mto_value = False
+            if 'MakeToOrder' in df.columns:
+                if pd.notna(row['MakeToOrder']):
+                    if isinstance(row['MakeToOrder'], str):
+                        mto_value = row['MakeToOrder'].lower() in ['yes', 'true', '1', 'y']
+                    else:
+                        mto_value = bool(row['MakeToOrder'])
+            
+            # Create new record
+            joining = Joining(
+                fg_code=str(row['FG Code']) if 'FG Code' in df.columns and row['FG Code'] != '' else 'N/A',
+                description=str(row['Description']) if 'Description' in df.columns and row['Description'] != '' else None,
+                fw=fw_value,
+                make_to_order=mto_value,
+                min_level=float(row['Min Level']) if 'Min Level' in df.columns and row['Min Level'] != '' else None,
+                max_level=float(row['Max Level']) if 'Max Level' in df.columns and row['Max Level'] != '' else None,
+                kg_per_unit=float(row['kg/unit']) if 'kg/unit' in df.columns and row['kg/unit'] != '' else None,
+                loss=float(row['Loss']) if 'Loss' in df.columns and row['Loss'] != '' else None,
+                filling_code=str(row['Filling Code']) if 'Filling Code' in df.columns and row['Filling Code'] != '' else None,
+                filling_description=str(row['Filling Description']) if 'Filling Description' in df.columns and row['Filling Description'] != '' else None,
+                production=str(row['Production']) if 'Production' in df.columns and row['Production'] != '' else None
+            )
+            
+            db.session.add(joining)
+            
+            # Print progress periodically
+            if (index + 1) % 50 == 0 or index == total_rows - 1:
+                print(f"Processed {index + 1}/{total_rows} rows")
+                
+        except Exception as e:
+            print(f"Error processing row {index}: {e}")
+            # Continue with next row instead of failing completely
+            continue
     
-    return render_template('item-master.html',
-                         items=items,
-                         item_types=item_types,
-                         categories=categories,
-                         departments=departments,
-                         machines=machines)
-
-@app.route('/add-item', methods=['POST'])
-def add_item():
+    # Commit all changes at once
     try:
-        new_item = ItemMaster(
-            itemID=generate_id('ITEM'),
-            itemName=request.form['itemName'],
-            itemDescription=request.form['itemDescription'],
-            itemTypeID=request.form['itemTypeID'],
-            categoryID=request.form['categoryID'],
-            departmentID=request.form['departmentID'],
-            machineID=request.form.get('machineID'),
-            kg_per_box=request.form.get('kg_per_box'),
-            kg_per_each=request.form.get('kg_per_each'),
-            units_per_box=request.form.get('units_per_box'),
-            min_stocks_in_boxes=request.form.get('min_stocks_in_boxes'),
-            max_stocks_in_boxes=request.form.get('max_stocks_in_boxes'),
-            fill_weight=request.form.get('fill_weight'),
-            casing=request.form.get('casing'),
-            ideal_batch_size=request.form.get('ideal_batch_size')
-        )
-        db.session.add(new_item)
         db.session.commit()
-        flash('Item added successfully', 'success')
+        print("All data has been uploaded successfully!")
     except Exception as e:
         db.session.rollback()
-        flash(f'Error adding item: {str(e)}', 'error')
-    return redirect(url_for('item_master'))
-
-@app.route('/add-item-type', methods=['POST'])
-def add_item_type():
-    try:
-        new_type = ItemType(
-            itemTypeID=generate_id('TYPE'),
-            itemTypeName=request.form['itemTypeName']
-        )
-        db.session.add(new_type)
-        db.session.commit()
-        flash('Item type added successfully', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error adding item type: {str(e)}', 'error')
-    return redirect(url_for('item_master'))
-
-@app.route('/add-category', methods=['POST'])
-def add_category():
-    try:
-        new_category = Category(
-            categoryID=generate_id('CAT'),
-            categoryName=request.form['categoryName']
-        )
-        db.session.add(new_category)
-        db.session.commit()
-        flash('Category added successfully', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error adding category: {str(e)}', 'error')
-    return redirect(url_for('item_master'))
-
-@app.route('/add-department', methods=['POST'])
-def add_department():
-    try:
-        new_department = Department(
-            departmentID=generate_id('DEPT'),
-            departmentName=request.form['departmentName']
-        )
-        db.session.add(new_department)
-        db.session.commit()
-        flash('Department added successfully', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error adding department: {str(e)}', 'error')
-    return redirect(url_for('item_master'))
-
-@app.route('/add-machine', methods=['POST'])
-def add_machine():
-    try:
-        new_machine = Machinery(
-            machineID=generate_id('MACH'),
-            machineryName=request.form['machineryName']
-        )
-        db.session.add(new_machine)
-        db.session.commit()
-        flash('Machine added successfully', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error adding machine: {str(e)}', 'error')
-    return redirect(url_for('item_master'))
-
-@app.route('/recipe-master')
-def recipe_master():
-    recipes = RecipeMaster.query.all()
-    return render_template('recipe-master.html', recipes=recipes)
-
-if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
+        print(f"Error committing changes to database: {e}")

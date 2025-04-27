@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>{{ table_name }}</h1>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul>
+                {% for message in messages %}
+                    <li>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <nav>
+        <a href="{{ url_for('view_packing', date=packing_data[0].pack_date if packing_data else '') }}">View Packing</a> |
+        <a href="{{ url_for('view_filling', date=filling_data[0].pack_date if filling_data else '') }}">View Filling</a> |
+        <a href="{{ url_for('view_production', date=production_data[0].pack_date if production_data else '') }}">View Production</a> |
+        <a href="{{ url_for('view_usage', date=usage_data[0].pack_date if usage_data else '') }}">View Usage</a> |
+        <a href="{{ url_for('view_raw_material', date=raw_material_data[0].pack_date if raw_material_data else '') }}">View Raw Material</a>
+    </nav>
+
+    <!-- Packing Table -->
+    <h2>Packing</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Pack Date</th>
+                <th>FG Code</th>
+                <th>Description</th>
+                <th>Unit5</th>
+                <th>Total KG</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in packing_data %}
+                <tr>
+                    <td>{{ row.pack_date }}</td>
+                    <td>{{ row.fg_code }}</td>
+                    <td>{{ row.description }}</td>
+                    <td>{{ row.unit5 }}</td>
+                    <td>{{ row.total_kg }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Filling Table -->
+    <h2>Filling</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Pack Date</th>
+                <th>Fill Code</th>
+                <th>Fill Description</th>
+                <th>Total KG</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in filling_data %}
+                <tr>
+                    <td>{{ row.pack_date }}</td>
+                    <td>{{ row.fill_code }}</td>
+                    <td>{{ row.fill_desc }}</td>
+                    <td>{{ row.total_kg }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Production Table -->
+    <h2>Production</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Pack Date</th>
+                <th>Prod Code</th>
+                <th>Description</th>
+                <th>Batches</th>
+                <th>Total KG</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in production_data %}
+                <tr>
+                    <td>{{ row.pack_date }}</td>
+                    <td>{{ row.prod_code }}</td>
+                    <td>{{ row.description }}</td>
+                    <td>{{ row.batches }}</td>
+                    <td>{{ row.total_kg }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Usage Table -->
+    <h2>Usage</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Pack Date</th>
+                <th>Prod Code</th>
+                <th>Raw Material</th>
+                <th>Usage</th>
+                <th>Percentage</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in usage_data %}
+                <tr>
+                    <td>{{ row.pack_date }}</td>
+                    <td>{{ row.prod_code }}</td>
+                    <td>{{ row.raw_material }}</td>
+                    <td>{{ row.usage }}</td>
+                    <td>{{ row.percentage }}%</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Raw Material Table -->
+    <h2>Raw Material</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Raw Material</th>
+                <th>Meat Required</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in raw_material_data %}
+                <tr>
+                    <td>{{ row.raw_material }}</td>
+                    <td>{{ row.meat_required }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ url_for('index') }}">Back to Home</a>
+</body>
+</html>

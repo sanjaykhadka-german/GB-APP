@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOH (Stock on Hand)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <h1>SOH (Stock on Hand)</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('item_master') }}">Item Master</a></li>
+                <li><a href="{{ url_for('production_plan') }}">Production Plan</a></li>
+                <li><a href="{{ url_for('raw_material') }}">Raw Material</a></li>
+                <li><a href="{{ url_for('recipe_master') }}">Recipe Master</a></li>
+                <li><a href="{{ url_for('soh') }}">SOH</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <h2>SOH List</h2>
+    <form method="POST" action="{{ url_for('soh') }}">
+        <label for="item_id">Item ID:</label>
+        <input type="text" id="item_id" name="item_id" required>
+        
+        <label for="soh">SOH Quantity:</label>
+        <input type="number" id="soh" name="soh" required>
+        
+        <label for="uom">UOM:</label>
+        <select id="uom" name="uom" required>
+            <option value="Box">Box</option>
+			<option value="Bucket">Bucket</option>
+			<option value="Caddy">Caddy</option>
+            <option value="KG">KG</option>
+			<option value="Rolls">Rolls</option>
+			<option value="Unit">Unit</option>
+			
+			
+            <!-- Add more UOM options as needed -->
+        </select>
+        
+        <label for="start_date">Start Date:</label>
+        <input type="date" id="start_date" name="start_date" required>
+        
+        <label for="week_commencing">Week Commencing:</label>
+        <input type="date" id="week_commencing" name="week_commencing" required>
+        
+        <button type="submit">Add SOH Entry</button>
+    </form>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Item ID</th>
+                    <th>SOH</th>
+                    <th>UOM</th>
+                    <th>Start Date</th>
+                    <th>Week Commencing</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for soh_item in soh_items %}
+                <tr>
+                    <td>{{ soh_item.id }}</td>
+                    <td>{{ soh_item.item_id }}</td>
+                    <td>{{ soh_item.soh }}</td>
+                    <td>{{ soh_item.uom }}</td>
+                    <td>{{ soh_item.start_date }}</td>
+                    <td>{{ soh_item.week_commencing }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>
