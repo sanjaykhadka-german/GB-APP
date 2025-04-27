@@ -1,6 +1,4 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-#from app import db  # Import db at module level
-from models.joining import Joining
 
 # Create a Blueprint for joining routes
 joining_bp = Blueprint('joining', __name__, template_folder='templates')
@@ -8,12 +6,16 @@ joining_bp = Blueprint('joining', __name__, template_folder='templates')
 # Joining List Route
 @joining_bp.route('/joining_list', methods=['GET'])
 def joining_list():
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
     joinings = Joining.query.all()
     return render_template('joining/list.html', joinings=joinings)
 
 # Joining Create Route
 @joining_bp.route('/joining_create', methods=['GET', 'POST'])
 def joining_create():
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
     if request.method == 'POST':
         fg_code = request.form['fg_code']
         description = request.form['description']
@@ -51,6 +53,8 @@ def joining_create():
 # Joining Edit Route
 @joining_bp.route('/joining_edit/<int:id>', methods=['GET', 'POST'])
 def joining_edit(id):
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
     joining = Joining.query.get(id)
 
     if request.method == 'POST':
@@ -75,6 +79,8 @@ def joining_edit(id):
 # Joining Delete Route
 @joining_bp.route('/joining_delete/<int:id>', methods=['POST'])
 def joining_delete(id):
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
     joining = Joining.query.get(id)
 
     if joining:

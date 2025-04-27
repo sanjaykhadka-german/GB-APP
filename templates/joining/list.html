@@ -22,6 +22,14 @@
                 <th>ID</th>
                 <th>FG Code</th>
                 <th>Description</th>
+                <th>FW</th>
+                <th>Make To Order</th>
+                <th>Min Level</th>
+                <th>Max Level</th>
+                <th>kg/unit</th>
+                <th>Loss</th>
+                <th>Filling Code</th>
+                <th>Filling Description</th>
                 <th>Production</th>
                 <th>Actions</th>
             </tr>
@@ -32,10 +40,18 @@
                 <td>{{ joining.id }}</td>
                 <td>{{ joining.fg_code }}</td>
                 <td>{{ joining.description }}</td>
-                <td>{{ joining.production }}</td>
+                <td>{{ 'Yes' if joining.fw else 'No' }}</td>
+                <td>{{ 'Yes' if joining.make_to_order else 'No' }}</td>
+                <td>{{ joining.min_level if joining.min_level is not none else '' }}</td>
+                <td>{{ joining.max_level if joining.max_level is not none else '' }}</td>
+                <td>{{ joining.kg_per_unit if joining.kg_per_unit is not none else '' }}</td>
+                <td>{{ joining.loss if joining.loss is not none else '' }}</td>
+                <td>{{ joining.filling_code if joining.filling_code else '' }}</td>
+                <td>{{ joining.filling_description if joining.filling_description else '' }}</td>
+                <td>{{ joining.production if joining.production else '' }}</td>
                 <td>
-                    <a href="{{ url_for('joining_edit', id=joining.id) }}" class="btn btn-warning btn-sm">Edit</a>
-                    <form action="{{ url_for('joining_delete', id=joining.id) }}" method="post" style="display:inline-block;">
+                    <a href="{{ url_for('joining.joining_edit', id=joining.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                    <form action="{{ url_for('joining.joining_delete', id=joining.id) }}" method="post" style="display:inline-block;">
                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this joining?')">Delete</button>
                     </form>
                 </td>

@@ -23,12 +23,52 @@
 
         <div class="mb-3">
             <label for="description" class="form-label">Description</label>
-            <input type="text" class="form-control" id="description" name="description" value="{{ joining.description }}">
+            <input type="text" class="form-control" id="description" name="description" value="{{ joining.description if joining.description else '' }}">
+        </div>
+
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="fw" name="fw" {{ 'checked' if joining.fw else '' }}>
+            <label for="fw" class="form-check-label">FW</label>
+        </div>
+
+        <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="make_to_order" name="make_to_order" {{ 'checked' if joining.make_to_order else '' }}>
+            <label for="make_to_order" class="form-check-label">Make To Order</label>
+        </div>
+
+        <div class="mb-3">
+            <label for="min_level" class="form-label">Min Level</label>
+            <input type="number" step="0.01" class="form-control" id="min_level" name="min_level" value="{{ joining.min_level if joining.min_level is not none else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="max_level" class="form-label">Max Level</label>
+            <input type="number" step="0.01" class="form-control" id="max_level" name="max_level" value="{{ joining.max_level if joining.max_level is not none else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="kg_per_unit" class="form-label">kg/unit</label>
+            <input type="number" step="0.01" class="form-control" id="kg_per_unit" name="kg_per_unit" value="{{ joining.kg_per_unit if joining.kg_per_unit is not none else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="loss" class="form-label">Loss</label>
+            <input type="number" step="0.01" class="form-control" id="loss" name="loss" value="{{ joining.loss if joining.loss is not none else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="filling_code" class="form-label">Filling Code</label>
+            <input type="text" class="form-control" id="filling_code" name="filling_code" value="{{ joining.filling_code if joining.filling_code else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="filling_description" class="form-label">Filling Description</label>
+            <input type="text" class="form-control" id="filling_description" name="filling_description" value="{{ joining.filling_description if joining.filling_description else '' }}">
         </div>
 
         <div class="mb-3">
             <label for="production" class="form-label">Production</label>
-            <input type="text" class="form-control" id="production" name="production" value="{{ joining.production }}">
+            <input type="text" class="form-control" id="production" name="production" value="{{ joining.production if joining.production else '' }}">
         </div>
 
         <button type="submit" class="btn btn-warning">Update Joining</button>

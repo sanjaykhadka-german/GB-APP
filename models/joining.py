@@ -1,4 +1,4 @@
-from app import db
+from database import db
 
 class Joining(db.Model):
     __tablename__ = 'joining'

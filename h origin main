@@ -1,0 +1,41 @@
+[33mcommit 502028de4eb849459427db5e5fb39e0af2b3684a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Sun Apr 27 14:23:41 2025 +1000
+
+    updated joining tabel
+
+[33mcommit c88843b103bd90d617c82c25f254ebfcd80a1cae[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Tue Feb 25 16:35:59 2025 +1100
+
+    upated item and recipe_search pages
+
+[33mcommit 42054321f6c3d27ae7bfe022048c5750779dc38d[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Thu Feb 20 09:21:38 2025 +1100
+
+    updates item and recipe pages with new styles
+
+[33mcommit dd8aa0ce7d5f7c16533f597d68c7acdc4a223407[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Wed Feb 19 15:20:01 2025 +1100
+
+    updates item and recipe pages with
+
+[33mcommit 3f5c3d552bbefdfd197c9346b6237bf5afebbd87[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Wed Feb 19 09:09:37 2025 +1100
+
+    updated the item-master and recipe-master flask and html files
+
+[33mcommit 98305b4121a5d4ec350342fbff26cb1369e23707[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Mon Feb 17 11:34:59 2025 +1100
+
+    item and recipe pages
+
+[33mcommit 3e95298b1564d6c01201abb266814e3f8d58845c[m
+Author: sanjaykhadka-german <sanjay.khadka@germanbutchery.com.au>
+Date:   Thu Feb 13 08:15:36 2025 +1100
+
+    Initial commit

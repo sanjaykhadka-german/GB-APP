@@ -1,3 +1,4 @@
+from database import db
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
@@ -11,7 +12,7 @@ from sqlalchemy.sql import text
 import os
 
 # Initialize SQLAlchemy without app (will bind to app later)
-db = SQLAlchemy()
+#db = SQLAlchemy()
 
 def create_app():
     # Create and configure the Flask app
@@ -27,44 +28,41 @@ def create_app():
     from controllers.joining_controller import joining_bp
     app.register_blueprint(joining_bp)
 
-    # Import models to ensure they are registered with db
-    #from models import ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster, Joining
-
-    # Define routes
+    # Define routes with deferred model imports
     @app.route('/')
     def index():
-        with app.app_context():
-            categories = Category.query.all()
+        from models import Category  # Defer import
+        categories = Category.query.all()
         return render_template('index.html', categories=categories)
 
     @app.route('/recipe_search', methods=['GET'])
     def recipe_search():
+        from models import ItemMaster, ItemType, Category, Department, Machinery
         search_item_no = request.args.get('item_no', '')
         search_name = request.args.get('name', '')
 
-        with app.app_context():
-            query = db.session.query(
-                ItemMaster,
-                ItemType.itemTypeName,
-                Category.categoryName,
-                Department.departmentName,
-                Machinery.machineryName
-            ).outerjoin(ItemType, ItemMaster.itemTypeID == ItemType.itemTypeID)\
-             .outerjoin(Category, ItemMaster.categoryID == Category.categoryID)\
-             .outerjoin(Department, ItemMaster.departmentID == Department.departmentID)\
-             .outerjoin(Machinery, ItemMaster.machineID == Machinery.machineID)
+        query = db.session.query(
+            ItemMaster,
+            ItemType.itemTypeName,
+            Category.categoryName,
+            Department.departmentName,
+            Machinery.machineryName
+        ).outerjoin(ItemType, ItemMaster.itemTypeID == ItemType.itemTypeID)\
+         .outerjoin(Category, ItemMaster.categoryID == Category.categoryID)\
+         .outerjoin(Department, ItemMaster.departmentID == Department.departmentID)\
+         .outerjoin(Machinery, ItemMaster.machineID == Machinery.machineID)
 
-            if search_item_no:
-                query = query.filter(ItemMaster.itemID.ilike(f"%{search_item_no}%"))
-            if search_name:
-                query = query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
+        if search_item_no:
+            query = query.filter(ItemMaster.itemID.ilike(f"%{search_item_no}%"))
+        if search_name:
+            query = query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
 
-            items = query.all()
+        items = query.all()
 
-            types = ItemType.query.all()
-            categories = Category.query.all()
-            departments = Department.query.all()
-            machines = Machinery.query.all()
+        types = ItemType.query.all()
+        categories = Category.query.all()
+        departments = Department.query.all()
+        machines = Machinery.query.all()
 
         return render_template('recipe_search.html', 
                              items=items,
@@ -77,6 +75,7 @@ def create_app():
 
     @app.route('/recipe_add', methods=['GET', 'POST'])
     def recipe_add():
+        from models import RecipeMaster, ItemMaster
         if request.method == 'POST':
             recipeID = request.form.get('recipeID')
             recipeName = request.form.get('recipeName')
@@ -91,23 +90,22 @@ def create_app():
                     return render_template('recipe_add.html')
 
                 usageMaterial = Decimal(usageMaterial)
-                with app.app_context():
-                    total_usage_for_name = db.session.query(db.func.sum(RecipeMaster.usageMaterial)).filter(RecipeMaster.recipeName == recipeName).scalar()
-                    total_usage_for_name = float(total_usage_for_name) if total_usage_for_name else 0.0
-                    percentage = (float(usageMaterial) / total_usage_for_name) * 100 if total_usage_for_name else 0
+                total_usage_for_name = db.session.query(db.func.sum(RecipeMaster.usageMaterial)).filter(RecipeMaster.recipeName == recipeName).scalar()
+                total_usage_for_name = float(total_usage_for_name) if total_usage_for_name else 0.0
+                percentage = (float(usageMaterial) / total_usage_for_name) * 100 if total_usage_for_name else 0
 
-                    new_recipe = RecipeMaster(
-                        recipeID=recipeID,
-                        recipeName=recipeName,
-                        itemID=itemID,
-                        rawMaterial=rawMaterial,
-                        usageMaterial=usageMaterial,
-                        uom=uom,
-                        percentage=Decimal(percentage)
-                    )
+                new_recipe = RecipeMaster(
+                    recipeID=recipeID,
+                    recipeName=recipeName,
+                    itemID=itemID,
+                    rawMaterial=rawMaterial,
+                    usageMaterial=usageMaterial,
+                    uom=uom,
+                    percentage=Decimal(percentage)
+                )
 
-                    db.session.add(new_recipe)
-                    db.session.commit()
+                db.session.add(new_recipe)
+                db.session.commit()
 
                 flash("Recipe added successfully!", 'success')
                 return redirect(url_for('recipe_add'))
@@ -115,37 +113,33 @@ def create_app():
             except ValueError:
                 flash("Invalid input. Please check your data.", 'error')
                 db.session.rollback()
-                with app.app_context():
-                    recipes = RecipeMaster.query.all()
+                recipes = RecipeMaster.query.all()
                 return render_template('recipe_add.html', recipes=recipes)
 
             except sqlalchemy.exc.IntegrityError as e:
                 db.session.rollback()
                 flash(f"Error: {str(e)}", 'error')
-                with app.app_context():
-                    recipes = RecipeMaster.query.all()
+                recipes = RecipeMaster.query.all()
                 return render_template('recipe_add.html', recipes=recipes)
 
             except Exception as e:
                 db.session.rollback()
                 flash(f"An unexpected error occurred: {str(e)}", 'error')
-                with app.app_context():
-                    recipes = RecipeMaster.query.all()
+                recipes = RecipeMaster.query.all()
                 return render_template('recipe_add.html', recipes=recipes)
         
-        with app.app_context():
-            recipes = RecipeMaster.query.all()
+        recipes = RecipeMaster.query.all()
         return render_template('recipe_add.html', recipes=recipes)
 
     @app.route('/add_department', methods=['POST'])
     def add_department():
+        from models import Department
         try:
             department_id = request.form['departmentID']
             department_name = request.form['departmentName']
             new_department = Department(departmentID=department_id, departmentName=department_name)
-            with app.app_context():
-                db.session.add(new_department)
-                db.session.commit()
+            db.session.add(new_department)
+            db.session.commit()
             flash('Department added successfully!', 'success')
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
@@ -157,13 +151,13 @@ def create_app():
 
     @app.route('/add_machine', methods=['POST'])
     def add_machine():
+        from models import Machinery
         try:
             machine_id = request.form['machineID']
             machinery_name = request.form['machineryName']
             new_machine = Machinery(machineID=machine_id, machineryName=machinery_name)
-            with app.app_context():
-                db.session.add(new_machine)
-                db.session.commit()
+            db.session.add(new_machine)
+            db.session.commit()
             flash('Machine added successfully!', 'success')
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
@@ -175,13 +169,13 @@ def create_app():
 
     @app.route('/add_item_type', methods=['POST'])
     def add_item_type():
+        from models import ItemType
         try:
             itemTypeID = request.form['itemTypeID']
             itemTypeName = request.form['itemTypeName']
             new_item_type = ItemType(itemTypeID=itemTypeID, itemTypeName=itemTypeName)
-            with app.app_context():
-                db.session.add(new_item_type)
-                db.session.commit()
+            db.session.add(new_item_type)
+            db.session.commit()
             flash('Item Type added successfully!', 'success')
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
@@ -193,6 +187,7 @@ def create_app():
 
     @app.route('/add_item', methods=['POST'])
     def add_item():
+        from models import ItemMaster
         try:
             itemID = request.form['itemID']
             itemName = request.form['itemName']
@@ -232,14 +227,13 @@ def create_app():
                 ideal_batch_size=ideal_batch_size
             )
 
-            with app.app_context():
-                existing_item = ItemMaster.query.filter_by(itemID=itemID).first()
-                if existing_item:
-                    flash(f"Item ID '{itemID}' already exists. Please use a different ID.", 'error')
-                    return redirect(url_for('item_master'))
+            existing_item = ItemMaster.query.filter_by(itemID=itemID).first()
+            if existing_item:
+                flash(f"Item ID '{itemID}' already exists. Please use a different ID.", 'error')
+                return redirect(url_for('item_master'))
 
-                db.session.add(new_item)
-                db.session.commit()
+            db.session.add(new_item)
+            db.session.commit()
             flash('Item added successfully!', 'success')
             return redirect(url_for('item_master'))
         except sqlalchemy.exc.IntegrityError as e:
@@ -258,6 +252,7 @@ def create_app():
 
     @app.route('/add_recipe', methods=['POST'])
     def add_recipe():
+        from models import RecipeMaster
         recipe_items = []
         current_recipe = {}
 
@@ -294,24 +289,24 @@ def create_app():
             percentage = (item['usageMaterial'] / total_usage_for_name) * 100 if total_usage_for_name else 0
             percentages[item['recipeID']] = percentage
 
-        with app.app_context():
-            for item in recipe_items:
-                new_recipe = RecipeMaster(
-                    recipeID=item['recipeID'],
-                    recipeName=item['recipeName'],
-                    itemID=item['itemID'],
-                    rawMaterial=item['rawMaterial'],
-                    usageMaterial=item['usageMaterial'],
-                    uom=item['uom'],
-                    percentage=percentages[item['recipeID']]
-                )
-                db.session.add(new_recipe)
+        for item in recipe_items:
+            new_recipe = RecipeMaster(
+                recipeID=item['recipeID'],
+                recipeName=item['recipeName'],
+                itemID=item['itemID'],
+                rawMaterial=item['rawMaterial'],
+                usageMaterial=item['usageMaterial'],
+                uom=item['uom'],
+                percentage=percentages[item['recipeID']]
+            )
+            db.session.add(new_recipe)
 
-            db.session.commit()
+        db.session.commit()
         return redirect(url_for('recipe_add'))
 
     @app.route('/autocomplete', methods=['GET'])
     def autocomplete():
+        from models import ItemMaster
         search = request.args.get('query', '').strip()
 
         if not search:
@@ -319,8 +314,7 @@ def create_app():
 
         try:
             query = text("SELECT itemID, itemName FROM item_master WHERE itemID LIKE :search LIMIT 10")
-            with app.app_context():
-                results = db.session.execute(query, {"search": search + "%"}).fetchall()
+            results = db.session.execute(query, {"search": search + "%"}).fetchall()
             suggestions = [{"item_no": row[0], "item_name": row[1]} for row in results]
             return jsonify(suggestions)
         except Exception as e:
@@ -329,18 +323,18 @@ def create_app():
 
     @app.route('/get_search_items', methods=['GET'])
     def get_search_items():
+        from models import ItemMaster
         search_item_no = request.args.get('item_no', '').strip()
         search_name = request.args.get('name', '').strip()
 
-        with app.app_context():
-            items_query = ItemMaster.query
+        items_query = ItemMaster.query
 
-            if search_item_no:
-                items_query = items_query.filter(ItemMaster.itemID.like(f"{search_item_no}%"))
-            if search_name:
-                items_query = items_query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
+        if search_item_no:
+            items_query = items_query.filter(ItemMaster.itemID.like(f"{search_item_no}%"))
+        if search_name:
+            items_query = items_query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
 
-            items = items_query.all()
+        items = items_query.all()
 
         items_data = [
             {
@@ -368,6 +362,8 @@ def create_app():
 
     # Create database tables within app context
     with app.app_context():
+        # Import models for table creation
+        from models import ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster, Joining
         db.create_all()
 
     return app
