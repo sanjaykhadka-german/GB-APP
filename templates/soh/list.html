@@ -1,0 +1,49 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>SOH List</h2>
+    <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary my-3">Add New SOH Entry</a>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>FG Code</th>
+                <th>Description</th>
+                <th>SOH Total Box</th>
+                <th>SOH Total Unit</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for soh in sohs %}
+            <tr>
+                <td>{{ soh.id }}</td>
+                <td>{{ soh.fg_code }}</td>
+                <td>{{ soh.description }}</td>
+                <td>{{ soh.boxes }}</td>
+                <td>{{ soh.units }}</td>
+                <td>
+                    <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                    <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -7,7 +7,7 @@ class ItemMaster(db.Model):
     itemDescription = db.Column(db.String(255))
     itemTypeID = db.Column(db.String(255), db.ForeignKey('item_type.itemTypeID'))
     categoryID = db.Column(db.String(255), db.ForeignKey('category.categoryID'))
-    departmentID = db.Column(db.String(255), db.ForeignKey('department.departmentID'))
+    department_id = db.Column(db.String(255), db.ForeignKey('department.department_id'))
     machineID = db.Column(db.String(255), db.ForeignKey('machinery.machineID'))
     kg_per_box = db.Column(db.Numeric(20, 3))
     kg_per_each = db.Column(db.Numeric(20, 3))

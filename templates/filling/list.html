@@ -1,0 +1,49 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Filling List</h2>
+    <a href="{{ url_for('filling.filling_create') }}" class="btn btn-primary my-3">Add New Filling Entry</a>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Filling Date</th>
+                <th>Fill Code</th>
+                <th>Description</th>
+                <th>Kilo per Size</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for filling in fillings %}
+            <tr>
+                <td>{{ filling.id }}</td>
+                <td>{{ filling.filling_date.strftime('%d/%m/%Y') }}</td>
+                <td>{{ filling.fill_code }}</td>
+                <td>{{ filling.description if filling.description else '' }}</td>
+                <td>{{ filling.kilo_per_size }}</td>
+                <td>
+                    <a href="{{ url_for('filling.filling_edit', id=filling.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                    <form action="{{ url_for('filling.filling_delete', id=filling.id) }}" method="post" style="display:inline-block;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this filling entry?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

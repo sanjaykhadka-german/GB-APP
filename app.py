@@ -11,8 +11,6 @@ from dotenv import load_dotenv
 from sqlalchemy.sql import text
 import os
 
-# Initialize SQLAlchemy without app (will bind to app later)
-#db = SQLAlchemy()
 
 def create_app():
     # Create and configure the Flask app
@@ -24,9 +22,39 @@ def create_app():
     # Initialize SQLAlchemy with the app
     db.init_app(app)
 
-    # Register the joining Blueprint
+    # Register Blueprints
     from controllers.joining_controller import joining_bp
     app.register_blueprint(joining_bp)
+
+    from controllers.soh_controller import soh_bp
+    app.register_blueprint(soh_bp)
+
+    from controllers.packing_controller import packing_bp
+    app.register_blueprint(packing_bp)
+
+    from controllers.filling_controller import filling_bp
+    app.register_blueprint(filling_bp)
+
+    from controllers.production_controller import production_bp
+    app.register_blueprint(production_bp)
+
+    # Register the Recipe Blueprint
+    from controllers.recipe_controller import recipe_bp
+    app.register_blueprint(recipe_bp)
+
+    from controllers.production_plan_controller import production_plan_bp
+    app.register_blueprint(production_plan_bp,url_prefix='/production_plan')
+
+    from controllers.inject_products_controller import injected_products_bp
+    app.register_blueprint(injected_products_bp)
+
+    # from controllers.cooking_program_controller import cooking_program_bp
+    # app.register_blueprint(cooking_program_bp)
+
+    # from controllers.cooking_record_controller import cooking_record_bp
+    # app.register_blueprint(cooking_record_bp)
+
+    
 
     # Define routes with deferred model imports
     @app.route('/')
@@ -34,102 +62,6 @@ def create_app():
         from models import Category  # Defer import
         categories = Category.query.all()
         return render_template('index.html', categories=categories)
-
-    @app.route('/recipe_search', methods=['GET'])
-    def recipe_search():
-        from models import ItemMaster, ItemType, Category, Department, Machinery
-        search_item_no = request.args.get('item_no', '')
-        search_name = request.args.get('name', '')
-
-        query = db.session.query(
-            ItemMaster,
-            ItemType.itemTypeName,
-            Category.categoryName,
-            Department.departmentName,
-            Machinery.machineryName
-        ).outerjoin(ItemType, ItemMaster.itemTypeID == ItemType.itemTypeID)\
-         .outerjoin(Category, ItemMaster.categoryID == Category.categoryID)\
-         .outerjoin(Department, ItemMaster.departmentID == Department.departmentID)\
-         .outerjoin(Machinery, ItemMaster.machineID == Machinery.machineID)
-
-        if search_item_no:
-            query = query.filter(ItemMaster.itemID.ilike(f"%{search_item_no}%"))
-        if search_name:
-            query = query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
-
-        items = query.all()
-
-        types = ItemType.query.all()
-        categories = Category.query.all()
-        departments = Department.query.all()
-        machines = Machinery.query.all()
-
-        return render_template('recipe_search.html', 
-                             items=items,
-                             types=types,
-                             categories=categories,
-                             departments=departments,
-                             machines=machines,
-                             search_item_no=search_item_no,
-                             search_name=search_name)
-
-    @app.route('/recipe_add', methods=['GET', 'POST'])
-    def recipe_add():
-        from models import RecipeMaster, ItemMaster
-        if request.method == 'POST':
-            recipeID = request.form.get('recipeID')
-            recipeName = request.form.get('recipeName')
-            itemID = request.form.get('itemID')
-            rawMaterial = request.form.get('rawMaterial')
-            usageMaterial = request.form.get('usageMaterial')
-            uom = request.form.get('uom')
-
-            try:
-                if not all([recipeID, recipeName, itemID, rawMaterial, usageMaterial, uom]):
-                    flash("All fields are required.", 'error')
-                    return render_template('recipe_add.html')
-
-                usageMaterial = Decimal(usageMaterial)
-                total_usage_for_name = db.session.query(db.func.sum(RecipeMaster.usageMaterial)).filter(RecipeMaster.recipeName == recipeName).scalar()
-                total_usage_for_name = float(total_usage_for_name) if total_usage_for_name else 0.0
-                percentage = (float(usageMaterial) / total_usage_for_name) * 100 if total_usage_for_name else 0
-
-                new_recipe = RecipeMaster(
-                    recipeID=recipeID,
-                    recipeName=recipeName,
-                    itemID=itemID,
-                    rawMaterial=rawMaterial,
-                    usageMaterial=usageMaterial,
-                    uom=uom,
-                    percentage=Decimal(percentage)
-                )
-
-                db.session.add(new_recipe)
-                db.session.commit()
-
-                flash("Recipe added successfully!", 'success')
-                return redirect(url_for('recipe_add'))
-
-            except ValueError:
-                flash("Invalid input. Please check your data.", 'error')
-                db.session.rollback()
-                recipes = RecipeMaster.query.all()
-                return render_template('recipe_add.html', recipes=recipes)
-
-            except sqlalchemy.exc.IntegrityError as e:
-                db.session.rollback()
-                flash(f"Error: {str(e)}", 'error')
-                recipes = RecipeMaster.query.all()
-                return render_template('recipe_add.html', recipes=recipes)
-
-            except Exception as e:
-                db.session.rollback()
-                flash(f"An unexpected error occurred: {str(e)}", 'error')
-                recipes = RecipeMaster.query.all()
-                return render_template('recipe_add.html', recipes=recipes)
-        
-        recipes = RecipeMaster.query.all()
-        return render_template('recipe_add.html', recipes=recipes)
 
     @app.route('/add_department', methods=['POST'])
     def add_department():
@@ -250,120 +182,10 @@ def create_app():
             flash(f"An unexpected error occurred: {str(e)}", 'error')
             return redirect(url_for('item_master'))
 
-    @app.route('/add_recipe', methods=['POST'])
-    def add_recipe():
-        from models import RecipeMaster
-        recipe_items = []
-        current_recipe = {}
-
-        for key, value in request.form.items():
-            key_parts = key.split('-')
-            if len(key_parts) == 2:
-                field_name, item_index = key_parts
-                item_index = int(item_index)
-
-                if not current_recipe or current_recipe.get('item_index', None) != item_index:
-                    if current_recipe:
-                        recipe_items.append(current_recipe)
-                    current_recipe = {'item_index': item_index}
-
-                if field_name == 'recipeID':
-                    current_recipe['recipeID'] = value
-                elif field_name == 'recipeName':
-                    current_recipe['recipeName'] = value
-                elif field_name == 'itemID':
-                    current_recipe['itemID'] = value
-                elif field_name == 'rawMaterial':
-                    current_recipe['rawMaterial'] = value
-                elif field_name == 'usageMaterial':
-                    current_recipe['usageMaterial'] = float(value)
-                elif field_name == 'uom':
-                    current_recipe['uom'] = value
-
-        if current_recipe:
-            recipe_items.append(current_recipe)
-
-        percentages = {}
-        for item in recipe_items:
-            total_usage_for_name = sum(item['usageMaterial'] for item in recipe_items if item['recipeName'] == item['recipeName'])
-            percentage = (item['usageMaterial'] / total_usage_for_name) * 100 if total_usage_for_name else 0
-            percentages[item['recipeID']] = percentage
-
-        for item in recipe_items:
-            new_recipe = RecipeMaster(
-                recipeID=item['recipeID'],
-                recipeName=item['recipeName'],
-                itemID=item['itemID'],
-                rawMaterial=item['rawMaterial'],
-                usageMaterial=item['usageMaterial'],
-                uom=item['uom'],
-                percentage=percentages[item['recipeID']]
-            )
-            db.session.add(new_recipe)
-
-        db.session.commit()
-        return redirect(url_for('recipe_add'))
-
-    @app.route('/autocomplete', methods=['GET'])
-    def autocomplete():
-        from models import ItemMaster
-        search = request.args.get('query', '').strip()
-
-        if not search:
-            return jsonify([])
-
-        try:
-            query = text("SELECT itemID, itemName FROM item_master WHERE itemID LIKE :search LIMIT 10")
-            results = db.session.execute(query, {"search": search + "%"}).fetchall()
-            suggestions = [{"item_no": row[0], "item_name": row[1]} for row in results]
-            return jsonify(suggestions)
-        except Exception as e:
-            print("Error fetching autocomplete suggestions:", e)
-            return jsonify([])
-
-    @app.route('/get_search_items', methods=['GET'])
-    def get_search_items():
-        from models import ItemMaster
-        search_item_no = request.args.get('item_no', '').strip()
-        search_name = request.args.get('name', '').strip()
-
-        items_query = ItemMaster.query
-
-        if search_item_no:
-            items_query = items_query.filter(ItemMaster.itemID.like(f"{search_item_no}%"))
-        if search_name:
-            items_query = items_query.filter(ItemMaster.itemName.ilike(f"%{search_name}%"))
-
-        items = items_query.all()
-
-        items_data = [
-            {
-                "itemID": item.itemID,
-                "itemName": item.itemName,
-                "itemDescription": item.itemDescription,
-                "itemTypeID": item.itemTypeID,
-                "categoryID": item.categoryID,
-                "departmentID": item.departmentID,
-                "machineID": item.machineID,
-                "kg_per_box": item.kg_per_box,
-                "kg_per_each": item.kg_per_each,
-                "units_per_box": item.units_per_box,
-                "stock_item": item.stock_item,
-                "min_stocks_in_boxes": item.min_stocks_in_boxes,
-                "max_stocks_in_boxes": item.max_stocks_in_boxes,
-                "fill_weight": item.fill_weight,
-                "casing": item.casing,
-                "ideal_batch_size": item.ideal_batch_size
-            }
-            for item in items
-        ]
-
-        return jsonify(items_data)
-
     # Create database tables within app context
     with app.app_context():
         # Import models for table creation
-        from models import ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster, Joining
+        from models import ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster, Joining, SOH, Packing, Filling, Production, ProductionPlan, InjectedProducts, CookingProgram, CookingRecord 
         db.create_all()
 
     return app

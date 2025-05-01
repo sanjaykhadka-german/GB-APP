@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Plan List</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .action-links a {
+            margin-right: 10px;
+            text-decoration: none;
+        }
+        .action-links a.edit {
+            color: blue;
+        }
+        .action-links a.delete {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Production Plan List</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('recipe.recipe_add') }}">Recipe Add</a></li>
+                <li><a href="{{ url_for('recipe.recipe_search') }}">Recipe Search</a></li>
+                <li><a href="{{ url_for('recipe.usage') }}">Usage Report</a></li>
+                <li><a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a></li>
+                <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li>
+                <li><a href="{{ url_for('soh.soh_list') }}">SOH</a></li>
+                <li><a href="{{ url_for('packing.packing_list') }}">Packing</a></li>
+                <li><a href="{{ url_for('filling.filling_list') }}">Filling</a></li>
+                <li><a href="{{ url_for('production_plan.production_plan_list') }}">Production Plan</a></li>
+                <li><a href="{{ url_for('production_plan.production_plan_create') }}">Create Production Plan</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Production Plan List</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Batches</th>
+                    <th>Weight</th>
+                    <th>Actual</th>
+                    <th>Batch Number</th>
+                    <th>Production Date</th>
+                    <th>Machine</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Comments</th>
+                    <th>Operator</th>
+                    <th>Signature</th>
+                    <th>Room</th>
+                    <th>Traceability Production</th>
+                    <th>Filling Plan</th>
+                    <th>Raw Weight</th>
+                    <th>Injected Weight</th>
+                    <th>Actual Injected Weight</th>
+                    <th>Actual % Injected</th>
+                    <th>Cooking Record</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for plan in plans %}
+                <tr>
+                    <td>{{ plan.id }}</td>
+                    <td>{{ plan.description.description if plan.description else 'N/A' }}</td>
+                    <td>{{ plan.batches | round(2) }}</td>
+                    <td>{{ plan.weight | round(2) }}</td>
+                    <td>{{ plan.actual | round(2) }}</td>
+                    <td>{{ plan.batch_number.name if plan.batch_number else 'N/A' }}</td>
+                    <td>{{ plan.production_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ plan.machine.name if plan.machine else 'N/A' }}</td>
+                    <td>{{ plan.priority | round(2) }}</td>
+                    <td>{{ plan.status }}</td>
+                    <td>{{ plan.comments or 'N/A' }}</td>
+                    <td>{{ plan.operator.name if plan.operator else 'N/A' }}</td>
+                    <td>{{ plan.signature or 'N/A' }}</td>
+                    <td>{{ plan.room }}</td>
+                    <td>{{ plan.traceability_production.traceability_code if plan.traceability_production else 'N/A' }}</td>
+                    <td>{{ plan.filling_plan.filling_code if plan.filling_plan else 'N/A' }}</td>
+                    <td>{{ plan.raw_weight | round(2) }}</td>
+                    <td>{{ plan.injected_weight | round(2) }}</td>
+                    <td>{{ plan.actual_injected_weight | round(2) }}</td>
+                    <td>{{ plan.actual_percentage_injected | round(2) }}%</td>
+                    <td>{{ plan.cooking_record.cooking_code if plan.cooking_record else 'N/A' }}</td>
+                    <td class="action-links">
+                        <a href="{{ url_for('production_plan.production_plan_edit', id=plan.id) }}" class="edit">Edit</a>
+                        <form action="{{ url_for('production_plan.production_plan_delete', id=plan.id) }}" method="POST" style="display:inline;">
+                            <a href="#" onclick="this.parentNode.submit()" class="delete">Delete</a>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>
