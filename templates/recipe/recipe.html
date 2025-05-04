@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Master</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <style>
+        .suggestion-list {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .suggestion-list ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .suggestion-list li {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .suggestion-list li:hover {
+            background-color: #f5f5f5;
+        }
+        .search-field {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        .hidden {
+            display: none;
+        }
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .add-recipe-btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .add-recipe-btn:hover {
+            background-color: #45a049;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .flashes {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .flashes li {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .flashes li.success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .flashes li.error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Recipe Master</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Home</a></li>
+                <li><a href="{{ url_for('recipe.recipe_page') }}">Recipe</a></li>
+                <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li>
+                <li><a href="{{ url_for('soh.soh_list') }}">SOH</a></li>
+                <li><a href="{{ url_for('packing.packing_list') }}">Packing</a></li>
+                <li><a href="{{ url_for('filling.filling_list') }}">Filling</a></li>
+                <li><a href="{{ url_for('production.production_list') }}">Production</a></li>
+                <li><a href="{{ url_for('recipe.usage') }}">Usage Report</a></li>
+                <li><a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a></li>
+                <li><a href="{{ url_for('production_plan.production_plan') }}">Production Plans</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Recipe Search Section -->
+        <section id="search">
+            <h2>Recipe Search</h2>
+            <form id="searchForm" onsubmit="return false;">
+                <label for="search-input">Recipe Code:</label>
+                <input type="text" id="search-input" name="recipe_code" value="{{ search_recipe_code | default('') }}" autocomplete="off">
+                <div id="recipe_code_suggestions" class="suggestion-list"></div>
+
+                <label for="search_description">Description:</label>
+                <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
+
+                <button type="button" onclick="fetchRecipes()">Search</button>
+            </form>
+
+            <div id="resultSection" class="hidden">
+                <h3>Recipe List</h3>
+                <div class="table-container">
+                    <table id="recipeListTable">
+                        <thead>
+                            <tr>
+                                <th>Recipe Code</th>
+                                <th>Description</th>
+                                <th>Raw Material</th>
+                                <th>KG per Batch</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Recipe Section -->
+        <section id="add">
+            <h2>Add Recipe</h2>
+            <form action="{{ url_for('recipe.recipe_page') }}" method="POST">
+                <div class="form-group">
+                    <label for="recipe_code">Recipe Code:</label>
+                    <input type="text" id="recipe_code" name="recipe_code" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="add_description">Description:</label>
+                    <input type="text" id="add_description" name="description" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="raw_material">Raw Material:</label>
+                    <input type="text" id="raw_material" name="raw_material" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="kg_per_batch">KG per Batch:</label>
+                    <input type="number" id="kg_per_batch" name="kg_per_batch" step="0.001" required>
+                </div>
+
+                <button type="submit">Add Recipe</button>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <ul class="flashes">
+                            {% for category, message in messages %}
+                                <li class="{{ category }}">{{ message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% endwith %}
+            </form>
+
+            <h3>Recipes</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipe Code</th>
+                        <th>Description</th>
+                        <th>Raw Material</th>
+                        <th>KG per Batch</th>
+                        <th>Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for recipe in recipes %}
+                    <tr>
+                        <td>{{ recipe.recipe_code }}</td>
+                        <td>{{ recipe.description }}</td>
+                        <td>{{ recipe.raw_material }}</td>
+                        <td>{{ recipe.kg_per_batch }}</td>
+                        <td>{{ recipe.percentage | round(2) if recipe.percentage else '0.00' }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        $(document).ready(function() {
+            $("#search-input").keyup(function () {
+                var recipeCode = $(this).val().trim();
+                if (recipeCode.length > 0) {
+                    $.ajax({
+                        url: "{{ url_for('recipe.autocomplete_recipe') }}",
+                        type: "GET",
+                        data: { query: recipeCode },
+                        success: function (response) {
+                            var suggestionsHtml = "<ul>";
+                            response.forEach(function (recipe) {
+                                suggestionsHtml += `<li data-recipe-code="${recipe.recipe_code}" data-description="${recipe.description}">${recipe.recipe_code} - ${recipe.description}</li>`;
+                            });
+                            suggestionsHtml += "</ul>";
+                            $("#recipe_code_suggestions").html(suggestionsHtml);
+                        }
+                    });
+                } else {
+                    $("#recipe_code_suggestions").empty();
+                }
+            });
+
+            $(document).on("click", "#recipe_code_suggestions li", function () {
+                $("#search-input").val($(this).data("recipe-code"));
+                $("#search_description").val($(this).data("description"));
+                $("#recipe_code_suggestions").empty();
+            });
+
+            $(document).click(function (event) {
+                if (!$(event.target).closest("#search-input, #recipe_code_suggestions").length) {
+                    $("#recipe_code_suggestions").empty();
+                }
+            });
+        });
+
+        function addRecipe(recipeCode) {
+            document.getElementById('recipe_code').value = recipeCode;
+            document.getElementById('add_description').value = '';
+            window.scrollTo(0, document.getElementById('add').offsetTop);
+        }
+
+        function fetchRecipes() {
+            var recipeCode = $("#search-input").val().trim();
+            var description = $("#search_description").val().trim();
+
+            $.ajax({
+                url: "{{ url_for('recipe.get_search_recipes') }}",
+                type: "GET",
+                data: { recipe_code: recipeCode, description: description },
+                success: function(response) {
+                    var tableBody = $("#recipeListTable tbody");
+                    tableBody.empty();
+                    $("#resultSection").removeClass("hidden");
+
+                    if (response.length > 0) {
+                        response.forEach(function(recipe) {
+                            tableBody.append(`
+                                <tr>
+                                    <td>${recipe.recipe_code || ''}</td>
+                                    <td>${recipe.description || ''}</td>
+                                    <td>${recipe.raw_material || ''}</td>
+                                    <td>${recipe.kg_per_batch || ''}</td>
+                                    <td>${recipe.percentage ? (recipe.percentage.toFixed(2) + '%') : '0.00%'}</td>
+                                </tr>
+                            `);
+                        });
+                    } else {
+                        tableBody.append(`
+                            <tr>
+                                <td colspan="5">
+                                    <div class="no-results">
+                                        <p>No recipes found for Recipe Code: ${recipeCode}</p>
+                                        <button class="add-recipe-btn" onclick="addRecipe('${recipeCode}')">
+                                            Add Recipe for Recipe Code ${recipeCode}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                },
+                error: function() {
+                    alert("Error fetching recipes.");
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-from database import db  # Assuming db is imported in app.py
+from database import db  
 
 class Filling(db.Model):
     __tablename__ = 'filling'

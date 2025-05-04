@@ -7,24 +7,13 @@ from datetime import datetime
 # Create a Blueprint for recipe routes
 recipe_bp = Blueprint('recipe', __name__, template_folder='templates')
 
-@recipe_bp.route('/recipe_search', methods=['GET'])
-def recipe_search():
-    from app import db  # Import db here to avoid circular import
-    from models import RecipeMaster  # Import RecipeMaster for searching recipes
-
-    search_recipe_code = request.args.get('recipe_code', '')
-    search_description = request.args.get('description', '')
-
-    return render_template('recipe/recipe_search.html', 
-                         search_recipe_code=search_recipe_code,
-                         search_description=search_description)
-
-@recipe_bp.route('/recipe_add', methods=['GET', 'POST'])
-def recipe_add():
-    from app import db  # Import db here to avoid circular import
-    from models import RecipeMaster
+@recipe_bp.route('/recipe', methods=['GET', 'POST'])
+def recipe_page():
+    from database import db  # Import db from your database module
+    from models import RecipeMaster  # Import RecipeMaster for operations
 
     if request.method == 'POST':
+        # Handle add recipe form submission
         recipe_code = request.form.get('recipe_code')
         description = request.form.get('description')
         raw_material = request.form.get('raw_material')
@@ -33,7 +22,10 @@ def recipe_add():
         try:
             if not all([recipe_code, description, raw_material, kg_per_batch]):
                 flash("All fields are required.", 'error')
-                return render_template('recipe/recipe_add.html', recipes=RecipeMaster.query.all())
+                return render_template('recipe/recipe.html', 
+                                     search_recipe_code=request.args.get('recipe_code', ''),
+                                     search_description=request.args.get('description', ''),
+                                     recipes=RecipeMaster.query.all())
 
             kg_per_batch = Decimal(kg_per_batch)
             # Calculate total kg_per_batch for the description (excluding the current entry being added)
@@ -62,32 +54,44 @@ def recipe_add():
             db.session.commit()
 
             flash("Recipe added successfully!", 'success')
-            return redirect(url_for('recipe.recipe_add'))
+            return redirect(url_for('recipe.recipe_page'))
 
         except ValueError:
             flash("Invalid input. Please check your data.", 'error')
             db.session.rollback()
-            recipes = RecipeMaster.query.all()
-            return render_template('recipe/recipe_add.html', recipes=recipes)
+            return render_template('recipe/recipe.html', 
+                                 search_recipe_code=request.args.get('recipe_code', ''),
+                                 search_description=request.args.get('description', ''),
+                                 recipes=RecipeMaster.query.all())
 
         except sqlalchemy.exc.IntegrityError as e:
             db.session.rollback()
             flash(f"Error: {str(e)}", 'error')
-            recipes = RecipeMaster.query.all()
-            return render_template('recipe/recipe_add.html', recipes=recipes)
+            return render_template('recipe/recipe.html', 
+                                 search_recipe_code=request.args.get('recipe_code', ''),
+                                 search_description=request.args.get('description', ''),
+                                 recipes=RecipeMaster.query.all())
 
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            recipes = RecipeMaster.query.all()
-            return render_template('recipe/recipe_add.html', recipes=recipes)
-    
+            return render_template('recipe/recipe.html', 
+                                 search_recipe_code=request.args.get('recipe_code', ''),
+                                 search_description=request.args.get('description', ''),
+                                 recipes=RecipeMaster.query.all())
+
+    # GET request: render the page
+    search_recipe_code = request.args.get('recipe_code', '')
+    search_description = request.args.get('description', '')
     recipes = RecipeMaster.query.all()
-    return render_template('recipe/recipe_add.html', recipes=recipes)
+    return render_template('recipe/recipe.html', 
+                         search_recipe_code=search_recipe_code,
+                         search_description=search_description,
+                         recipes=recipes)
 
 @recipe_bp.route('/autocomplete_recipe', methods=['GET'])
 def autocomplete_recipe():
-    from app import db  # Import db here to avoid circular import
+    from database import db  # Import db here to avoid circular import
     from models import RecipeMaster
 
     search = request.args.get('query', '').strip()
@@ -106,7 +110,7 @@ def autocomplete_recipe():
 
 @recipe_bp.route('/get_search_recipes', methods=['GET'])
 def get_search_recipes():
-    from app import db  # Import db here to avoid circular import
+    from database import db  # Import db here to avoid circular import
     from models import RecipeMaster
 
     search_recipe_code = request.args.get('recipe_code', '').strip()
@@ -136,7 +140,7 @@ def get_search_recipes():
 
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
-    from app import db  # Import db here to avoid circular import
+    from database import db  # Import db here to avoid circular import
     from models import Production, RecipeMaster
 
     # Fetch all production records
@@ -167,7 +171,7 @@ def usage():
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
-    from app import db  # Import db here to avoid circular import
+    from database import db  # Import db here to avoid circular import
     from models import Production, RecipeMaster
 
     # Step 1: Calculate the Usage Table (same as /usage route)

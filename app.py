@@ -13,11 +13,20 @@ import os
 
 
 def create_app():
+    # Load environment variables from .env file
+    load_dotenv()
+
     # Create and configure the Flask app
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-secret-key')  # Fallback
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Suppress warning
+
+    # Validate SQLALCHEMY_DATABASE_URI
+    if not app.config['SQLALCHEMY_DATABASE_URI']:
+        raise RuntimeError(
+            "SQLALCHEMY_DATABASE_URI is not set. Please define it in the .env file or environment variables."
+        )
 
     # Initialize SQLAlchemy with the app
     db.init_app(app)
@@ -38,23 +47,14 @@ def create_app():
     from controllers.production_controller import production_bp
     app.register_blueprint(production_bp)
 
-    # Register the Recipe Blueprint
     from controllers.recipe_controller import recipe_bp
     app.register_blueprint(recipe_bp)
 
     from controllers.production_plan_controller import production_plan_bp
-    app.register_blueprint(production_plan_bp,url_prefix='/production_plan')
+    app.register_blueprint(production_plan_bp, url_prefix='/production_plan')
 
     from controllers.inject_products_controller import injected_products_bp
     app.register_blueprint(injected_products_bp)
-
-    # from controllers.cooking_program_controller import cooking_program_bp
-    # app.register_blueprint(cooking_program_bp)
-
-    # from controllers.cooking_record_controller import cooking_record_bp
-    # app.register_blueprint(cooking_record_bp)
-
-    
 
     # Define routes with deferred model imports
     @app.route('/')
@@ -185,7 +185,12 @@ def create_app():
     # Create database tables within app context
     with app.app_context():
         # Import models for table creation
-        from models import ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster, Joining, SOH, Packing, Filling, Production, ProductionPlan, InjectedProducts, CookingProgram, CookingRecord 
+        from models import (
+            ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster,
+            Joining, SOH, Packing, Filling, Production, InjectedProducts,
+            TraceabilityProduction, ProductionPlan, FinishedGoods, Allergen,
+            CookingProgram, CookingRecord
+        )
         db.create_all()
 
     return app
