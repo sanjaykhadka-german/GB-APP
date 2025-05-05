@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from sqlalchemy.sql import text
+import sqlalchemy.exc
 
 # Create a Blueprint for SOH routes
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
@@ -8,8 +10,24 @@ soh_bp = Blueprint('soh', __name__, template_folder='templates')
 def soh_list():
     from app import db
     from models.soh import SOH
-    sohs = SOH.query.all()
-    return render_template('soh/list.html', sohs=sohs)
+
+    # Get search parameters from query string
+    search_fg_code = request.args.get('fg_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    # Query SOHs with optional filters
+    sohs_query = SOH.query
+    if search_fg_code:
+        sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
+    if search_description:
+        sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
+
+    sohs = sohs_query.all()
+
+    return render_template('soh/list.html',
+                         sohs=sohs,
+                         search_fg_code=search_fg_code,
+                         search_description=search_description)
 
 # SOH Create Route
 @soh_bp.route('/soh_create', methods=['GET', 'POST'])
@@ -82,3 +100,58 @@ def soh_delete(id):
         flash("SOH entry not found.", "warning")
 
     return redirect(url_for('soh.soh_list'))
+
+# Autocomplete for SOH FG Code
+@soh_bp.route('/autocomplete_soh', methods=['GET'])
+def autocomplete_soh():
+    from app import db
+    from models.soh import SOH
+
+    search = request.args.get('query', '').strip()
+
+    if not search:
+        return jsonify([])
+
+    try:
+        query = text("SELECT fg_code, description FROM soh WHERE fg_code LIKE :search LIMIT 10")
+        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
+        suggestions = [{"fg_code": row[0], "description": row[1]} for row in results]
+        return jsonify(suggestions)
+    except Exception as e:
+        print("Error fetching SOH autocomplete suggestions:", e)
+        return jsonify([])
+
+# Search SOHs via AJAX
+@soh_bp.route('/get_search_sohs', methods=['GET'])
+def get_search_sohs():
+    from app import db
+    from models.soh import SOH
+
+    search_fg_code = request.args.get('fg_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    try:
+        sohs_query = SOH.query
+
+        if search_fg_code:
+            sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
+        if search_description:
+            sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
+
+        sohs = sohs_query.all()
+
+        sohs_data = [
+            {
+                "id": soh.id,
+                "fg_code": soh.fg_code or "",
+                "description": soh.description or "",
+                "soh_total_boxes": soh.soh_total_boxes if soh.soh_total_boxes is not None else "",
+                "soh_total_units": soh.soh_total_units if soh.soh_total_units is not None else ""
+            }
+            for soh in sohs
+        ]
+
+        return jsonify(sohs_data)
+    except Exception as e:
+        print("Error fetching search SOHs:", e)
+        return jsonify({"error": "Failed to fetch SOH entries"}), 500

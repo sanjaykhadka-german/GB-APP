@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from sqlalchemy.sql import text
+import sqlalchemy.exc
 
 # Create a Blueprint for joining routes
 joining_bp = Blueprint('joining', __name__, template_folder='templates')
@@ -8,8 +10,24 @@ joining_bp = Blueprint('joining', __name__, template_folder='templates')
 def joining_list():
     from app import db  # Defer import to runtime
     from models.joining import Joining  # Defer import to runtime
-    joinings = Joining.query.all()
-    return render_template('joining/list.html', joinings=joinings)
+
+    # Get search parameters from query string
+    search_fg_code = request.args.get('fg_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    # Query joinings with optional filters
+    joinings_query = Joining.query
+    if search_fg_code:
+        joinings_query = joinings_query.filter(Joining.fg_code.ilike(f"%{search_fg_code}%"))
+    if search_description:
+        joinings_query = joinings_query.filter(Joining.description.ilike(f"%{search_description}%"))
+
+    joinings = joinings_query.all()
+
+    return render_template('joining/list.html',
+                         joinings=joinings,
+                         search_fg_code=search_fg_code,
+                         search_description=search_description)
 
 # Joining Create Route
 @joining_bp.route('/joining_create', methods=['GET', 'POST'])
@@ -91,3 +109,65 @@ def joining_delete(id):
         flash("Joining not found.", "warning")
 
     return redirect(url_for('joining.joining_list'))
+
+# Autocomplete for Joining FG Code
+@joining_bp.route('/autocomplete_joining', methods=['GET'])
+def autocomplete_joining():
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
+
+    search = request.args.get('query', '').strip()
+
+    if not search:
+        return jsonify([])
+
+    try:
+        query = text("SELECT fg_code, description FROM joining WHERE fg_code LIKE :search LIMIT 10")
+        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
+        suggestions = [{"fg_code": row[0], "description": row[1]} for row in results]
+        return jsonify(suggestions)
+    except Exception as e:
+        print("Error fetching joining autocomplete suggestions:", e)
+        return jsonify([])
+
+# Search Joinings via AJAX
+@joining_bp.route('/get_search_joinings', methods=['GET'])
+def get_search_joinings():
+    from app import db  # Defer import to runtime
+    from models.joining import Joining  # Defer import to runtime
+
+    search_fg_code = request.args.get('fg_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    try:
+        joinings_query = Joining.query
+
+        if search_fg_code:
+            joinings_query = joinings_query.filter(Joining.fg_code.ilike(f"%{search_fg_code}%"))
+        if search_description:
+            joinings_query = joinings_query.filter(Joining.description.ilike(f"%{search_description}%"))
+
+        joinings = joinings_query.all()
+
+        joinings_data = [
+            {
+                "id": joining.id,
+                "fg_code": joining.fg_code or "",
+                "description": joining.description or "",
+                "fw": joining.fw,
+                "make_to_order": joining.make_to_order,
+                "min_level": joining.min_level if joining.min_level is not None else "",
+                "max_level": joining.max_level if joining.max_level is not None else "",
+                "kg_per_unit": joining.kg_per_unit if joining.kg_per_unit is not None else "",
+                "loss": joining.loss if joining.loss is not None else "",
+                "filling_code": joining.filling_code or "",
+                "filling_description": joining.filling_description or "",
+                "production": joining.production or ""
+            }
+            for joining in joinings
+        ]
+
+        return jsonify(joinings_data)
+    except Exception as e:
+        print("Error fetching search joinings:", e)
+        return jsonify({"error": "Failed to fetch joinings"}), 500

@@ -365,3 +365,36 @@ input[type="checkbox"] {
     border-radius: 4px;
     cursor: pointer;
 }
+
+.suggestion-list {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+.suggestion-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.suggestion-list li {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+.suggestion-list li:hover {
+    background-color: #f5f5f5;
+}
+.form-group {
+    margin-bottom: 15px;
+}
+.table-container {
+    overflow-x: auto;
+}
+.no-results {
+    text-align: center;
+    padding: 20px;
+}

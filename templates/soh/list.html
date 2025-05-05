@@ -2,48 +2,213 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>SOH List</h2>
-    <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary my-3">Add New SOH Entry</a>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <!-- SOH Search Section -->
+    <section id="search">
+        <h2>SOH Search</h2>
+        <form id="searchForm" onsubmit="return false;">
+            <div class="form-group">
+                <label for="search_fg_code">FG Code:</label>
+                <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
+                
             </div>
-        {% endfor %}
-    {% endif %}
-    {% endwith %}
 
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>FG Code</th>
-                <th>Description</th>
-                <th>SOH Total Box</th>
-                <th>SOH Total Unit</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for soh in sohs %}
-            <tr>
-                <td>{{ soh.id }}</td>
-                <td>{{ soh.fg_code }}</td>
-                <td>{{ soh.description }}</td>
-                <td>{{ soh.boxes }}</td>
-                <td>{{ soh.units }}</td>
-                <td>
-                    <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
-                    <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
-                    </form>
-                </td>
-            </tr>
+            <div class="form-group">
+                <label for="search_description">Description:</label>
+                <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
+            </div>
+
+            <button type="button" onclick="fetchSOHs()">Search</button>
+            <div id="fg_code_suggestions" class="suggestion-list"></div>
+        </form>
+    </section>
+
+    <!-- SOH List Section -->
+    <section id="list">
+        <h2>SOH List</h2>
+        <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary my-3">Add New SOH Entry</a>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
+        {% endif %}
+        {% endwith %}
+
+        <div id="resultSection" class="table-container">
+            <table class="table table-bordered" id="sohListTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>FG Code</th>
+                        <th>Description</th>
+                        <th>SOH Total Box</th>
+                        <th>SOH Total Unit</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for soh in sohs %}
+                    <tr>
+                        <td>{{ soh.id }}</td>
+                        <td>{{ soh.fg_code or '' }}</td>
+                        <td>{{ soh.description or '' }}</td>
+                        <td>{{ soh.soh_total_boxes or '' }}</td>
+                        <td>{{ soh.soh_total_units or '' }}</td>
+                        <td>
+                            <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                            <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
+
+<style>
+    .suggestion-list {
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        max-height: 200px;
+        overflow-y: auto;
+        width: 100%;
+        z-index: 1000;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .suggestion-list ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .suggestion-list li {
+        padding: 8px 12px;
+        cursor: pointer;
+    }
+    .suggestion-list li:hover {
+        background-color: #f5f5f5;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .table-container {
+        overflow-x: auto;
+    }
+    .no-results {
+        text-align: center;
+        padding: 20px;
+    }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Autocomplete for FG Code
+        $("#search_fg_code").keyup(function() {
+            var fgCode = $(this).val().trim();
+            if (fgCode.length > 0) {
+                $.ajax({
+                    url: "{{ url_for('soh.autocomplete_soh') }}",
+                    type: "GET",
+                    data: { query: fgCode },
+                    success: function(response) {
+                        var suggestionsHtml = "<ul>";
+                        response.forEach(function(soh) {
+                            suggestionsHtml += `<li data-fg-code="${soh.fg_code}" data-description="${soh.description}">${soh.fg_code} - ${soh.description}</li>`;
+                        });
+                        suggestionsHtml += "</ul>";
+                        $("#fg_code_suggestions").html(suggestionsHtml);
+                    },
+                    error: function() {
+                        $("#fg_code_suggestions").empty();
+                    }
+                });
+            } else {
+                $("#fg_code_suggestions").empty();
+            }
+        });
+
+        // Handle suggestion click
+        $(document).on("click", "#fg_code_suggestions li", function() {
+            $("#search_fg_code").val($(this).data("fg-code"));
+            $("#search_description").val($(this).data("description"));
+            $("#fg_code_suggestions").empty();
+            fetchSOHs(); // Trigger search after selecting suggestion
+        });
+
+        // Hide suggestions when clicking outside
+        $(document).click(function(event) {
+            if (!$(event.target).closest("#search_fg_code, #fg_code_suggestions").length) {
+                $("#fg_code_suggestions").empty();
+            }
+        });
+    });
+
+    // Fetch SOH list based on search criteria
+    function fetchSOHs() {
+        var fgCode = $("#search_fg_code").val().trim();
+        var description = $("#search_description").val().trim();
+
+        $.ajax({
+            url: "{{ url_for('soh.get_search_sohs') }}",
+            type: "GET",
+            data: { fg_code: fgCode, description: description },
+            success: function(response) {
+                var tableBody = $("#sohListTable tbody");
+                tableBody.empty();
+
+                if (response.error) {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="6" class="no-results">Error fetching SOH entries: ${response.error}</td>
+                        </tr>
+                    `);
+                    return;
+                }
+
+                if (response.length > 0) {
+                    response.forEach(function(soh) {
+                        tableBody.append(`
+                            <tr>
+                                <td>${soh.id || ''}</td>
+                                <td>${soh.fg_code || ''}</td>
+                                <td>${soh.description || ''}</td>
+                                <td>${soh.soh_total_boxes || ''}</td>
+                                <td>${soh.soh_total_units || ''}</td>
+                                <td>
+                                    <a href="{{ url_for('soh.soh_edit', id=0) }}".replace('0', soh.id) class="btn btn-warning btn-sm">Edit</a>
+                                    <form action="{{ url_for('soh.soh_delete', id=0) }}".replace('0', soh.id) method="post" style="display:inline-block;">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="6" class="no-results">No SOH entries found for FG Code: ${fgCode}</td>
+                        </tr>
+                    `);
+                }
+            },
+            error: function() {
+                var tableBody = $("#sohListTable tbody");
+                tableBody.empty();
+                tableBody.append(`
+                    <tr>
+                        <td colspan="6" class="no-results">Error fetching SOH entries.</td>
+                    </tr>
+                `);
+            }
+        });
+    }
+</script>
 {% endblock %}
