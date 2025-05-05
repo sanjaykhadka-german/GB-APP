@@ -1,15 +1,12 @@
-from database import db
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
-import pandas as pd
-from sqlalchemy.orm import relationship
-from sqlalchemy import String, Integer, DECIMAL, Boolean, Date, ForeignKey, func
-import sqlalchemy.exc
-from decimal import Decimal
 from dotenv import load_dotenv
-from sqlalchemy.sql import text
 import os
+import sqlalchemy.exc
+from datetime import datetime
+from flask_migrate import Migrate
+
+# Import the single SQLAlchemy instance
+from database import db
 
 
 def create_app():
@@ -19,8 +16,8 @@ def create_app():
     # Create and configure the Flask app
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-secret-key')  # Fallback
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Suppress warning
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-secret-key')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Validate SQLALCHEMY_DATABASE_URI
     if not app.config['SQLALCHEMY_DATABASE_URI']:
@@ -30,36 +27,35 @@ def create_app():
 
     # Initialize SQLAlchemy with the app
     db.init_app(app)
+    migrate = Migrate(app, db)
 
     # Register Blueprints
     from controllers.joining_controller import joining_bp
-    app.register_blueprint(joining_bp)
-
     from controllers.soh_controller import soh_bp
-    app.register_blueprint(soh_bp)
-
-    from controllers.packing_controller import packing_bp
-    app.register_blueprint(packing_bp)
-
+    from controllers.packing_controller import packing
     from controllers.filling_controller import filling_bp
-    app.register_blueprint(filling_bp)
-
     from controllers.production_controller import production_bp
-    app.register_blueprint(production_bp)
-
     from controllers.recipe_controller import recipe_bp
-    app.register_blueprint(recipe_bp)
-
     from controllers.production_plan_controller import production_plan_bp
-    app.register_blueprint(production_plan_bp, url_prefix='/production_plan')
-
     from controllers.inject_products_controller import injected_products_bp
+
+    app.register_blueprint(joining_bp)
+    app.register_blueprint(soh_bp)
+    app.register_blueprint(packing)
+    app.register_blueprint(filling_bp)
+    app.register_blueprint(production_bp)
+    app.register_blueprint(recipe_bp)
+    app.register_blueprint(production_plan_bp, url_prefix='/production_plan')
     app.register_blueprint(injected_products_bp)
 
-    # Define routes with deferred model imports
+    # Import models
+    # We import the models module which will import all model classes
+    import models
+
+    # Define routes
     @app.route('/')
     def index():
-        from models import Category  # Defer import
+        from models import Category
         categories = Category.query.all()
         return render_template('index.html', categories=categories)
 
@@ -184,13 +180,6 @@ def create_app():
 
     # Create database tables within app context
     with app.app_context():
-        # Import models for table creation
-        from models import (
-            ItemType, Category, Department, Machinery, UOM, ItemMaster, RecipeMaster,
-            Joining, SOH, Packing, Filling, Production, InjectedProducts,
-            TraceabilityProduction, ProductionPlan, FinishedGoods, Allergen,
-            CookingProgram, CookingRecord
-        )
         db.create_all()
 
     return app

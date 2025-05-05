@@ -1,22 +1,19 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from datetime import datetime
+from database import db  # Import db from database.py
+from models.production import Production
+from models.filling import Filling
+from models.joining import Joining
 
-# Create a Blueprint for production routes
 production_bp = Blueprint('production', __name__, template_folder='templates')
 
-# Production List Route
 @production_bp.route('/production_list', methods=['GET'])
 def production_list():
-    from app import db
-    from models.production import Production
     productions = Production.query.all()
     return render_template('production/list.html', productions=productions)
 
-# Production Create Route
 @production_bp.route('/production_create', methods=['GET', 'POST'])
 def production_create():
-    from app import db
-    from models.production import Production
     if request.method == 'POST':
         try:
             production_date_str = request.form['production_date']
@@ -25,6 +22,12 @@ def production_create():
             description = request.form['description']
             batches = float(request.form['batches']) if request.form.get('batches') else 0.0
             total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
+
+            # Validate production_code exists in Joining table
+            joining = Joining.query.filter_by(production=production_code).first()
+            if not joining:
+                flash(f"No Joining record found for production code {production_code}.", 'error')
+                return render_template('production/create.html')
 
             new_production = Production(
                 production_date=production_date,
@@ -49,16 +52,9 @@ def production_create():
 
     return render_template('production/create.html')
 
-# Production Edit Route
 @production_bp.route('/production_edit/<int:id>', methods=['GET', 'POST'])
 def production_edit(id):
-    from app import db
-    from models.production import Production
-    production = Production.query.get(id)
-
-    if not production:
-        flash("Production entry not found.", "warning")
-        return redirect(url_for('production.production_list'))
+    production = Production.query.get_or_404(id)
 
     if request.method == 'POST':
         try:
@@ -68,6 +64,12 @@ def production_edit(id):
             production.description = request.form['description']
             production.batches = float(request.form['batches']) if request.form.get('batches') else 0.0
             production.total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
+
+            # Validate production_code exists in Joining table
+            joining = Joining.query.filter_by(production=production.production_code).first()
+            if not joining:
+                flash(f"No Joining record found for production code {production.production_code}.", 'error')
+                return render_template('production/edit.html', production=production)
 
             db.session.commit()
             flash("Production entry updated successfully!", "success")
@@ -83,18 +85,14 @@ def production_edit(id):
 
     return render_template('production/edit.html', production=production)
 
-# Production Delete Route
 @production_bp.route('/production_delete/<int:id>', methods=['POST'])
 def production_delete(id):
-    from app import db
-    from models.production import Production
-    production = Production.query.get(id)
-
-    if production:
+    production = Production.query.get_or_404(id)
+    try:
         db.session.delete(production)
         db.session.commit()
         flash("Production entry deleted successfully!", "danger")
-    else:
-        flash("Production entry not found.", "warning")
-
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An unexpected error occurred: {str(e)}", 'error')
     return redirect(url_for('production.production_list'))
