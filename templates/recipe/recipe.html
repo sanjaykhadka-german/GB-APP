@@ -59,17 +59,34 @@
             padding: 20px;
             margin-top: 20px;
         }
-        .add-recipe-btn {
+        .add-recipe-btn, .edit-btn, .delete-btn {
             display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
+            padding: 5px 10px;
             text-decoration: none;
             border-radius: 4px;
-            margin-top: 10px;
+            margin: 2px;
+            cursor: pointer;
+        }
+        .add-recipe-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .edit-btn {
+            background-color: #ff9800;
+            color: white;
+        }
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
         }
         .add-recipe-btn:hover {
             background-color: #45a049;
+        }
+        .edit-btn:hover {
+            background-color: #f57c00;
+        }
+        .delete-btn:hover {
+            background-color: #d32f2f;
         }
         .form-group {
             margin-bottom: 15px;
@@ -140,6 +157,7 @@
                                 <th>Raw Material</th>
                                 <th>KG per Batch</th>
                                 <th>Percentage</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -148,31 +166,32 @@
             </div>
         </section>
 
-        <!-- Add Recipe Section -->
+        <!-- Add/Edit Recipe Section -->
         <section id="add">
-            <h2>Add Recipe</h2>
+            <h2>{{ 'Edit Recipe' if edit_recipe is defined else 'Add Recipe' }}</h2>
             <form action="{{ url_for('recipe.recipe_page') }}" method="POST">
+                <input type="hidden" name="recipe_id" value="{{ edit_recipe.id if edit_recipe else '' }}">
                 <div class="form-group">
                     <label for="recipe_code">Recipe Code:</label>
-                    <input type="text" id="recipe_code" name="recipe_code" required>
+                    <input type="text" id="recipe_code" name="recipe_code" value="{{ edit_recipe.recipe_code if edit_recipe else '' }}" required>
                 </div>
 
                 <div class="form-group">
                     <label for="add_description">Description:</label>
-                    <input type="text" id="add_description" name="description" required>
+                    <input type="text" id="add_description" name="description" value="{{ edit_recipe.description if edit_recipe else '' }}" required>
                 </div>
 
                 <div class="form-group">
                     <label for="raw_material">Raw Material:</label>
-                    <input type="text" id="raw_material" name="raw_material" required>
+                    <input type="text" id="raw_material" name="raw_material" value="{{ edit_recipe.raw_material if edit_recipe else '' }}" required>
                 </div>
 
                 <div class="form-group">
                     <label for="kg_per_batch">KG per Batch:</label>
-                    <input type="number" id="kg_per_batch" name="kg_per_batch" step="0.001" required>
+                    <input type="number" id="kg_per_batch" name="kg_per_batch" step="0.001" value="{{ edit_recipe.kg_per_batch if edit_recipe else '' }}" required>
                 </div>
 
-                <button type="submit">Add Recipe</button>
+                <button type="submit">{{ 'Update Recipe' if edit_recipe is defined else 'Add Recipe' }}</button>
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         <ul class="flashes">
@@ -193,6 +212,7 @@
                         <th>Raw Material</th>
                         <th>KG per Batch</th>
                         <th>Percentage</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -202,7 +222,13 @@
                         <td>{{ recipe.description }}</td>
                         <td>{{ recipe.raw_material }}</td>
                         <td>{{ recipe.kg_per_batch }}</td>
-                        <td>{{ recipe.percentage | round(2) if recipe.percentage else '0.00' }}%</td>
+                        <td>{{ recipe.percentage|round(2) }}%</td>
+                        <td>
+                            <button class="edit-btn" onclick="editRecipe({{ recipe.id }})">Edit</button>
+                            <form action="{{ url_for('recipe.delete_recipe', id=recipe.id) }}" method="POST" style="display:inline;">
+                                <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to delete this recipe?')">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -274,13 +300,19 @@
                                     <td>${recipe.raw_material || ''}</td>
                                     <td>${recipe.kg_per_batch || ''}</td>
                                     <td>${recipe.percentage ? (recipe.percentage.toFixed(2) + '%') : '0.00%'}</td>
+                                    <td>
+                                        <button class="edit-btn" onclick="editRecipe(${recipe.id})">Edit</button>
+                                        <form action="/recipe/delete/${recipe.id}" method="POST" style="display:inline;">
+                                            <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to delete this recipe?')">Delete</button>
+                                        </form>
+                                    </td>
                                 </tr>
                             `);
                         });
                     } else {
                         tableBody.append(`
                             <tr>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div class="no-results">
                                         <p>No recipes found for Recipe Code: ${recipeCode}</p>
                                         <button class="add-recipe-btn" onclick="addRecipe('${recipeCode}')">
@@ -296,6 +328,10 @@
                     alert("Error fetching recipes.");
                 }
             });
+        }
+
+        function editRecipe(id) {
+            window.location.href = "{{ url_for('recipe.recipe_page') }}?edit_id=" + id;
         }
     </script>
 </body>

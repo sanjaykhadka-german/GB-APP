@@ -9,7 +9,6 @@
             <div class="form-group">
                 <label for="search_fg_code">FG Code:</label>
                 <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
-                
             </div>
 
             <div class="form-group">
@@ -45,19 +44,27 @@
                         <th>ID</th>
                         <th>FG Code</th>
                         <th>Description</th>
-                        <th>SOH Total Box</th>
-                        <th>SOH Total Unit</th>
+                        <th>Dispatch Boxes</th>
+                        <th>Dispatch Units</th>
+                        <th>Packing Boxes</th>
+                        <th>Packing Units</th>
+                        <th>Total Boxes</th>
+                        <th>Total Units</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for soh in sohs %}
                     <tr>
-                        <td>{{ soh.id }}</td>
+                        <td>{{ soh.id or '' }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
                         <td>{{ soh.description or '' }}</td>
-                        <td>{{ soh.soh_total_boxes or '' }}</td>
-                        <td>{{ soh.soh_total_units or '' }}</td>
+                        <td>{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
+                        <td>{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
+                        <td>{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
+                        <td>{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
+                        <td>{{ soh.soh_total_boxes if soh.soh_total_boxes is not none else '' }}</td>
+                        <td>{{ soh.soh_total_units if soh.soh_total_units is not none else '' }}</td>
                         <td>
                             <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
@@ -105,6 +112,20 @@
         text-align: center;
         padding: 20px;
     }
+    .add-soh-btn {
+        background-color: #007bff;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .add-soh-btn:hover {
+        background-color: #0056b3;
+    }
+    .hidden {
+        display: none;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -151,6 +172,11 @@
         });
     });
 
+    // Function to add a new SOH entry
+    function addSOH(fgCode) {
+        window.location.href = `{{ url_for('soh.soh_create') }}?fg_code=${fgCode}`;
+    }
+
     // Fetch SOH list based on search criteria
     function fetchSOHs() {
         var fgCode = $("#search_fg_code").val().trim();
@@ -163,11 +189,12 @@
             success: function(response) {
                 var tableBody = $("#sohListTable tbody");
                 tableBody.empty();
+                $("#resultSection").removeClass("hidden");
 
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="6" class="no-results">Error fetching SOH entries: ${response.error}</td>
+                            <td colspan="10" class="no-results">Error fetching SOH entries: ${response.error}</td>
                         </tr>
                     `);
                     return;
@@ -175,26 +202,40 @@
 
                 if (response.length > 0) {
                     response.forEach(function(soh) {
-                        tableBody.append(`
-                            <tr>
-                                <td>${soh.id || ''}</td>
-                                <td>${soh.fg_code || ''}</td>
-                                <td>${soh.description || ''}</td>
-                                <td>${soh.soh_total_boxes || ''}</td>
-                                <td>${soh.soh_total_units || ''}</td>
-                                <td>
-                                    <a href="{{ url_for('soh.soh_edit', id=0) }}".replace('0', soh.id) class="btn btn-warning btn-sm">Edit</a>
-                                    <form action="{{ url_for('soh.soh_delete', id=0) }}".replace('0', soh.id) method="post" style="display:inline-block;">
-                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        `);
+                        // Only include rows with a valid id
+                        if (soh.id !== null && soh.id !== undefined) {
+                            tableBody.append(`
+                                <tr>
+                                    <td>${soh.id || ''}</td>
+                                    <td>${soh.fg_code || ''}</td>
+                                    <td>${soh.description || ''}</td>
+                                    <td>${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
+                                    <td>${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
+                                    <td>${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
+                                    <td>${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
+                                    <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
+                                    <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
+                                    <td>
+                                        <a href="/soh_edit/${soh.id}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="/soh_delete/${soh.id}" method="post" style="display:inline-block;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            `);
+                        }
                     });
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="6" class="no-results">No SOH entries found for FG Code: ${fgCode}</td>
+                            <td colspan="10">
+                                <div class="no-results">
+                                    <p>No SOH entries found for FG Code: ${fgCode}</p>
+                                    <button class="add-soh-btn" onclick="addSOH('${fgCode}')">
+                                        Add SOH Entry for FG Code ${fgCode}
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     `);
                 }
@@ -204,7 +245,7 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="6" class="no-results">Error fetching SOH entries.</td>
+                        <td colspan="10" class="no-results">Error fetching SOH entries.</td>
                     </tr>
                 `);
             }

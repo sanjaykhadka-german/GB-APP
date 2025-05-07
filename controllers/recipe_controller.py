@@ -9,11 +9,12 @@ recipe_bp = Blueprint('recipe', __name__, template_folder='templates')
 
 @recipe_bp.route('/recipe', methods=['GET', 'POST'])
 def recipe_page():
-    from database import db  # Import db from your database module
-    from models import RecipeMaster  # Import RecipeMaster for operations
+    from database import db
+    from models import RecipeMaster
 
     if request.method == 'POST':
-        # Handle add recipe form submission
+        # Handle add or edit recipe form submission
+        recipe_id = request.form.get('recipe_id')  # For edit case
         recipe_code = request.form.get('recipe_code')
         description = request.form.get('description')
         raw_material = request.form.get('raw_material')
@@ -28,32 +29,34 @@ def recipe_page():
                                      recipes=RecipeMaster.query.all())
 
             kg_per_batch = Decimal(kg_per_batch)
-            # Calculate total kg_per_batch for the description (excluding the current entry being added)
-            total_kg_for_description = db.session.query(db.func.sum(RecipeMaster.kg_per_batch))\
-                .filter(RecipeMaster.description == description)\
-                .scalar()
-            total_kg_for_description = float(total_kg_for_description) if total_kg_for_description else 0.0
-            total_kg_with_new = total_kg_for_description + float(kg_per_batch)
-            percentage = (float(kg_per_batch) / total_kg_with_new) * 100 if total_kg_with_new else 0
 
-            new_recipe = RecipeMaster(
-                recipe_code=recipe_code,
-                description=description,
-                raw_material=raw_material,
-                kg_per_batch=kg_per_batch,
-                percentage=Decimal(percentage)
-            )
+            if recipe_id:  # Edit case
+                recipe = RecipeMaster.query.get_or_404(recipe_id)
+                old_kg = float(recipe.kg_per_batch)
+                recipe.recipe_code = recipe_code
+                recipe.description = description
+                recipe.raw_material = raw_material
+                recipe.kg_per_batch = kg_per_batch
+            else:  # Add case
+                recipe = RecipeMaster(
+                    recipe_code=recipe_code,
+                    description=description,
+                    raw_material=raw_material,
+                    kg_per_batch=kg_per_batch,
+                    percentage=Decimal(0)
+                )
+                db.session.add(recipe)
 
-            db.session.add(new_recipe)
-            db.session.commit()
+            db.session.flush()
 
-            # Update percentages for all recipes with the same description
+            # Recalculate percentages for all recipes with the same description
             recipes_to_update = RecipeMaster.query.filter(RecipeMaster.description == description).all()
-            for recipe in recipes_to_update:
-                recipe.percentage = (float(recipe.kg_per_batch) / total_kg_with_new) * 100
+            total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
+            for r in recipes_to_update:
+                r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
             db.session.commit()
 
-            flash("Recipe added successfully!", 'success')
+            flash("Recipe saved successfully!", 'success')
             return redirect(url_for('recipe.recipe_page'))
 
         except ValueError:
@@ -80,25 +83,54 @@ def recipe_page():
                                  search_description=request.args.get('description', ''),
                                  recipes=RecipeMaster.query.all())
 
-    # GET request: render the page
+    # GET request: render the page or edit form
     search_recipe_code = request.args.get('recipe_code', '')
     search_description = request.args.get('description', '')
-    recipes = RecipeMaster.query.all()
+    edit_id = request.args.get('edit_id')
+    if edit_id:
+        recipe = RecipeMaster.query.get_or_404(edit_id)
+        return render_template('recipe/recipe.html', 
+                             search_recipe_code=search_recipe_code,
+                             search_description=search_description,
+                             recipes=RecipeMaster.query.all(),
+                             edit_recipe=recipe)
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
-                         recipes=recipes)
+                         recipes=RecipeMaster.query.all())
+
+@recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
+def delete_recipe(id):
+    from database import db
+    from models import RecipeMaster
+    try:
+        recipe = RecipeMaster.query.get_or_404(id)
+        description = recipe.description
+        db.session.delete(recipe)
+        db.session.commit()
+
+        # Recalculate percentages for remaining recipes with the same description
+        recipes_to_update = RecipeMaster.query.filter(RecipeMaster.description == description).all()
+        if recipes_to_update:
+            total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
+            for r in recipes_to_update:
+                r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
+            db.session.commit()
+
+        flash("Recipe deleted successfully!", 'success')
+        return redirect(url_for('recipe.recipe_page'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f"An error occurred: {str(e)}", 'error')
+        return redirect(url_for('recipe.recipe_page'))
 
 @recipe_bp.route('/autocomplete_recipe', methods=['GET'])
 def autocomplete_recipe():
-    from database import db  # Import db here to avoid circular import
+    from database import db
     from models import RecipeMaster
-
     search = request.args.get('query', '').strip()
-
     if not search:
         return jsonify([])
-
     try:
         query = text("SELECT recipe_code, description FROM recipe_master WHERE recipe_code LIKE :search LIMIT 10")
         results = db.session.execute(query, {"search": search + "%"}).fetchall()
@@ -110,53 +142,39 @@ def autocomplete_recipe():
 
 @recipe_bp.route('/get_search_recipes', methods=['GET'])
 def get_search_recipes():
-    from database import db  # Import db here to avoid circular import
+    from database import db
     from models import RecipeMaster
-
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
-
     recipes_query = RecipeMaster.query
-
     if search_recipe_code:
         recipes_query = recipes_query.filter(RecipeMaster.recipe_code.ilike(f"%{search_recipe_code}%"))
     if search_description:
         recipes_query = recipes_query.filter(RecipeMaster.description.ilike(f"%{search_description}%"))
-
     recipes = recipes_query.all()
-
     recipes_data = [
         {
             "recipe_code": recipe.recipe_code,
             "description": recipe.description,
             "raw_material": recipe.raw_material,
-            "kg_per_batch": float(recipe.kg_per_batch),  # Convert Decimal to float for JSON serialization
-            "percentage": float(recipe.percentage) if recipe.percentage else 0.0
+            "kg_per_batch": float(recipe.kg_per_batch),
+            "percentage": float(recipe.percentage) if recipe.percentage else 0.0,
+            "id": recipe.id  # Add id for edit/delete
         }
         for recipe in recipes
     ]
-
     return jsonify(recipes_data)
 
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
-    from database import db  # Import db here to avoid circular import
+    from database import db
     from models import Production, RecipeMaster
-
-    # Fetch all production records
     productions = Production.query.all()
-
     usage_data = []
-
     for production in productions:
-        # Find all recipe entries for the production_code
         recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-
-        # If no recipes found for this production code, skip
         if not recipes:
             continue
-
-        # Calculate usage for each raw material
         for recipe in recipes:
             usage = float(production.total_kg) * (float(recipe.percentage) / 100)
             usage_data.append({
@@ -166,18 +184,14 @@ def usage():
                 'usage': round(usage, 2),
                 'percentage': float(recipe.percentage)
             })
-
     return render_template('recipe/usage.html', usage_data=usage_data)
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
-    from database import db  # Import db here to avoid circular import
+    from database import db
     from models import Production, RecipeMaster
-
-    # Step 1: Calculate the Usage Table (same as /usage route)
     productions = Production.query.all()
     usage_data = []
-
     for production in productions:
         recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
         if not recipes:
@@ -191,8 +205,6 @@ def raw_material_report():
                 'usage': round(usage, 2),
                 'percentage': float(recipe.percentage)
             })
-
-    # Step 2: Aggregate by Raw Material
     raw_material_totals = {}
     for entry in usage_data:
         raw_material = entry['raw_material']
@@ -201,14 +213,9 @@ def raw_material_report():
             raw_material_totals[raw_material] += usage
         else:
             raw_material_totals[raw_material] = usage
-
-    # Convert to list of dictionaries for the template
     raw_material_data = [
         {'raw_material': material, 'meat_required': round(total, 2)}
         for material, total in raw_material_totals.items()
     ]
-
-    # Sort by raw material name for better readability
     raw_material_data.sort(key=lambda x: x['raw_material'])
-
     return render_template('recipe/raw_material.html', raw_material_data=raw_material_data)

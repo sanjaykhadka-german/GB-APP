@@ -58,6 +58,7 @@
                 </thead>
                 <tbody>
                     {% for joining in joinings %}
+                    {% if joining and joining.id is not none %}
                     <tr>
                         <td>{{ joining.id }}</td>
                         <td>{{ joining.fg_code or '' }}</td>
@@ -78,6 +79,7 @@
                             </form>
                         </td>
                     </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -117,6 +119,20 @@
     .no-results {
         text-align: center;
         padding: 20px;
+    }
+    .add-joining-btn {
+        background-color: #007bff;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .add-joining-btn:hover {
+        background-color: #0056b3;
+    }
+    .hidden {
+        display: none;
     }
 </style>
 
@@ -164,6 +180,11 @@
         });
     });
 
+    // Function to add a new joining
+    function addJoining(fgCode) {
+        window.location.href = `{{ url_for('joining.joining_create') }}?fg_code=${fgCode}`;
+    }
+
     // Fetch joining list based on search criteria
     function fetchJoinings() {
         var fgCode = $("#search_fg_code").val().trim();
@@ -176,6 +197,7 @@
             success: function(response) {
                 var tableBody = $("#joiningListTable tbody");
                 tableBody.empty();
+                $("#resultSection").removeClass("hidden");
 
                 if (response.error) {
                     tableBody.append(`
@@ -188,33 +210,43 @@
 
                 if (response.length > 0) {
                     response.forEach(function(joining) {
-                        tableBody.append(`
-                            <tr>
-                                <td>${joining.id || ''}</td>
-                                <td>${joining.fg_code || ''}</td>
-                                <td>${joining.description || ''}</td>
-                                <td>${joining.fw ? 'Yes' : 'No'}</td>
-                                <td>${joining.make_to_order ? 'Yes' : 'No'}</td>
-                                <td>${joining.min_level || ''}</td>
-                                <td>${joining.max_level || ''}</td>
-                                <td>${joining.kg_per_unit || ''}</td>
-                                <td>${joining.loss || ''}</td>
-                                <td>${joining.filling_code || ''}</td>
-                                <td>${joining.filling_description || ''}</td>
-                                <td>${joining.production || ''}</td>
-                                <td>
-                                    <a href="{{ url_for('joining.joining_edit', id=0) }}".replace('0', joining.id) class="btn btn-warning btn-sm">Edit</a>
-                                    <form action="{{ url_for('joining.joining_delete', id=0) }}".replace('0', joining.id) method="post" style="display:inline-block;">
-                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this joining?')">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        `);
+                        // Only include rows with a valid id
+                        if (joining.id !== null && joining.id !== undefined) {
+                            tableBody.append(`
+                                <tr>
+                                    <td>${joining.id || ''}</td>
+                                    <td>${joining.fg_code || ''}</td>
+                                    <td>${joining.description || ''}</td>
+                                    <td>${joining.fw ? 'Yes' : 'No'}</td>
+                                    <td>${joining.make_to_order ? 'Yes' : 'No'}</td>
+                                    <td>${joining.min_level !== null && joining.min_level !== undefined ? joining.min_level : ''}</td>
+                                    <td>${joining.max_level !== null && joining.max_level !== undefined ? joining.max_level : ''}</td>
+                                    <td>${joining.kg_per_unit !== null && joining.kg_per_unit !== undefined ? joining.kg_per_unit : ''}</td>
+                                    <td>${joining.loss !== null && joining.loss !== undefined ? joining.loss : ''}</td>
+                                    <td>${joining.filling_code || ''}</td>
+                                    <td>${joining.filling_description || ''}</td>
+                                    <td>${joining.production || ''}</td>
+                                    <td>
+                                        <a href="/joining_edit/${joining.id}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="/joining_delete/${joining.id}" method="post" style="display:inline-block;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this joining?')">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            `);
+                        }
                     });
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="13" class="no-results">No joinings found for FG Code: ${fgCode}</td>
+                            <td colspan="13">
+                                <div class="no-results">
+                                    <p>No joinings found for FG Code: ${fgCode}</p>
+                                    <button class="add-joining-btn" onclick="addJoining('${fgCode}')">
+                                        Add Joining for FG Code ${fgCode}
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     `);
                 }

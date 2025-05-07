@@ -34,21 +34,36 @@ def soh_list():
 def soh_create():
     from app import db
     from models.soh import SOH
+    from models.finished_goods import FinishedGoods
+
     if request.method == 'POST':
         fg_code = request.form['fg_code']
         description = request.form['description']
-        dispatch_boxes = float(request.form['dispatch_boxes']) if request.form.get('dispatch_boxes') else 0.0
-        dispatch_units = float(request.form['dispatch_units']) if request.form.get('dispatch_units') else 0.0
-        packing_boxes = float(request.form['packing_boxes']) if request.form.get('packing_boxes') else 0.0
-        packing_units = float(request.form['packing_units']) if request.form.get('packing_units') else 0.0
+        dispatch_boxes = float(request.form['soh_dispatch_boxes']) if request.form.get('soh_dispatch_boxes') else 0.0
+        dispatch_units = float(request.form['soh_dispatch_units']) if request.form.get('soh_dispatch_units') else 0.0
+        packing_boxes = float(request.form['soh_packing_boxes']) if request.form.get('soh_packing_boxes') else 0.0
+        packing_units = float(request.form['soh_packing_units']) if request.form.get('soh_packing_units') else 0.0
+
+        # Fetch units_per_bag from FinishedGoods
+        fg = FinishedGoods.query.filter_by(item_number=fg_code).first()
+        units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1  # Default to 1 if not found
 
         # Calculate totals
         soh_total_boxes = dispatch_boxes + packing_boxes
-        soh_total_units = (dispatch_units * 10) + (packing_units * 10) + dispatch_boxes + packing_boxes
+        soh_total_units = (
+            (dispatch_boxes * units_per_bag) +
+            (packing_boxes * units_per_bag) +
+            dispatch_units +
+            packing_units
+        )
 
         new_soh = SOH(
             fg_code=fg_code,
             description=description,
+            soh_dispatch_boxes=dispatch_boxes,
+            soh_dispatch_units=dispatch_units,
+            soh_packing_boxes=packing_boxes,
+            soh_packing_units=packing_units,
             soh_total_boxes=soh_total_boxes,
             soh_total_units=soh_total_units
         )
@@ -58,26 +73,39 @@ def soh_create():
         flash("SOH entry created successfully!", "success")
         return redirect(url_for('soh.soh_list'))
 
-    return render_template('soh/create.html')
+    # GET request: Pre-fill fg_code if provided
+    fg_code = request.args.get('fg_code', '')
+    return render_template('soh/create.html', fg_code=fg_code)
 
 # SOH Edit Route
 @soh_bp.route('/soh_edit/<int:id>', methods=['GET', 'POST'])
 def soh_edit(id):
     from app import db
     from models.soh import SOH
-    soh = SOH.query.get(id)
+    from models.finished_goods import FinishedGoods
+
+    soh = SOH.query.get_or_404(id)
 
     if request.method == 'POST':
         soh.fg_code = request.form['fg_code']
         soh.description = request.form['description']
-        dispatch_boxes = float(request.form['dispatch_boxes']) if request.form.get('dispatch_boxes') else 0.0
-        dispatch_units = float(request.form['dispatch_units']) if request.form.get('dispatch_units') else 0.0
-        packing_boxes = float(request.form['packing_boxes']) if request.form.get('packing_boxes') else 0.0
-        packing_units = float(request.form['packing_units']) if request.form.get('packing_units') else 0.0
+        soh.soh_dispatch_boxes = float(request.form['soh_dispatch_boxes']) if request.form.get('soh_dispatch_boxes') else 0.0
+        soh.soh_dispatch_units = float(request.form['soh_dispatch_units']) if request.form.get('soh_dispatch_units') else 0.0
+        soh.soh_packing_boxes = float(request.form['soh_packing_boxes']) if request.form.get('soh_packing_boxes') else 0.0
+        soh.soh_packing_units = float(request.form['soh_packing_units']) if request.form.get('soh_packing_units') else 0.0
+
+        # Fetch units_per_bag from FinishedGoods
+        fg = FinishedGoods.query.filter_by(item_number=soh.fg_code).first()
+        units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1  # Default to 1 if not found
 
         # Calculate totals
-        soh.soh_total_boxes = dispatch_boxes + packing_boxes
-        soh.soh_total_units = (dispatch_units * 10) + (packing_units * 10) + dispatch_boxes + packing_boxes
+        soh.soh_total_boxes = soh.soh_dispatch_boxes + soh.soh_packing_boxes
+        soh.soh_total_units = (
+            (soh.soh_dispatch_boxes * units_per_bag) +
+            (soh.soh_packing_boxes * units_per_bag) +
+            soh.soh_dispatch_units +
+            soh.soh_packing_units
+        )
 
         db.session.commit()
         flash("SOH entry updated successfully!", "success")
@@ -90,22 +118,18 @@ def soh_edit(id):
 def soh_delete(id):
     from app import db
     from models.soh import SOH
-    soh = SOH.query.get(id)
+    soh = SOH.query.get_or_404(id)
 
-    if soh:
-        db.session.delete(soh)
-        db.session.commit()
-        flash("SOH entry deleted successfully!", "danger")
-    else:
-        flash("SOH entry not found.", "warning")
-
+    db.session.delete(soh)
+    db.session.commit()
+    flash("SOH entry deleted successfully!", "danger")
     return redirect(url_for('soh.soh_list'))
 
 # Autocomplete for SOH FG Code
 @soh_bp.route('/autocomplete_soh', methods=['GET'])
 def autocomplete_soh():
     from app import db
-    from models.soh import SOH
+    from models.joining import Joining  # Import Joining model for autocomplete
 
     search = request.args.get('query', '').strip()
 
@@ -113,7 +137,7 @@ def autocomplete_soh():
         return jsonify([])
 
     try:
-        query = text("SELECT fg_code, description FROM soh WHERE fg_code LIKE :search LIMIT 10")
+        query = text("SELECT fg_code, description FROM joining WHERE fg_code LIKE :search LIMIT 10")
         results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
         suggestions = [{"fg_code": row[0], "description": row[1]} for row in results]
         return jsonify(suggestions)
@@ -145,6 +169,10 @@ def get_search_sohs():
                 "id": soh.id,
                 "fg_code": soh.fg_code or "",
                 "description": soh.description or "",
+                "soh_dispatch_boxes": soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not None else "",
+                "soh_dispatch_units": soh.soh_dispatch_units if soh.soh_dispatch_units is not None else "",
+                "soh_packing_boxes": soh.soh_packing_boxes if soh.soh_packing_boxes is not None else "",
+                "soh_packing_units": soh.soh_packing_units if soh.soh_packing_units is not None else "",
                 "soh_total_boxes": soh.soh_total_boxes if soh.soh_total_boxes is not None else "",
                 "soh_total_units": soh.soh_total_units if soh.soh_total_units is not None else ""
             }

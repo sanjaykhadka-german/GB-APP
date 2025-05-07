@@ -50,7 +50,8 @@ def create_app():
 
     # Import models
     # We import the models module which will import all model classes
-    import models
+    from models import soh, finished_goods, item_master, recipe_master, production_plan, injected_products
+    from models import machinery, department, item_type, category, production, packing, filling
 
     # Define routes
     @app.route('/')
