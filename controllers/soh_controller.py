@@ -35,6 +35,7 @@ def soh_create():
     from app import db
     from models.soh import SOH
     from models.finished_goods import FinishedGoods
+    from models.joining import Joining
 
     if request.method == 'POST':
         fg_code = request.form['fg_code']
@@ -45,7 +46,7 @@ def soh_create():
         packing_units = float(request.form['soh_packing_units']) if request.form.get('soh_packing_units') else 0.0
 
         # Fetch units_per_bag from FinishedGoods
-        fg = FinishedGoods.query.filter_by(item_number=fg_code).first()
+        fg = Joining.query.filter_by(fg_code=fg_code).first()
         units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1  # Default to 1 if not found
 
         # Calculate totals
@@ -83,6 +84,7 @@ def soh_edit(id):
     from app import db
     from models.soh import SOH
     from models.finished_goods import FinishedGoods
+    from models.joining import Joining
 
     soh = SOH.query.get_or_404(id)
 
@@ -95,7 +97,7 @@ def soh_edit(id):
         soh.soh_packing_units = float(request.form['soh_packing_units']) if request.form.get('soh_packing_units') else 0.0
 
         # Fetch units_per_bag from FinishedGoods
-        fg = FinishedGoods.query.filter_by(item_number=soh.fg_code).first()
+        fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
         units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1  # Default to 1 if not found
 
         # Calculate totals

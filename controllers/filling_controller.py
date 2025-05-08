@@ -1,17 +1,32 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime
 from database import db  # Import db from database.py
 from models.filling import Filling
 from models.joining import Joining
 from models.production import Production
 from sqlalchemy import func
+from sqlalchemy.sql import text
 
 filling_bp = Blueprint('filling', __name__, template_folder='templates')
 
 @filling_bp.route('/filling_list', methods=['GET'])
 def filling_list():
-    fillings = Filling.query.all()
-    return render_template('filling/list.html', fillings=fillings)
+    # Get search parameters from query string
+    search_fill_code = request.args.get('fill_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    # Query fillings with optional filters
+    fillings_query = Filling.query
+    if search_fill_code:
+        fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+    if search_description:
+        fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+
+    fillings = fillings_query.all()
+    return render_template('filling/list.html',
+                         fillings=fillings,
+                         search_fill_code=search_fill_code,
+                         search_description=search_description)
 
 @filling_bp.route('/filling_create', methods=['GET', 'POST'])
 def filling_create():
@@ -116,6 +131,55 @@ def filling_delete(id):
         flash(f"An unexpected error occurred: {str(e)}", 'error')
     return redirect(url_for('filling.filling_list'))
 
+# Autocomplete for Filling Fill Code
+@filling_bp.route('/autocomplete_filling', methods=['GET'])
+def autocomplete_filling():
+    search = request.args.get('query', '').strip()
+
+    if not search:
+        return jsonify([])
+
+    try:
+        query = text("SELECT fill_code, description FROM filling WHERE fill_code LIKE :search LIMIT 10")
+        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
+        suggestions = [{"fill_code": row[0], "description": row[1]} for row in results]
+        return jsonify(suggestions)
+    except Exception as e:
+        print("Error fetching filling autocomplete suggestions:", e)
+        return jsonify([])
+
+# Search Fillings via AJAX
+@filling_bp.route('/get_search_fillings', methods=['GET'])
+def get_search_fillings():
+    search_fill_code = request.args.get('fill_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+
+    try:
+        fillings_query = Filling.query
+
+        if search_fill_code:
+            fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+        if search_description:
+            fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+
+        fillings = fillings_query.all()
+
+        fillings_data = [
+            {
+                "id": filling.id,
+                "filling_date": filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else "",
+                "fill_code": filling.fill_code or "",
+                "description": filling.description or "",
+                "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""
+            }
+            for filling in fillings
+        ]
+
+        return jsonify(fillings_data)
+    except Exception as e:
+        print("Error fetching search fillings:", e)
+        return jsonify({"error": "Failed to fetch filling entries"}), 500
+
 def update_production_entry(filling_date, fill_code, joining):
     """Helper function to create or update a Production entry."""
     try:
@@ -125,21 +189,21 @@ def update_production_entry(filling_date, fill_code, joining):
 
         fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
         if len(fill_code_prefix) > 1:
-            
-        # Aggregate total_kg for all Filling entries with the same production_code and filling_date
+            # Aggregate total_kg for all Filling entries with the same production_code and filling_date
             total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
-            Filling.filling_date == filling_date,
-            func.substring_index(Filling.fill_code, '.', 1) == fill_code_prefix
+                Filling.filling_date == filling_date,
+                func.substring_index(Filling.fill_code, '.', 1) == fill_code_prefix
             ).scalar() or 0.0
         else:
             # Aggregate total_kg for Filling entries with matching fill_code, filling_date, and description
             total_kg = db.session.query(func.sum(Filling.kilo_per_size)).join(
-                Joining, Joining.fill_code == Filling.fill_code
+                Joining, Joining.filling_code == Filling.fill_code
             ).filter(
                 Filling.filling_date == filling_date,
                 Filling.fill_code == fill_code,
                 Filling.description == Joining.filling_description
             ).scalar() or 0.0
+
         # If total_kg is 0, no matching Filling entries were found
         if total_kg == 0.0:
             # Optionally delete the Production entry if it exists

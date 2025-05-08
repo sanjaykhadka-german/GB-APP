@@ -46,6 +46,7 @@ def joining_create():
         filling_code = request.form.get('filling_code')
         filling_description = request.form.get('filling_description')
         production = request.form.get('production')
+        units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None  # New field
 
         new_joining = Joining(
             fg_code=fg_code,
@@ -58,7 +59,8 @@ def joining_create():
             loss=loss,
             filling_code=filling_code,
             filling_description=filling_description,
-            production=production
+            production=production,
+            units_per_bag=units_per_bag  # New field
         )
         db.session.add(new_joining)
         db.session.commit()
@@ -87,6 +89,7 @@ def joining_edit(id):
         joining.filling_code = request.form.get('filling_code')
         joining.filling_description = request.form.get('filling_description')
         joining.production = request.form.get('production')
+        joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None  # New field
 
         db.session.commit()
         flash("Joining updated successfully!", "success")
@@ -162,7 +165,8 @@ def get_search_joinings():
                 "loss": joining.loss if joining.loss is not None else "",
                 "filling_code": joining.filling_code or "",
                 "filling_description": joining.filling_description or "",
-                "production": joining.production or ""
+                "production": joining.production or "",
+                "units_per_bag": joining.units_per_bag if joining.units_per_bag is not None else ""  # New field
             }
             for joining in joinings
         ]

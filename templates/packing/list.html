@@ -2,75 +2,276 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Packing List</h2>
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <!-- Packing Search Section -->
+    <section id="search">
+        <h2>Packing Search</h2>
+        <form id="searchForm" onsubmit="return false;">
+            <div class="form-group">
+                <label for="search_fg_code">Product Code:</label>
+                <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
             </div>
-        {% endfor %}
-    {% endif %}
-    {% endwith %}
 
-    <a href="{{ url_for('packing.packing_create') }}" class="btn btn-primary mb-3">Add New Packing Entry</a>
+            <div class="form-group">
+                <label for="search_description">Description:</label>
+                <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
+            </div>
 
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Packing Date</th>
-                <th>Product Code</th>
-                <th>Product Description</th>
-                <th>Special Order KG</th>
-                <th>Avg Weight/Unit</th>
-                <th>SOH Req Units/Week</th>
-                <th>Total Stock Multiplier</th>
-                <th>Weekly Average</th>
-                <th>Requirements KG</th>
-                <th>Special Order Unit</th>
-                <th>Requirements Unit</th>
-                <th>SOH KG</th>
-                <th>SOH Units</th>
-                <th>Total Stock KG</th>
-                <th>Total Stock Unit</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for data in packing_data %}
-            <tr>
-                <td>{{ data.packing.id }}</td>
-                <td>{{ data.packing.packing_date.strftime('%Y-%m-%d') }}</td>
-                <td>{{ data.packing.product_code }}</td>
-                <td>{{ data.packing.product_description or '' }}</td>
-                <td>{{ data.packing.special_order_kg }}</td>
-                <td>{{ data.packing.avg_weight_per_unit }}</td>
-                <td>{{ data.packing.soh_requirement_units_week }}</td>
-                <td>{{ data.packing.total_stock_multiplier }}</td>
-                <td>{{ data.packing.weekly_average or '' }}</td>
-                <td>{{ data.packing.requirements_kg or data.requirements_kg }}</td>
-                <td>{{ data.special_order_unit }}</td>
-                <td>{{ data.requirements_unit }}</td>
-                <td>{{ data.soh_kg }}</td>
-                <td>{{ data.soh_units }}</td>
-                <td>{{ data.total_stock_kg }}</td>
-                <td>{{ data.total_stock_unit }}</td>
-                <td>
-                    <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
-                    <form action="{{ url_for('packing.packing_delete', id=data.packing.id) }}" method="post" style="display:inline;">
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="17">No packing entries found.</td>
-            </tr>
+            <button type="button" onclick="fetchPackings()">Search</button>
+            <div id="fg_code_suggestions" class="suggestion-list"></div>
+        </form>
+    </section>
+
+    <!-- Packing List Section -->
+    <section id="list">
+        <h2>Packing List</h2>
+        <a href="{{ url_for('packing.packing_create') }}" class="btn btn-primary my-3">Create New Packing</a>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
+        {% endif %}
+        {% endwith %}
+
+        <div id="resultSection" class="table-container">
+            <table class="table table-bordered" id="packingListTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Product Code</th>
+                        <th>Product Description</th>
+                        <th>Special Order KG</th>
+                        <th>Special Order Unit</th>
+                        <th>Requirement KG</th>
+                        <th>Requirement Unit</th>
+                        <th>AVG Weight per Unit</th>
+                        <th>SOH Req KG/Week</th>
+                        <th>SOH Req Units/Week</th>
+                        <th>SOH KG</th>
+                        <th>SOH Units</th>
+                        <th>Avg Weight/Unit (Calc)</th>
+                        <th>Total Stock KG</th>
+                        <th>Total Stock Units</th>
+                        <th>Weekly Average</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in packing_data %}
+                    {% set packing = data.packing %}
+                    <tr>
+                        <td>{{ packing.packing_date }}</td>
+                        <td>{{ packing.product_code }}</td>
+                        <td>{{ packing.product_description }}</td>
+                        <td>{{ packing.special_order_kg }}</td>
+                        <td>{{ data.special_order_unit }}</td>
+                        <td>{{ data.requirement_kg }}</td>
+                        <td>{{ data.requirement_unit }}</td>
+                        <td>{{ packing.avg_weight_per_unit }}</td>
+                        <td>{{ data.soh_requirement_kg_week }}</td>
+                        <td>{{ packing.soh_requirement_units_week }}</td>
+                        <td>{{ data.soh_kg }}</td>
+                        <td>{{ data.soh_units }}</td>
+                        <td>{{ packing.avg_weight_per_unit_calc }}</td>
+                        <td>{{ data.total_stock_kg }}</td>
+                        <td>{{ data.total_stock_units }}</td>
+                        <td>{{ packing.weekly_average }}</td>
+                        <td>
+                            <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                            <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
+
+<style>
+    .suggestion-list {
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        max-height: 200px;
+        overflow-y: auto;
+        width: 100%;
+        z-index: 1000;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .suggestion-list ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .suggestion-list li {
+        padding: 8px 12px;
+        cursor: pointer;
+    }
+    .suggestion-list li:hover {
+        background-color: #f5f5f5;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .table-container {
+        overflow-x: auto;
+    }
+    .no-results {
+        text-align: center;
+        padding: 20px;
+    }
+    .add-packing-btn {
+        background-color: #007bff;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .add-packing-btn:hover {
+        background-color: #0056b3;
+    }
+    .hidden {
+        display: none;
+    }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Autocomplete for Product Code
+        $("#search_fg_code").keyup(function() {
+            var fgCode = $(this).val().trim();
+            if (fgCode.length > 0) {
+                $.ajax({
+                    url: "{{ url_for('packing.autocomplete_packing') }}",
+                    type: "GET",
+                    data: { query: fgCode },
+                    success: function(response) {
+                        var suggestionsHtml = "<ul>";
+                        response.forEach(function(packing) {
+                            suggestionsHtml += `<li data-fg-code="${packing.fg_code}" data-description="${packing.description}">${packing.fg_code} - ${packing.description}</li>`;
+                        });
+                        suggestionsHtml += "</ul>";
+                        $("#fg_code_suggestions").html(suggestionsHtml);
+                    },
+                    error: function() {
+                        $("#fg_code_suggestions").empty();
+                    }
+                });
+            } else {
+                $("#fg_code_suggestions").empty();
+            }
+        });
+
+        // Handle suggestion click
+        $(document).on("click", "#fg_code_suggestions li", function() {
+            $("#search_fg_code").val($(this).data("fg-code"));
+            $("#search_description").val($(this).data("description"));
+            $("#fg_code_suggestions").empty();
+            fetchPackings(); // Trigger search after selecting suggestion
+        });
+
+        // Hide suggestions when clicking outside
+        $(document).click(function(event) {
+            if (!$(event.target).closest("#search_fg_code, #fg_code_suggestions").length) {
+                $("#fg_code_suggestions").empty();
+            }
+        });
+    });
+
+    // Function to add a new packing entry
+    function addPacking(fgCode) {
+        window.location.href = `{{ url_for('packing.packing_create') }}?fg_code=${fgCode}`;
+    }
+
+    // Fetch packing list based on search criteria
+    function fetchPackings() {
+        var fgCode = $("#search_fg_code").val().trim();
+        var description = $("#search_description").val().trim();
+
+        $.ajax({
+            url: "{{ url_for('packing.get_search_packings') }}",
+            type: "GET",
+            data: { fg_code: fgCode, description: description },
+            success: function(response) {
+                var tableBody = $("#packingListTable tbody");
+                tableBody.empty();
+                $("#resultSection").removeClass("hidden");
+
+                if (response.error) {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="17" class="no-results">Error fetching packing entries: ${response.error}</td>
+                        </tr>
+                    `);
+                    return;
+                }
+
+                if (response.length > 0) {
+                    response.forEach(function(packing) {
+                        // Only include rows with a valid id
+                        if (packing.id !== null && packing.id !== undefined) {
+                            tableBody.append(`
+                                <tr>
+                                    <td>${packing.packing_date || ''}</td>
+                                    <td>${packing.product_code || ''}</td>
+                                    <td>${packing.product_description || ''}</td>
+                                    <td>${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}</td>
+                                    <td>${packing.special_order_unit !== null && packing.special_order_unit !== undefined ? packing.special_order_unit : ''}</td>
+                                    <td>${packing.requirement_kg !== null && packing.requirement_kg !== undefined ? packing.requirement_kg : ''}</td>
+                                    <td>${packing.requirement_unit !== null && packing.requirement_unit !== undefined ? packing.requirement_unit : ''}</td>
+                                    <td>${packing.avg_weight_per_unit !== null && packing.avg_weight_per_unit !== undefined ? packing.avg_weight_per_unit : ''}</td>
+                                    <td>${packing.soh_requirement_kg_week !== null && packing.soh_requirement_kg_week !== undefined ? packing.soh_requirement_kg_week : ''}</td>
+                                    <td>${packing.soh_requirement_units_week !== null && packing.soh_requirement_units_week !== undefined ? packing.soh_requirement_units_week : ''}</td>
+                                    <td>${packing.soh_kg !== null && packing.soh_kg !== undefined ? packing.soh_kg : ''}</td>
+                                    <td>${packing.soh_units !== null && packing.soh_units !== undefined ? packing.soh_units : ''}</td>
+                                    <td>${packing.avg_weight_per_unit_calc !== null && packing.avg_weight_per_unit_calc !== undefined ? packing.avg_weight_per_unit_calc : ''}</td>
+                                    <td>${packing.total_stock_kg !== null && packing.total_stock_kg !== undefined ? packing.total_stock_kg : ''}</td>
+                                    <td>${packing.total_stock_units !== null && packing.total_stock_units !== undefined ? packing.total_stock_units : ''}</td>
+                                    <td>${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}</td>
+                                    <td>
+                                        <a href="/packing/edit/${packing.id}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="/packing/delete/${packing.id}" method="post" style="display:inline-block;">
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            `);
+                        }
+                    });
+                } else {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="17">
+                                <div class="no-results">
+                                    <p>No packing entries found for Product Code: ${fgCode}</p>
+                                    <button class="add-packing-btn" onclick="addPacking('${fgCode}')">
+                                        Add Packing Entry for Product Code ${fgCode}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                }
+            },
+            error: function() {
+                var tableBody = $("#packingListTable tbody");
+                tableBody.empty();
+                tableBody.append(`
+                    <tr>
+                        <td colspan="17" class="no-results">Error fetching packing entries.</td>
+                    </tr>
+                `);
+            }
+        });
+    }
+</script>
 {% endblock %}
