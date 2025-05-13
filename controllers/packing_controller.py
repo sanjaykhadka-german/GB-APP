@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models.packing import Packing
+from models.production import Production
 from models.soh import SOH
 from models.filling import Filling
 from models.joining import Joining
@@ -9,6 +10,101 @@ from sqlalchemy.sql import text
 from sqlalchemy import func
 
 packing = Blueprint('packing', __name__, url_prefix='/packing')
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from models.packing import Packing
+from models.production import Production
+from models.soh import SOH
+from models.filling import Filling
+from models.joining import Joining
+from datetime import datetime,date
+from database import db
+from sqlalchemy.sql import text
+from sqlalchemy import func
+
+packing = Blueprint('packing', __name__, url_prefix='/packing')
+
+def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=0.0, 
+                        soh_requirement_units_week=0, weekly_average=0.0):
+    try:
+        # Default packing_date to today if not provided
+        packing_date = packing_date or date.today()
+
+        # Check if Packing entry exists for the fg_code and packing_date
+        packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
+        
+        if not packing:
+            # Create new Packing entry
+            packing = Packing(
+                product_code=fg_code,
+                product_description=description,
+                packing_date=packing_date,
+                special_order_kg=special_order_kg,
+                avg_weight_per_unit=avg_weight_per_unit,
+                soh_requirement_units_week=soh_requirement_units_week,
+                weekly_average=weekly_average
+            )
+            db.session.add(packing)
+        else:
+            # Update existing Packing entry
+            packing.product_description = description
+            packing.special_order_kg = special_order_kg
+            packing.avg_weight_per_unit = avg_weight_per_unit
+            packing.soh_requirement_units_week = soh_requirement_units_week
+            packing.weekly_average = weekly_average
+
+        # Fetch SOH data for calculations
+        soh = SOH.query.filter_by(fg_code=fg_code).first()
+        soh_units = soh.soh_total_units if soh else 0  # L2
+
+        # Calculations based on Excel formulas
+        avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0
+        special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2
+        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2
+        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2
+        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2
+        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2
+        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0  # F2
+        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0  # G2
+        packing.avg_weight_per_unit_calc = avg_weight_per_unit  # M2 = H2
+        packing.soh_units = soh_units  # L2
+
+        db.session.commit()
+
+        # Update or create corresponding Filling entry
+        joining = Joining.query.filter_by(fg_code=fg_code).first()
+        if joining:
+            filling = Filling.query.filter_by(
+                filling_date=packing.packing_date,
+                fill_code=joining.filling_code
+            ).first()
+
+            if filling:
+                # Update existing Filling entry
+                filling.kilo_per_size = packing.requirement_kg
+                filling.description = joining.filling_description
+            else:
+                # Create new Filling entry
+                filling = Filling(
+                    filling_date=packing.packing_date,
+                    fill_code=joining.filling_code,
+                    description=joining.filling_description,
+                    kilo_per_size=packing.requirement_kg
+                )
+                db.session.add(filling)
+            db.session.commit()
+
+            # Update corresponding Production entry
+            update_production_entry(packing.packing_date, joining.filling_code, joining)
+        else:
+            print(f"No Joining record found for product code {fg_code}. Filling entry not updated.")
+
+        return True, "Packing entry updated successfully"
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating packing entry for {fg_code}: {str(e)}")
+        return False, f"Error updating packing entry: {str(e)}"
 
 @packing.route('/')
 def packing_list():
@@ -57,7 +153,8 @@ def packing_list():
     return render_template('packing/list.html',
                          packing_data=packing_data,
                          search_fg_code=search_fg_code,
-                         search_description=search_description)
+                         search_description=search_description,
+                         current_page="packing")
 
 @packing.route('/create', methods=['GET', 'POST'])
 def packing_create():
@@ -148,12 +245,12 @@ def packing_create():
 
     # Fetch product codes for dropdown
     products = SOH.query.all()
-    return render_template('packing/create.html', products=products)
+    return render_template('packing/create.html', products=products, current_page="packing")
 
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):
     packing = Packing.query.get_or_404(id)
-    old_requirement_kg = packing.requirement_kg  # Store old requirement_kg for adjustment
+    #old_requirement_kg = packing.requirement_kg  # Store old requirement_kg for adjustment
 
     if request.method == 'POST':
         try:
@@ -195,7 +292,7 @@ def packing_edit(id):
 
                 if filling:
                     # Adjust kilo_per_size: subtract old requirement_kg and add new requirement_kg
-                    filling.kilo_per_size = filling.kilo_per_size - oldRequirement_kg + packing.requirement_kg
+                    filling.kilo_per_size = filling.kilo_per_size + packing.requirement_kg
                     filling.description = joining.filling_description
                 else:
                     # Create new Filling entry
@@ -227,7 +324,7 @@ def packing_edit(id):
 
     # Fetch product codes for dropdown
     products = SOH.query.all()
-    return render_template('packing/edit.html', packing=packing, products=products)
+    return render_template('packing/edit.html', packing=packing, products=products, current_page="packing")
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):

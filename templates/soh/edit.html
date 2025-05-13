@@ -27,6 +27,9 @@
             <label for="soh_packing_units">Packing Units</label>
             <input type="number" step="0.01" class="form-control" id="soh_packing_units" name="soh_packing_units" value="{{ soh.soh_packing_units }}">
         </div>
+        <div class="form-group">
+            <label for="date_time">Edit Date</label>
+        </div>
         <button type="submit" class="btn btn-primary">Update SOH</button>
         <a href="{{ url_for('soh.soh_list') }}" class="btn btn-secondary">Cancel</a>
     </form>

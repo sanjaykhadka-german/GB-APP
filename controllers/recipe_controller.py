@@ -26,7 +26,7 @@ def recipe_page():
                 return render_template('recipe/recipe.html', 
                                      search_recipe_code=request.args.get('recipe_code', ''),
                                      search_description=request.args.get('description', ''),
-                                     recipes=RecipeMaster.query.all())
+                                     recipes=RecipeMaster.query.all(), current_page='recipe')
 
             kg_per_batch = Decimal(kg_per_batch)
 
@@ -65,7 +65,7 @@ def recipe_page():
             return render_template('recipe/recipe.html', 
                                  search_recipe_code=request.args.get('recipe_code', ''),
                                  search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all())
+                                 recipes=RecipeMaster.query.all(),current_page='recipe')
 
         except sqlalchemy.exc.IntegrityError as e:
             db.session.rollback()
@@ -73,7 +73,7 @@ def recipe_page():
             return render_template('recipe/recipe.html', 
                                  search_recipe_code=request.args.get('recipe_code', ''),
                                  search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all())
+                                 recipes=RecipeMaster.query.all(), current_page='recipe')
 
         except Exception as e:
             db.session.rollback()
@@ -81,7 +81,7 @@ def recipe_page():
             return render_template('recipe/recipe.html', 
                                  search_recipe_code=request.args.get('recipe_code', ''),
                                  search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all())
+                                 recipes=RecipeMaster.query.all(), current_page='recipe')
 
     # GET request: render the page or edit form
     search_recipe_code = request.args.get('recipe_code', '')
@@ -93,11 +93,11 @@ def recipe_page():
                              search_recipe_code=search_recipe_code,
                              search_description=search_description,
                              recipes=RecipeMaster.query.all(),
-                             edit_recipe=recipe)
+                             edit_recipe=recipe, current_page='recipe')
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
-                         recipes=RecipeMaster.query.all())
+                         recipes=RecipeMaster.query.all(), current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
 def delete_recipe(id):
@@ -169,22 +169,38 @@ def get_search_recipes():
 def usage():
     from database import db
     from models import Production, RecipeMaster
+    
+    # Fetch all productions
     productions = Production.query.all()
-    usage_data = []
+    
+    # Dictionary to group usage data by production_date
+    grouped_usage_data = {}
+    
     for production in productions:
         recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
         if not recipes:
             continue
         for recipe in recipes:
             usage = float(production.total_kg) * (float(recipe.percentage) / 100)
-            usage_data.append({
-                'production_date': production.production_date.strftime('%d/%m/%Y'),
+            # Format production_date as string
+            date_str = production.production_date.strftime('%d/%m/%Y')
+            
+            # Initialize list for this date if not already present
+            if date_str not in grouped_usage_data:
+                grouped_usage_data[date_str] = []
+                
+            # Append usage data for this production and recipe
+            grouped_usage_data[date_str].append({
                 'recipe_code': production.production_code,
                 'raw_material': recipe.raw_material,
                 'usage': round(usage, 2),
                 'percentage': float(recipe.percentage)
             })
-    return render_template('recipe/usage.html', usage_data=usage_data)
+    
+    # Sort dates to ensure chronological order
+    sorted_usage_data = dict(sorted(grouped_usage_data.items(), key=lambda x: datetime.strptime(x[0], '%d/%m/%Y')))
+    
+    return render_template('recipe/usage.html', grouped_usage_data=sorted_usage_data,current_page='usage')
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
@@ -218,4 +234,4 @@ def raw_material_report():
         for material, total in raw_material_totals.items()
     ]
     raw_material_data.sort(key=lambda x: x['raw_material'])
-    return render_template('recipe/raw_material.html', raw_material_data=raw_material_data)
+    return render_template('recipe/raw_material.html', raw_material_data=raw_material_data, current_page='raw_material')

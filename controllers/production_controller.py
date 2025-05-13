@@ -10,7 +10,7 @@ production_bp = Blueprint('production', __name__, template_folder='templates')
 @production_bp.route('/production_list', methods=['GET'])
 def production_list():
     productions = Production.query.all()
-    return render_template('production/list.html', productions=productions)
+    return render_template('production/list.html', productions=productions,current_page="production")
 
 @production_bp.route('/production_create', methods=['GET', 'POST'])
 def production_create():
@@ -27,7 +27,7 @@ def production_create():
             joining = Joining.query.filter_by(production=production_code).first()
             if not joining:
                 flash(f"No Joining record found for production code {production_code}.", 'error')
-                return render_template('production/create.html')
+                return render_template('production/create.html',current_page="production")
 
             new_production = Production(
                 production_date=production_date,
@@ -44,13 +44,13 @@ def production_create():
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('production/create.html')
+            return render_template('production/create.html',current_page="production")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('production/create.html')
+            return render_template('production/create.html',current_page="production")
 
-    return render_template('production/create.html')
+    return render_template('production/create.html',current_page="production")
 
 @production_bp.route('/production_edit/<int:id>', methods=['GET', 'POST'])
 def production_edit(id):
@@ -69,7 +69,7 @@ def production_edit(id):
             joining = Joining.query.filter_by(production=production.production_code).first()
             if not joining:
                 flash(f"No Joining record found for production code {production.production_code}.", 'error')
-                return render_template('production/edit.html', production=production)
+                return render_template('production/edit.html', production=production,current_page="production")
 
             db.session.commit()
             flash("Production entry updated successfully!", "success")
@@ -77,13 +77,13 @@ def production_edit(id):
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('production/edit.html', production=production)
+            return render_template('production/edit.html', production=production,current_page="production")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('production/edit.html', production=production)
+            return render_template('production/edit.html', production=production,current_page="production")
 
-    return render_template('production/edit.html', production=production)
+    return render_template('production/edit.html', production=production,current_page="production")
 
 @production_bp.route('/production_delete/<int:id>', methods=['POST'])
 def production_delete(id):

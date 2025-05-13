@@ -14,17 +14,47 @@
         <h1>GB Production and Inventory Management System</h1>
         <nav>
             <ul>
-                <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('recipe.recipe_page') }}">Recipe</a></li>
-                <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li>
-                <li><a href="{{ url_for('soh.soh_list') }}">SOH</a></li>
-                <li><a href="{{ url_for('packing.packing_list') }}">Packing</a></li>
-                <li><a href="{{ url_for('filling.filling_list') }}">Filling</a></li>
-                <li><a href="{{ url_for('production.production_list') }}">Production</a></li>               
-                <li><a href="{{ url_for('recipe.usage') }}">Usage Report</a></li>
-                <li><a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a></li>
-                <li><a href="{{ url_for('production_plan.production_plan_list') }}">Production Plan</a></li>
-                <li><a href="{{ url_for('production_plan.production_plan_create') }}">Create Production Plan</a></li>
+                    <li class="{% if current_page == 'home' %}active{% endif %}">
+                    <a href="{{ url_for('index') }}">Home</a>
+                </li>
+                    <li class="{% if current_page == 'recipe' %}active{% endif %}">
+                    <a href="{{ url_for('recipe.recipe_page') }}">Recipe</a>
+                </li>
+                <li
+                     class="{% if current_page == 'joining' %}active{% endif %}">
+                    <a href="{{ url_for('joining.joining_list') }}">Joining</a>
+                </li>
+                <li
+                    class="{% if current_page == 'soh' %}active{% endif %}">
+                    <a href="{{ url_for('soh.soh_list') }}">SOH</a>
+                </li>
+                <li class="{% if current_page == 'packing' %}active{% endif %}">
+                <a href="{{ url_for('packing.packing_list') }}">Packing</a>
+            </li>
+                <li
+                    class="{% if current_page == 'filling' %}active{% endif %}">
+                   <a href="{{ url_for('filling.filling_list') }}">Filling</a>
+            </li>
+                <li
+                    class="{% if current_page == 'production' %}active{% endif %}">
+                    <a href="{{ url_for('production.production_list') }}">Production</a>
+                </li>               
+                <li
+                class="{% if current_page == 'recipe' %}active{% endif %}">
+                <a href="{{ url_for('recipe.usage') }}">Usage Report</a>
+            </li>
+                <li
+                    class="{% if current_page == 'raw_material' %}active{% endif %}">
+                    <a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a>
+                </li>
+            <li
+                class="{% if current_page == 'production_plan_list' %}active{% endif %}">
+                <a href="{{ url_for('production_plan.production_plan_list') }}">Production Plan</a>
+            </li>
+            <li
+                class="{% if current_page == 'production_plan_create' %}active{% endif %}">
+                <li><a href="{{ url_for('production_plan.production_plan_create') }}">Create Production Plan</a>
+                </li>
             </ul>
         </nav>
     </header>

@@ -31,7 +31,7 @@ class Joining(db.Model):
     filling_code = db.Column(db.String(50))
     filling_description = db.Column(db.String(255))
     production = db.Column(db.String(50))
-    units_per_bag = db.Column(db.Float)  # <-- New column
+    units_per_bag = db.Column(db.Float, nullable=True)  # <-- New column
 
 
 

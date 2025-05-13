@@ -27,14 +27,14 @@ def joining_list():
     return render_template('joining/list.html',
                          joinings=joinings,
                          search_fg_code=search_fg_code,
-                         search_description=search_description)
+                         search_description=search_description,current_page="joining")
 
-# Joining Create Route
 @joining_bp.route('/joining_create', methods=['GET', 'POST'])
 def joining_create():
-    from app import db  # Defer import to runtime
-    from models.joining import Joining  # Defer import to runtime
+    from app import db
+    from models.joining import Joining
     if request.method == 'POST':
+        print("Form data:", request.form)  # Debug: Log form data
         fg_code = request.form['fg_code']
         description = request.form['description']
         fw = 'fw' in request.form
@@ -46,7 +46,8 @@ def joining_create():
         filling_code = request.form.get('filling_code')
         filling_description = request.form.get('filling_description')
         production = request.form.get('production')
-        units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None  # New field
+        units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None
+        print("Units per bag:", units_per_bag)  # Debug: Log units_per_bag
 
         new_joining = Joining(
             fg_code=fg_code,
@@ -60,7 +61,7 @@ def joining_create():
             filling_code=filling_code,
             filling_description=filling_description,
             production=production,
-            units_per_bag=units_per_bag  # New field
+            units_per_bag=units_per_bag
         )
         db.session.add(new_joining)
         db.session.commit()
@@ -68,7 +69,7 @@ def joining_create():
         flash("Joining created successfully!", "success")
         return redirect(url_for('joining.joining_list'))
 
-    return render_template('joining/create.html')
+    return render_template('joining/create.html',current_page="joining")
 
 # Joining Edit Route
 @joining_bp.route('/joining_edit/<int:id>', methods=['GET', 'POST'])
@@ -95,7 +96,7 @@ def joining_edit(id):
         flash("Joining updated successfully!", "success")
         return redirect(url_for('joining.joining_list'))
 
-    return render_template('joining/edit.html', joining=joining)
+    return render_template('joining/edit.html', joining=joining,current_page="joining")
 
 # Joining Delete Route
 @joining_bp.route('/joining_delete/<int:id>', methods=['POST'])

@@ -11,3 +11,4 @@ class SOH(db.Model):
     soh_packing_units = db.Column(db.Float, default=0.0)
     soh_total_boxes = db.Column(db.Float, default=0.0)
     soh_total_units = db.Column(db.Float, default=0.0)
+    edit_date = db.Column(db.DateTime, default=db.func.current_timestamp())

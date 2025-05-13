@@ -13,11 +13,22 @@ def create_app():
     # Load environment variables from .env file
     load_dotenv()
 
+    # File upload configuration
+    UPLOAD_FOLDER = 'uploads'
+    ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
+
+    
+
+    # Create uploads directory if it doesn't exist
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+
     # Create and configure the Flask app
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-secret-key')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
     # Validate SQLALCHEMY_DATABASE_URI
     if not app.config['SQLALCHEMY_DATABASE_URI']:
@@ -58,7 +69,7 @@ def create_app():
     def index():
         from models import Category
         categories = Category.query.all()
-        return render_template('index.html', categories=categories)
+        return render_template('index.html', categories=categories,current_page="home")
 
     @app.route('/add_department', methods=['POST'])
     def add_department():

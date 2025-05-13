@@ -117,7 +117,9 @@
         <nav>
             <ul>
                 <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('recipe.recipe_page') }}">Recipe</a></li>
+                <li class="{% if current_page == 'recipe' %}active{% endif %}">
+                    <a href="{{ url_for('recipe.recipe_page') }}">Recipe</a>
+                </li>
                 <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li>
                 <li><a href="{{ url_for('soh.soh_list') }}">SOH</a></li>
                 <li><a href="{{ url_for('packing.packing_list') }}">Packing</a></li>
@@ -224,7 +226,7 @@
                         <td>{{ recipe.kg_per_batch }}</td>
                         <td>{{ recipe.percentage|round(2) }}%</td>
                         <td>
-                            <button class="edit-btn" onclick="editRecipe({{ recipe.id }})">Edit</button>
+                            <button class="edit-btn" data-id="({{ recipe.id }})">Edit</button>
                             <form action="{{ url_for('recipe.delete_recipe', id=recipe.id) }}" method="POST" style="display:inline;">
                                 <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to delete this recipe?')">Delete</button>
                             </form>

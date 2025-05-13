@@ -26,7 +26,7 @@ def filling_list():
     return render_template('filling/list.html',
                          fillings=fillings,
                          search_fill_code=search_fill_code,
-                         search_description=search_description)
+                         search_description=search_description, current_page="filling")
 
 @filling_bp.route('/filling_create', methods=['GET', 'POST'])
 def filling_create():
@@ -42,7 +42,7 @@ def filling_create():
             joining = Joining.query.filter_by(filling_code=fill_code).first()
             if not joining:
                 flash(f"No Joining record found for fill_code {fill_code}.", 'error')
-                return render_template('filling/create.html')
+                return render_template('filling/create.html',current_page="filling")
 
             new_filling = Filling(
                 filling_date=filling_date,
@@ -61,13 +61,13 @@ def filling_create():
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/create.html')
+            return render_template('filling/create.html',current_page="filling")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/create.html')
+            return render_template('filling/create.html',current_page="filling")
 
-    return render_template('filling/create.html')
+    return render_template('filling/create.html',current_page="filling")
 
 @filling_bp.route('/filling_edit/<int:id>', methods=['GET', 'POST'])
 def filling_edit(id):
@@ -87,7 +87,7 @@ def filling_edit(id):
             joining = Joining.query.filter_by(filling_code=filling.fill_code).first()
             if not joining:
                 flash(f"No Joining record found for fill_code {filling.fill_code}.", 'error')
-                return render_template('filling/edit.html', filling=filling)
+                return render_template('filling/edit.html', filling=filling,current_page="filling")
 
             db.session.commit()
 
@@ -103,13 +103,13 @@ def filling_edit(id):
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/edit.html', filling=filling)
+            return render_template('filling/edit.html', filling=filling,current_page="filling")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/edit.html', filling=filling)
+            return render_template('filling/edit.html', filling=filling,current_page="filling")
 
-    return render_template('filling/edit.html', filling=filling)
+    return render_template('filling/edit.html', filling=filling,current_page="filling")
 
 @filling_bp.route('/filling_delete/<int:id>', methods=['POST'])
 def filling_delete(id):

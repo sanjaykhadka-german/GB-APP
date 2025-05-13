@@ -429,3 +429,9 @@ input[type="checkbox"] {
     text-align: center;
     padding: 20px;
 }
+
+nav ul li.active a {
+    color: #fff;
+    background-color: #dc3545; 
+    font-weight: bold;
+}
