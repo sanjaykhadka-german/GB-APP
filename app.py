@@ -64,6 +64,10 @@ def create_app():
     from models import soh, finished_goods, item_master, recipe_master, production_plan, injected_products
     from models import machinery, department, item_type, category, production, packing, filling
 
+    @app.template_filter('format_date')
+    def format_date(value):
+        return value.strftime('%Y-%m-%d') if value else ''
+
     # Define routes
     @app.route('/')
     def index():

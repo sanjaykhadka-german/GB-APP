@@ -3,6 +3,7 @@ from database import db
 class Filling(db.Model):
     __tablename__ = 'filling'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    week_commencing = db.Column(db.Date, nullable=True)  # New column
     filling_date = db.Column(db.Date, nullable=False)
     fill_code = db.Column(db.String(50), nullable=True)
     description = db.Column(db.String(255))

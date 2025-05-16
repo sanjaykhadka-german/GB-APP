@@ -4,41 +4,38 @@ from models.production import Production
 from models.soh import SOH
 from models.filling import Filling
 from models.joining import Joining
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from database import db
 from sqlalchemy.sql import text
 from sqlalchemy import func
 
 packing = Blueprint('packing', __name__, url_prefix='/packing')
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from models.packing import Packing
-from models.production import Production
-from models.soh import SOH
-from models.filling import Filling
-from models.joining import Joining
-from datetime import datetime,date
-from database import db
-from sqlalchemy.sql import text
-from sqlalchemy import func
-
-packing = Blueprint('packing', __name__, url_prefix='/packing')
 
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=0.0, 
-                        soh_requirement_units_week=0, weekly_average=0.0):
+                        soh_requirement_units_week=0, weekly_average=0.0, week_commencing=None):
     try:
-        # Default packing_date to today if not provided
         packing_date = packing_date or date.today()
 
-        # Check if Packing entry exists for the fg_code and packing_date
+        # Use provided week_commencing, or calculate it if not provided
+        if week_commencing is None:
+            def get_monday_of_week(dt):
+                return dt - timedelta(days=dt.weekday())
+            week_commencing = get_monday_of_week(packing_date)
+
+        # Check if SOH entry exists for the week_commencing and fg_code
+        soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
+        if not soh:
+            return False, f"No SOH entry found for fg_code {fg_code} and week_commencing {week_commencing}"
+
         packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
         
         if not packing:
-            # Create new Packing entry
             packing = Packing(
                 product_code=fg_code,
                 product_description=description,
                 packing_date=packing_date,
+                week_commencing=week_commencing,  # Use provided or calculated week_commencing
                 special_order_kg=special_order_kg,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=soh_requirement_units_week,
@@ -46,33 +43,28 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             )
             db.session.add(packing)
         else:
-            # Update existing Packing entry
             packing.product_description = description
             packing.special_order_kg = special_order_kg
             packing.avg_weight_per_unit = avg_weight_per_unit
             packing.soh_requirement_units_week = soh_requirement_units_week
             packing.weekly_average = weekly_average
+            packing.week_commencing = week_commencing  # Update week_commencing
 
-        # Fetch SOH data for calculations
-        soh = SOH.query.filter_by(fg_code=fg_code).first()
-        soh_units = soh.soh_total_units if soh else 0  # L2
-
-        # Calculations based on Excel formulas
+        soh_units = soh.soh_total_units if soh else 0
         avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0
         special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2
-        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2
-        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2
-        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2
-        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0  # F2
-        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0  # G2
-        packing.avg_weight_per_unit_calc = avg_weight_per_unit  # M2 = H2
-        packing.soh_units = soh_units  # L2
+        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0
+        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+        packing.avg_weight_per_unit_calc = avg_weight_per_unit
+        packing.soh_units = soh_units
 
         db.session.commit()
 
-        # Update or create corresponding Filling entry
         joining = Joining.query.filter_by(fg_code=fg_code).first()
         if joining:
             filling = Filling.query.filter_by(
@@ -81,22 +73,20 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             ).first()
 
             if filling:
-                # Update existing Filling entry
                 filling.kilo_per_size = packing.requirement_kg
                 filling.description = joining.filling_description
             else:
-                # Create new Filling entry
                 filling = Filling(
                     filling_date=packing.packing_date,
                     fill_code=joining.filling_code,
                     description=joining.filling_description,
-                    kilo_per_size=packing.requirement_kg
+                    kilo_per_size=packing.requirement_kg,
+                    week_commencing=week_commencing  # Set week_commencing
                 )
                 db.session.add(filling)
             db.session.commit()
 
-            # Update corresponding Production entry
-            update_production_entry(packing.packing_date, joining.filling_code, joining)
+            update_production_entry(packing.packing_date, joining.filling_code, joining,week_commencing=week_commencing)  # Pass week_commencing
         else:
             print(f"No Joining record found for product code {fg_code}. Filling entry not updated.")
 
@@ -122,22 +112,36 @@ def packing_list():
     packings = packings_query.all()
     packing_data = []
 
+    # Initialize totals
+    total_requirement_kg = 0
+    total_requirement_unit = 0
+
+    def get_monday_of_week(dt):
+        return dt - timedelta(days=dt.weekday())
+
     for packing in packings:
-        # Fetch SOH units (L2) from SOH model
-        soh = SOH.query.filter_by(fg_code=packing.product_code).first()
+        # Calculate week_commencing for the packing_date
+        week_commencing = get_monday_of_week(packing.packing_date)
+
+        # Fetch SOH units (L2) from SOH model for the specific week
+        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
         soh_units = soh.soh_total_units if soh else 0  # L2
 
         # Calculations based on Excel formulas
         avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0  # H2, M2
         special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0  # D2
-        special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2: =INT(D2/M2)
-        soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2: =ROUND(L2*H2,0)
-        soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2: =INT(J2*H2)
-        total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2: =IFERROR(I2*P2,"")
-        total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2: =IFERROR(ROUNDUP(N2/M2,0),"")
-        requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0  # F2: =IFERROR(IF(N2-K2+D2>0,ROUND(N2-K2+D2,0),""),"")
-        requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0  # G2: =IFERROR(IF(O2-L2+E2>0,O2-L2+E2,""),"")
-        
+        special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2
+        soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2
+        soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2
+        total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2
+        total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2
+        requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0  # F2
+        requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0  # G2
+
+        # Accumulate totals
+        total_requirement_kg += requirement_kg
+        total_requirement_unit += requirement_unit
+
         packing_data.append({
             'packing': packing,
             'special_order_unit': special_order_unit,
@@ -147,13 +151,16 @@ def packing_list():
             'soh_kg': soh_kg,
             'soh_units': soh_units,
             'total_stock_kg': total_stock_kg,
-            'total_stock_units': total_stock_units
+            'total_stock_units': total_stock_units,
+            'week_commencing': week_commencing.strftime('%Y-%m-%d') if week_commencing else ''  # Add week_commencing
         })
 
     return render_template('packing/list.html',
                          packing_data=packing_data,
                          search_fg_code=search_fg_code,
                          search_description=search_description,
+                         total_requirement_kg=total_requirement_kg,
+                         total_requirement_unit=total_requirement_unit,
                          current_page="packing")
 
 @packing.route('/create', methods=['GET', 'POST'])
@@ -168,8 +175,13 @@ def packing_create():
             soh_requirement_units_week = int(request.form['soh_requirement_units_week']) if request.form['soh_requirement_units_week'] else 0
             weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
 
-            # Fetch SOH data for calculations
-            soh = SOH.query.filter_by(fg_code=product_code).first()
+            # Calculate week_commencing for the packing_date
+            def get_monday_of_week(dt):
+                return dt - timedelta(days=dt.weekday())
+            week_commencing = get_monday_of_week(packing_date)
+
+            # Fetch SOH data for the specific week
+            soh = SOH.query.filter_by(fg_code=product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0  # L2
 
             # Calculations based on Excel formulas
@@ -190,14 +202,15 @@ def packing_create():
                 requirement_kg=requirement_kg,
                 requirement_unit=requirement_unit,
                 avg_weight_per_unit=avg_weight_per_unit,
-                avg_weight_per_unit_calc=avg_weight_per_unit,  # M2 = H2
+                avg_weight_per_unit_calc=avg_weight_per_unit,
                 soh_requirement_kg_week=soh_requirement_kg_week,
                 soh_requirement_units_week=soh_requirement_units_week,
                 soh_kg=soh_kg,
                 soh_units=soh_units,
                 total_stock_kg=total_stock_kg,
                 total_stock_units=total_stock_units,
-                weekly_average=weekly_average
+                weekly_average=weekly_average,
+                week_commencing=week_commencing  # Ensure Packing has week_commencing
             )
             db.session.add(new_packing)
             db.session.commit()
@@ -205,29 +218,27 @@ def packing_create():
             # Create or update corresponding Filling entry
             joining = Joining.query.filter_by(fg_code=product_code).first()
             if joining:
-                # Check for existing Filling entry with same filling_date and fill_code
                 existing_filling = Filling.query.filter_by(
                     filling_date=packing_date,
                     fill_code=joining.filling_code
                 ).first()
 
                 if existing_filling:
-                    # Update existing Filling entry by summing kilo_per_size
                     existing_filling.kilo_per_size += requirement_kg
                     existing_filling.description = joining.filling_description
+                    existing_filling.week_commencing = week_commencing  # Set week_commencing
                 else:
-                    # Create new Filling entry
                     new_filling = Filling(
                         filling_date=packing_date,
                         fill_code=joining.filling_code,
                         description=joining.filling_description,
-                        kilo_per_size=requirement_kg
+                        kilo_per_size=requirement_kg,
+                        week_commencing=week_commencing  # Set week_commencing
                     )
                     db.session.add(new_filling)
                 db.session.commit()
 
-                # Update corresponding Production entry
-                update_production_entry(packing_date, joining.filling_code, joining)
+                update_production_entry(packing_date, joining.filling_code, joining, week_commencing)  # Pass week_commencing
             else:
                 flash(f"No Joining record found for product code {product_code}. Filling entry not created.", 'warning')
 
@@ -243,14 +254,13 @@ def packing_create():
             db.session.rollback()
             flash(f'Error creating packing entry: {str(e)}', 'danger')
 
-    # Fetch product codes for dropdown
-    products = SOH.query.all()
+    # Fetch product codes for dropdown, including week_commencing
+    products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
     return render_template('packing/create.html', products=products, current_page="packing")
 
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):
     packing = Packing.query.get_or_404(id)
-    #old_requirement_kg = packing.requirement_kg  # Store old requirement_kg for adjustment
 
     if request.method == 'POST':
         try:
@@ -261,9 +271,17 @@ def packing_edit(id):
             packing.avg_weight_per_unit = float(request.form['avg_weight_per_unit']) if request.form['avg_weight_per_unit'] else 0.0
             packing.soh_requirement_units_week = int(request.form['soh_requirement_units_week']) if request.form['soh_requirement_units_week'] else 0
             packing.weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
+            # Handle week_commencing from form
+            week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else None
 
-            # Fetch SOH data for calculations
-            soh = SOH.query.filter_by(fg_code=packing.product_code).first()
+            # If week_commencing is not provided, calculate it
+            if not week_commencing:
+                def get_monday_of_week(dt):
+                    return dt - timedelta(days=dt.weekday())
+                week_commencing = get_monday_of_week(packing.packing_date)
+
+            # Fetch SOH data for the specific week
+            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0  # L2
 
             # Calculations based on Excel formulas
@@ -278,35 +296,34 @@ def packing_edit(id):
             packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0  # G2
             packing.avg_weight_per_unit_calc = avg_weight_per_unit  # M2 = H2
             packing.soh_units = soh_units  # L2
+            packing.week_commencing = week_commencing  # Update week_commencing
 
             db.session.commit()
 
             # Update or create corresponding Filling entry
             joining = Joining.query.filter_by(fg_code=packing.product_code).first()
             if joining:
-                # Check for existing Filling entry with same filling_date and fill_code
                 filling = Filling.query.filter_by(
                     filling_date=packing.packing_date,
                     fill_code=joining.filling_code
                 ).first()
 
                 if filling:
-                    # Adjust kilo_per_size: subtract old requirement_kg and add new requirement_kg
-                    filling.kilo_per_size = filling.kilo_per_size + packing.requirement_kg
+                    filling.kilo_per_size += packing.requirement_kg  # Use = instead of += to avoid double-counting
                     filling.description = joining.filling_description
+                    filling.week_commencing = week_commencing  # Set week_commencing
                 else:
-                    # Create new Filling entry
                     filling = Filling(
                         filling_date=packing.packing_date,
                         fill_code=joining.filling_code,
                         description=joining.filling_description,
-                        kilo_per_size=packing.requirement_kg
+                        kilo_per_size=packing.requirement_kg,
+                        week_commencing=week_commencing  # Set week_commencing
                     )
                     db.session.add(filling)
                 db.session.commit()
 
-                # Update corresponding Production entry
-                update_production_entry(packing.packing_date, joining.filling_code, joining)
+                update_production_entry(packing.packing_date, joining.filling_code, joining, week_commencing)
             else:
                 flash(f"No Joining record found for product code {packing.product_code}. Filling entry not updated.", 'warning')
 
@@ -323,8 +340,21 @@ def packing_edit(id):
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
     # Fetch product codes for dropdown
-    products = SOH.query.all()
-    return render_template('packing/edit.html', packing=packing, products=products, current_page="packing")
+    products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
+
+    # Fetch production entries
+    productions = Production.query.order_by(Production.production_date.desc()).all()
+    
+    # Calculate total_kg sum
+    total_production_kg = sum(production.total_kg for production in productions if production.total_kg is not None)
+
+    return render_template('packing/edit.html', 
+                         packing=packing, 
+                         products=products, 
+                         productions=productions, 
+                         total_production_kg=total_production_kg, 
+                         current_page="packing")
+
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
@@ -344,7 +374,7 @@ def packing_delete(id):
                 else:
                     db.session.commit()
                 # Update corresponding Production entry
-                update_production_entry(packing.packing_date, joining.filling_code, joining)
+                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)  # Pass week_commencing
 
         db.session.delete(packing)
         db.session.commit()
@@ -371,7 +401,6 @@ def autocomplete_packing():
         print("Error fetching packing autocomplete suggestions:", e)
         return jsonify([])
 
-# Search Packings via AJAX
 @packing.route('/get_search_packings', methods=['GET'])
 def get_search_packings():
     search_fg_code = request.args.get('fg_code', '').strip()
@@ -388,9 +417,15 @@ def get_search_packings():
         packings = packings_query.all()
         packing_data = []
 
+        def get_monday_of_week(dt):
+            return dt - timedelta(days=dt.weekday())
+
         for packing in packings:
-            # Fetch SOH units (L2) from SOH model
-            soh = SOH.query.filter_by(fg_code=packing.product_code).first()
+            # Calculate week_commencing for the packing_date
+            week_commencing = get_monday_of_week(packing.packing_date)
+
+            # Fetch SOH units (L2) from SOH model for the specific week
+            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0  # L2
 
             # Calculations based on Excel formulas
@@ -407,6 +442,7 @@ def get_search_packings():
             packing_data.append({
                 "id": packing.id,
                 "packing_date": packing.packing_date.strftime('%Y-%m-%d') if packing.packing_date else "",
+                "week_commencing": week_commencing.strftime('%Y-%m-%d') if week_commencing else "",  # Add week_commencing
                 "product_code": packing.product_code or "",
                 "product_description": packing.product_description or "",
                 "special_order_kg": packing.special_order_kg if packing.special_order_kg is not None else "",
@@ -429,7 +465,7 @@ def get_search_packings():
         print("Error fetching search packings:", e)
         return jsonify({"error": "Failed to fetch packing entries"}), 500
 
-def update_production_entry(filling_date, fill_code, joining):
+def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
     """Helper function to create or update a Production entry."""
     try:
         # Get production_code and description from Joining
@@ -475,6 +511,7 @@ def update_production_entry(filling_date, fill_code, joining):
             production.description = description
             production.total_kg = total_kg
             production.batches = batches
+            production.week_commencing = week_commencing  # Set week_commencing
         else:
             # Create new Production entry
             production = Production(
@@ -482,7 +519,8 @@ def update_production_entry(filling_date, fill_code, joining):
                 production_code=production_code,
                 description=description,
                 batches=batches,
-                total_kg=total_kg
+                total_kg=total_kg,
+                week_commencing=week_commencing  # Set week_commencing
             )
             db.session.add(production)
 

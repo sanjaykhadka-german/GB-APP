@@ -1,15 +1,19 @@
-{% extends 'index.html' %}
+{% extends "index.html" %}
 {% block content %}
 <div class="container mt-4">
-    <h2>Create New SOH Entry</h2>
-    <form method="POST" action="{{ url_for('soh.soh_create') }}">
+    <h2>Create SOH Entry</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label for="week_commencing">Week Commencing</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+        </div>
         <div class="form-group">
             <label for="fg_code">FG Code</label>
-            <input type="text" class="form-control" id="fg_code" name="fg_code" value="{{ fg_code | default('') }}" required>
+            <input type="text" class="form-control" id="fg_code" name="fg_code" value="{{ fg_code }}" required>
         </div>
         <div class="form-group">
             <label for="description">Description</label>
-            <input type="text" class="form-control" id="description" name="description" required>
+            <input type="text" class="form-control" id="description" name="description">
         </div>
         <div class="form-group">
             <label for="soh_dispatch_boxes">Dispatch Boxes</label>
@@ -27,10 +31,7 @@
             <label for="soh_packing_units">Packing Units</label>
             <input type="number" step="0.01" class="form-control" id="soh_packing_units" name="soh_packing_units" value="0.0">
         </div>
-        <div class="form-group">
-            <label for="date_time">Edit Date</label>
-        </div>
-        <button type="submit" class="btn btn-primary">Create SOH</button>
+        <button type="submit" class="btn btn-primary">Create</button>
         <a href="{{ url_for('soh.soh_list') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>

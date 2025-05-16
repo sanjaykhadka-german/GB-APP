@@ -41,7 +41,8 @@
             <table class="table table-bordered" id="packingListTable">
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Week Commencing</th>
+                        <th>Packing Date</th>
                         <th>Product Code</th>
                         <th>Product Description</th>
                         <th>Special Order KG</th>
@@ -64,6 +65,7 @@
                     {% for data in packing_data %}
                     {% set packing = data.packing %}
                     <tr>
+                        <td>{{ data.week_commencing | default('') }}</td>
                         <td>{{ packing.packing_date }}</td>
                         <td>{{ packing.product_code }}</td>
                         <td>{{ packing.product_description }}</td>
@@ -89,6 +91,14 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6" style="text-align: right; font-weight: bold;">Total:</td>
+                        <td id="total_requirement_kg">{{ total_requirement_kg | round(2) if total_requirement_kg is defined else '' }}</td>
+                        <td id="total_requirement_unit">{{ total_requirement_unit if total_requirement_unit is defined else '' }}</td>
+                        <td colspan="10"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </section>
@@ -141,6 +151,10 @@
     .hidden {
         display: none;
     }
+    tfoot tr {
+        background-color: #f8f9fa;
+        font-weight: bold;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -185,6 +199,9 @@
                 $("#fg_code_suggestions").empty();
             }
         });
+
+        // Initial fetch to ensure totals are displayed
+        fetchPackings();
     });
 
     // Function to add a new packing entry
@@ -202,16 +219,25 @@
             type: "GET",
             data: { fg_code: fgCode, description: description },
             success: function(response) {
+                console.log("Response from get_search_packings:", response);
                 var tableBody = $("#packingListTable tbody");
                 tableBody.empty();
                 $("#resultSection").removeClass("hidden");
 
+                // Initialize totals
+                var totalRequirementKg = 0;
+                var totalRequirementUnit = 0;
+
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="17" class="no-results">Error fetching packing entries: ${response.error}</td>
+                            <td colspan="18" class="no-results">Error fetching packing entries: ${response.error}</td>
                         </tr>
                     `);
+                    // Clear totals in case of error
+                    console.log("Error in response, clearing totals");
+                    $("#total_requirement_kg").text('');
+                    $("#total_requirement_unit").text('');
                     return;
                 }
 
@@ -219,8 +245,13 @@
                     response.forEach(function(packing) {
                         // Only include rows with a valid id
                         if (packing.id !== null && packing.id !== undefined) {
+                            // Accumulate totals (convert to number and check for valid values)
+                            totalRequirementKg += (packing.requirement_kg && !isNaN(packing.requirement_kg)) ? Number(packing.requirement_kg) : 0;
+                            totalRequirementUnit += (packing.requirement_unit && !isNaN(packing.requirement_unit)) ? Number(packing.requirement_unit) : 0;
+
                             tableBody.append(`
                                 <tr>
+                                    <td>${packing.week_commencing || ''}</td>
                                     <td>${packing.packing_date || ''}</td>
                                     <td>${packing.product_code || ''}</td>
                                     <td>${packing.product_description || ''}</td>
@@ -247,10 +278,17 @@
                             `);
                         }
                     });
+
+                    // Log totals for debugging
+                    console.log("Total Requirement KG:", totalRequirementKg);
+                    console.log("Total Requirement Unit:", totalRequirementUnit);
+                    // Update footer with totals (formatted to 2 decimal places for KG)
+                    $("#total_requirement_kg").text(totalRequirementKg.toFixed(2));
+                    $("#total_requirement_unit").text(totalRequirementUnit);
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="17">
+                            <td colspan="18" class="no-results">
                                 <div class="no-results">
                                     <p>No packing entries found for Product Code: ${fgCode}</p>
                                     <button class="add-packing-btn" onclick="addPacking('${fgCode}')">
@@ -260,6 +298,10 @@
                             </td>
                         </tr>
                     `);
+                    // Clear totals when no results
+                    console.log("No results, clearing totals");
+                    $("#total_requirement_kg").text('');
+                    $("#total_requirement_unit").text('');
                 }
             },
             error: function() {
@@ -267,9 +309,13 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="17" class="no-results">Error fetching packing entries.</td>
+                        <td colspan="18" class="no-results">Error fetching packing entries.</td>
                     </tr>
                 `);
+                // Clear totals in case of error
+                console.log("Error fetching packings, clearing totals");
+                $("#total_requirement_kg").text('');
+                $("#total_requirement_unit").text('');
             }
         });
     }

@@ -8,6 +8,8 @@ import pytz
 
 from controllers.packing_controller import update_packing_entry
 from controllers.filling_controller import update_production_entry
+from models import joining
+from models.packing import Packing
 
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
@@ -22,7 +24,6 @@ def soh_upload():
     from app import db
     from models.soh import SOH
     from models.joining import Joining
-    #from utils import update_packing_entry  # Adjust import based on where update_packing_entry is defined
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -63,7 +64,7 @@ def soh_upload():
             print("Full DataFrame content:\n", df.to_string())
             print("DataFrame sample data:", df.head().to_dict())
 
-            required_columns = ['FG Code', 'Description', 'Soh_dispatch_Box', 'Soh_dispatch_Unit', 'Soh_packing_Box', 'Soh_packing_Unit', 'Soh_total_Box', 'Soh_total_Unit']
+            required_columns = ['Week Commencing', 'FG Code', 'Description', 'Soh_dispatch_Box', 'Soh_dispatch_Unit', 'Soh_packing_Box', 'Soh_packing_Unit', 'Soh_total_Box', 'Soh_total_Unit']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 flash(f"Missing required columns in file! Missing: {', '.join(missing_columns)}. Expected: {', '.join(required_columns)}", "danger")
@@ -95,6 +96,14 @@ def soh_upload():
                 soh_total_boxes = safe_float(row['Soh_total_Box'])
                 soh_total_units = safe_float(row['Soh_total_Unit'])
 
+                # Handle week_commencing
+                week_commencing = None
+                if pd.notnull(row['Week Commencing']):
+                    try:
+                        week_commencing = pd.to_datetime(row['Week Commencing']).date()
+                    except (ValueError, TypeError) as e:
+                        print(f"Error converting Week Commencing '{row['Week Commencing']}' to date: {e}")
+
                 fg = Joining.query.filter_by(fg_code=fg_code).first()
                 units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
                 print(f"Units per bag for {fg_code}: {units_per_bag}")
@@ -112,53 +121,66 @@ def soh_upload():
                       f"Packing Boxes: {packing_boxes}, Packing Units: {packing_units}, "
                       f"Total Boxes: {soh_total_boxes_calc}, Total Units: {soh_total_units_calc}")
 
-                soh = SOH.query.filter_by(fg_code=fg_code).first()
-                if soh:
-                    soh.description = description
-                    soh.soh_dispatch_boxes = dispatch_boxes
-                    soh.soh_dispatch_units = dispatch_units
-                    soh.soh_packing_boxes = packing_boxes
-                    soh.soh_packing_units = packing_units
-                    soh.soh_total_boxes = soh_total_boxes_calc
-                    soh.soh_total_units = soh_total_units_calc
-                    soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
-                    print(f"Updating SOH for {fg_code}: {soh.__dict__}")
-                else:
-                    new_soh = SOH(
-                        fg_code=fg_code,
-                        description=description,
-                        soh_dispatch_boxes=dispatch_boxes,
-                        soh_dispatch_units=dispatch_units,
-                        soh_packing_boxes=packing_boxes,
-                        soh_packing_units=packing_units,
-                        soh_total_boxes=soh_total_boxes_calc,
-                        soh_total_units=soh_total_units_calc,
-                        edit_date=datetime.now(pytz.timezone('Australia/Sydney'))
-                    )
-                    db.session.add(new_soh)
-                    print(f"Creating new SOH for {fg_code}: {new_soh.__dict__}")
+                with db.session.no_autoflush:
+                    soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
+                    if soh:
+                        # Check for Packing entries that reference the current SOH
+                        packing_entries = Packing.query.filter_by(week_commencing=soh.week_commencing, product_code=fg_code).all()
+                        if packing_entries and soh.week_commencing != week_commencing:
+                            for packing in packing_entries:
+                                packing.week_commencing = week_commencing
+                            db.session.commit()
 
-                # Update Packing if soh_total_boxes or soh_total_units > 0
-                if soh_total_boxes >= 0 or soh_total_units >= 0:
-                    # Fetch avg_weight_per_unit from Joining or use default
-                    avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
-                    success, message = update_packing_entry(
-                        fg_code=fg_code,
-                        description=description,
-                        packing_date=date.today(),  # Default to today
-                        special_order_kg=0.0,  # Default
-                        avg_weight_per_unit=avg_weight_per_unit,
-                        soh_requirement_units_week=0,  # Default
-                        weekly_average=0.0  # Default
-                    )
-                    if success:
-                        update_production_entry
-                        print(f"Updated Packing for {fg_code}: {message}")
+                        soh.description = description
+                        soh.soh_dispatch_boxes = dispatch_boxes
+                        soh.soh_dispatch_units = dispatch_units
+                        soh.soh_packing_boxes = packing_boxes
+                        soh.soh_packing_units = packing_units
+                        soh.soh_total_boxes = soh_total_boxes_calc
+                        soh.soh_total_units = soh_total_units_calc
+                        soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
+                        print(f"Updating SOH for {fg_code}: {soh.__dict__}")
                     else:
-                        print(f"Failed to update Packing for {fg_code}: {message}")
-                        flash(message, "warning")
+                        new_soh = SOH(
+                            week_commencing=week_commencing,
+                            fg_code=fg_code,
+                            description=description,
+                            soh_dispatch_boxes=dispatch_boxes,
+                            soh_dispatch_units=dispatch_units,
+                            soh_packing_boxes=packing_boxes,
+                            soh_packing_units=packing_units,
+                            soh_total_boxes=soh_total_boxes_calc,
+                            soh_total_units=soh_total_units_calc,
+                            edit_date=datetime.now(pytz.timezone('Australia/Sydney'))
+                        )
+                        db.session.add(new_soh)
+                        print(f"Creating new SOH for {fg_code}: {new_soh.__dict__}")
 
-            db.session.commit()
+                    # Commit SOH entry before updating Packing
+                    db.session.commit()
+
+                    # Update Packing if soh_total_boxes or soh_total_units > 0
+                    if soh_total_boxes >= 0 or soh_total_units >= 0:
+                        avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+                        success, message = update_packing_entry(
+                            fg_code=fg_code,
+                            description=description,
+                            packing_date=date.today(), # packng_date is set to today 
+                            special_order_kg=0.0,
+                            avg_weight_per_unit=avg_weight_per_unit,
+                            soh_requirement_units_week=0,
+                            weekly_average=0.0,
+                            week_commencing=week_commencing
+                        )
+                        if success:
+                            # update the production entry
+                            # update_production_entry(
+                            #     packing.packing_date, joining.filling_code, joining)
+                            print(f"Updated Packing for {fg_code}: {message}")
+                        else:
+                            print(f"Failed to update Packing for {fg_code}: {message}")
+                            flash(message, "warning")
+
             flash("SOH data uploaded and updated successfully!", "success")
 
             saved_soh = SOH.query.filter_by(fg_code='2006.1').first()
@@ -182,7 +204,7 @@ def soh_upload():
 
         return redirect(url_for('soh.soh_list'))
 
-    return render_template('soh/upload.html',current_page="soh")
+    return render_template('soh/upload.html', current_page="soh")
 
 @soh_bp.route('/soh_list', methods=['GET'])
 def soh_list():
@@ -215,16 +237,25 @@ def soh_create():
     from app import db
     from models.soh import SOH
     from models.joining import Joining
-    #from utils import update_packing_entry  # Adjust import
 
     if request.method == 'POST':
         try:
             fg_code = request.form['fg_code'].strip()
+            week_commencing = request.form.get('week_commencing')  # Second field
             description = request.form['description'].strip()
             dispatch_boxes = float(request.form.get('soh_dispatch_boxes', 0.0)) if request.form.get('soh_dispatch_boxes') else 0.0
             dispatch_units = float(request.form.get('soh_dispatch_units', 0.0)) if request.form.get('soh_dispatch_units') else 0.0
             packing_boxes = float(request.form.get('soh_packing_boxes', 0.0)) if request.form.get('soh_packing_boxes') else 0.0
             packing_units = float(request.form.get('soh_packing_units', 0.0)) if request.form.get('soh_packing_units') else 0.0
+
+            # Convert week_commencing to date
+            week_commencing_date = None
+            if week_commencing:
+                try:
+                    week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                except ValueError as e:
+                    flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
+                    return redirect(request.url)
 
             fg = Joining.query.filter_by(fg_code=fg_code).first()
             units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
@@ -239,6 +270,7 @@ def soh_create():
 
             new_soh = SOH(
                 fg_code=fg_code,
+                week_commencing=week_commencing_date,  # Second column
                 description=description,
                 soh_dispatch_boxes=dispatch_boxes,
                 soh_dispatch_units=dispatch_units,
@@ -251,7 +283,6 @@ def soh_create():
             db.session.add(new_soh)
             db.session.commit()
 
-            # Update Packing if soh_total_boxes or soh_total_units > 0
             if soh_total_boxes >= 0 or soh_total_units >= 0:
                 avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
                 success, message = update_packing_entry(
@@ -282,18 +313,27 @@ def soh_edit(id):
     from app import db
     from models.soh import SOH
     from models.joining import Joining
-    #from utils import update_packing_entry  # Adjust import
 
     soh = SOH.query.get_or_404(id)
 
     if request.method == 'POST':
         try:
             fg_code = request.form['fg_code'].strip()
+            week_commencing = request.form.get('week_commencing')  # Second field
             description = request.form['description'].strip()
             soh_dispatch_boxes = float(request.form.get('soh_dispatch_boxes', 0.0)) if request.form.get('soh_dispatch_boxes') else 0.0
             soh_dispatch_units = float(request.form.get('soh_dispatch_units', 0.0)) if request.form.get('soh_dispatch_units') else 0.0
             soh_packing_boxes = float(request.form.get('soh_packing_boxes', 0.0)) if request.form.get('soh_packing_boxes') else 0.0
             soh_packing_units = float(request.form.get('soh_packing_units', 0.0)) if request.form.get('soh_packing_units') else 0.0
+
+            # Convert week_commencing to date
+            week_commencing_date = None
+            if week_commencing:
+                try:
+                    week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                except ValueError as e:
+                    flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
+                    return redirect(request.url)
 
             fg = Joining.query.filter_by(fg_code=fg_code).first()
             units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
@@ -307,6 +347,7 @@ def soh_edit(id):
             )
 
             soh.fg_code = fg_code
+            soh.week_commencing = week_commencing_date  # Second column
             soh.description = description
             soh.soh_dispatch_boxes = soh_dispatch_boxes
             soh.soh_dispatch_units = soh_dispatch_units
@@ -318,7 +359,6 @@ def soh_edit(id):
 
             db.session.commit()
 
-            # Update Packing if soh_total_boxes or soh_total_units > 0
             if soh_total_boxes > 0 or soh_total_units > 0:
                 avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
                 success, message = update_packing_entry(
@@ -342,6 +382,7 @@ def soh_edit(id):
             return redirect(request.url)
 
     return render_template('soh/edit.html', soh=soh, current_page="soh")
+
 
 @soh_bp.route('/soh_delete/<int:id>', methods=['POST'])
 def soh_delete(id):
@@ -399,6 +440,7 @@ def get_search_sohs():
         sohs_data = [
             {
                 "id": soh.id,
+                "week_commencing": soh.week_commencing.strftime('%Y-%m-%d') if soh.week_commencing else "",  # Second field
                 "fg_code": soh.fg_code or "",
                 "description": soh.description or "",
                 "soh_dispatch_boxes": soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not None else "",

@@ -21,6 +21,7 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Week Commencing</th> <!-- New column -->
                 <th>Production Date</th>
                 <th>Production Code</th>
                 <th>Description</th>
@@ -33,6 +34,7 @@
             {% for production in productions %}
             <tr>
                 <td>{{ production.id }}</td>
+                <td>{{ production.week_commencing | format_date }}</td> <!-- New column -->
                 <td>{{ production.production_date.strftime('%Y-%m-%d') }}</td>
                 <td>{{ production.production_code }}</td>
                 <td>{{ production.description or '' }}</td>

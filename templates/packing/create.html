@@ -12,6 +12,10 @@
     {% endwith %}
     <form method="POST" action="{{ url_for('packing.packing_create') }}">
         <div class="form-group">
+            <label for="week_commencing">Week Commencing</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+        </div>
+        <div class="form-group">
             <label for="packing_date">Date</label>
             <input type="date" class="form-control" id="packing_date" name="packing_date" required>
         </div>

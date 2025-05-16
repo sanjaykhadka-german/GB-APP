@@ -435,3 +435,17 @@ nav ul li.active a {
     background-color: #dc3545; 
     font-weight: bold;
 }
+#search {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    z-index: 100;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+#list {
+    margin-top: 110px; /* Adjust this value to match the height of your search section */
+}

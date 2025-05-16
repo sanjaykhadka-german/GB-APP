@@ -16,6 +16,10 @@
     {% endwith %}
 
     <form method="post" action="{{ url_for('production.production_edit', id=production.id) }}">
+        <div class="form-group">
+            <label for="week_commencing">Week Commencing</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+        </div>
         <div class="mb-3">
             <label for="production_date" class="form-label">Production Date</label>
             <input type="date" class="form-control" id="production_date" name="production_date" value="{{ production.production_date.strftime('%Y-%m-%d') }}" required>

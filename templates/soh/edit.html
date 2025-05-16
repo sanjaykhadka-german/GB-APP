@@ -4,6 +4,10 @@
     <h2>Edit SOH Entry</h2>
     <form method="POST" action="{{ url_for('soh.soh_edit', id=soh.id) }}">
         <div class="form-group">
+            <label for="week_commencing">Week Commencing</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ soh.week_commencing | format_date if soh.week_commencing else '' }}">
+        </div>
+        <div class="form-group">
             <label for="fg_code">FG Code</label>
             <input type="text" class="form-control" id="fg_code" name="fg_code" value="{{ soh.fg_code }}" required>
         </div>

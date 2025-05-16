@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from datetime import datetime
-from database import db  # Import db from database.py
+from datetime import datetime, timedelta  # Added timedelta for week_commencing calculation
+from database import db
 from models.filling import Filling
 from models.joining import Joining
 from models.production import Production
@@ -23,10 +23,19 @@ def filling_list():
         fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
 
     fillings = fillings_query.all()
+    filling_data = [
+        {
+            'filling': filling,
+            'week_commencing': filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else ''  # Include week_commencing
+        }
+        for filling in fillings
+    ]
+
     return render_template('filling/list.html',
-                         fillings=fillings,
+                         filling_data=filling_data,
                          search_fill_code=search_fill_code,
-                         search_description=search_description, current_page="filling")
+                         search_description=search_description,
+                         current_page="filling")
 
 @filling_bp.route('/filling_create', methods=['GET', 'POST'])
 def filling_create():
@@ -38,14 +47,20 @@ def filling_create():
             description = request.form['description']
             kilo_per_size = float(request.form['kilo_per_size']) if request.form.get('kilo_per_size') else 0.0
 
+            # Calculate week_commencing (Monday of the week for filling_date)
+            def get_monday_of_week(dt):
+                return dt - timedelta(days=dt.weekday())
+            week_commencing = get_monday_of_week(filling_date)
+
             # Validate fill_code exists in Joining table
             joining = Joining.query.filter_by(filling_code=fill_code).first()
             if not joining:
                 flash(f"No Joining record found for fill_code {fill_code}.", 'error')
-                return render_template('filling/create.html',current_page="filling")
+                return render_template('filling/create.html', current_page="filling")
 
             new_filling = Filling(
                 filling_date=filling_date,
+                week_commencing=week_commencing,  # Set week_commencing
                 fill_code=fill_code,
                 description=description,
                 kilo_per_size=kilo_per_size
@@ -61,13 +76,13 @@ def filling_create():
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/create.html',current_page="filling")
+            return render_template('filling/create.html', current_page="filling")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/create.html',current_page="filling")
+            return render_template('filling/create.html', current_page="filling")
 
-    return render_template('filling/create.html',current_page="filling")
+    return render_template('filling/create.html', current_page="filling")
 
 @filling_bp.route('/filling_edit/<int:id>', methods=['GET', 'POST'])
 def filling_edit(id):
@@ -83,11 +98,16 @@ def filling_edit(id):
             filling.description = request.form['description']
             filling.kilo_per_size = float(request.form['kilo_per_size']) if request.form.get('kilo_per_size') else 0.0
 
+            # Calculate week_commencing (Monday of the week for filling_date)
+            def get_monday_of_week(dt):
+                return dt - timedelta(days=dt.weekday())
+            filling.week_commencing = get_monday_of_week(filling.filling_date)
+
             # Validate fill_code exists in Joining table
             joining = Joining.query.filter_by(filling_code=filling.fill_code).first()
             if not joining:
                 flash(f"No Joining record found for fill_code {filling.fill_code}.", 'error')
-                return render_template('filling/edit.html', filling=filling,current_page="filling")
+                return render_template('filling/edit.html', filling=filling, current_page="filling")
 
             db.session.commit()
 
@@ -103,13 +123,13 @@ def filling_edit(id):
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/edit.html', filling=filling,current_page="filling")
+            return render_template('filling/edit.html', filling=filling, current_page="filling")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/edit.html', filling=filling,current_page="filling")
+            return render_template('filling/edit.html', filling=filling, current_page="filling")
 
-    return render_template('filling/edit.html', filling=filling,current_page="filling")
+    return render_template('filling/edit.html', filling=filling, current_page="filling")
 
 @filling_bp.route('/filling_delete/<int:id>', methods=['POST'])
 def filling_delete(id):
@@ -168,6 +188,7 @@ def get_search_fillings():
             {
                 "id": filling.id,
                 "filling_date": filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else "",
+                "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",  # Include week_commencing
                 "fill_code": filling.fill_code or "",
                 "description": filling.description or "",
                 "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""
@@ -180,7 +201,7 @@ def get_search_fillings():
         print("Error fetching search fillings:", e)
         return jsonify({"error": "Failed to fetch filling entries"}), 500
 
-def update_production_entry(filling_date, fill_code, joining):
+def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
     """Helper function to create or update a Production entry."""
     try:
         # Get production_code and description from Joining
@@ -189,24 +210,20 @@ def update_production_entry(filling_date, fill_code, joining):
 
         fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
         if len(fill_code_prefix) > 1:
-            # Aggregate total_kg for all Filling entries with the same production_code and filling_date
+            # Aggregate total_kg for all Filling entries with the same filling_date and fill_code prefix
             total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
                 Filling.filling_date == filling_date,
                 func.substring_index(Filling.fill_code, '.', 1) == fill_code_prefix
             ).scalar() or 0.0
         else:
-            # Aggregate total_kg for Filling entries with matching fill_code, filling_date, and description
-            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).join(
-                Joining, Joining.filling_code == Filling.fill_code
-            ).filter(
+            # Aggregate total_kg for Filling entries with matching fill_code and filling_date
+            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
                 Filling.filling_date == filling_date,
-                Filling.fill_code == fill_code,
-                Filling.description == Joining.filling_description
+                Filling.fill_code == fill_code
             ).scalar() or 0.0
 
-        # If total_kg is 0, no matching Filling entries were found
+        # If total_kg is 0, delete the Production entry if it exists
         if total_kg == 0.0:
-            # Optionally delete the Production entry if it exists
             production = Production.query.filter_by(
                 production_date=filling_date,
                 production_code=production_code
@@ -230,6 +247,7 @@ def update_production_entry(filling_date, fill_code, joining):
             production.description = description
             production.total_kg = total_kg
             production.batches = batches
+            production.week_commencing = week_commencing  # Set week_commencing
         else:
             # Create new Production entry
             production = Production(
@@ -237,7 +255,8 @@ def update_production_entry(filling_date, fill_code, joining):
                 production_code=production_code,
                 description=description,
                 batches=batches,
-                total_kg=total_kg
+                total_kg=total_kg,
+                week_commencing=week_commencing  # Set week_commencing
             )
             db.session.add(production)
 

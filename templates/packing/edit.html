@@ -1,52 +1,114 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container">
+<div class="container mt-4">
     <h2>Edit Packing Entry</h2>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'warning' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             {% endfor %}
         {% endif %}
     {% endwith %}
-    <form method="POST" action="{{ url_for('packing.packing_edit', id=packing.id) }}">
-        <div class="form-group">
-            <label for="packing_date">Date</label>
-            <input type="date" class="form-control" id="packing_date" name="packing_date" value="{{ packing.packing_date }}" required>
+
+    <div class="row">
+        <!-- Packing Edit Form -->
+        <div class="col-md-6">
+            <form method="POST" action="{{ url_for('packing.packing_edit', id=packing.id) }}">
+                <div class="form-group mb-3">
+                    <label for="week_commencing">Week Commencing</label>
+                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ packing.week_commencing.strftime('%Y-%m-%d') if packing.week_commencing else '' }}">
+                </div>
+                <div class="form-group mb-3">
+                    <label for="packing_date">Date</label>
+                    <input type="date" class="form-control" id="packing_date" name="packing_date" value="{{ packing.packing_date.strftime('%Y-%m-%d') if packing.packing_date else '' }}" required>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="product_code">Product Code</label>
+                    <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription()">
+                        <option value="">Select Product Code</option>
+                        {% for product in products %}
+                            <option value="{{ product.fg_code }}" data-description="{{ product.description }}" {% if product.fg_code == packing.product_code %}selected{% endif %}>{{ product.fg_code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="product_description">Product Description</label>
+                    <input type="text" class="form-control" id="product_description" name="product_description" value="{{ packing.product_description }}" readonly>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="special_order_kg">Special Order KG</label>
+                    <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="{{ packing.special_order_kg }}" required>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="avg_weight_per_unit">AVG Weight per Unit (KG)</label>
+                    <input type="number" step="0.01" class="form-control" id="avg_weight_per_unit" name="avg_weight_per_unit" value="{{ packing.avg_weight_per_unit }}" required>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="soh_requirement_units_week">SOH Requirement in Units/Week</label>
+                    <input type="number" class="form-control" id="soh_requirement_units_week" name="soh_requirement_units_week" value="{{ packing.soh_requirement_units_week }}" required>
+                </div>
+                <div class="form-group mb-3">
+                    <label for="weekly_average">Weekly Average</label>
+                    <input type="number" step="0.01" class="form-control" id="weekly_average" name="weekly_average" value="{{ packing.weekly_average }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Update</button>
+                <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">Cancel</a>
+            </form>
         </div>
-        <div class="form-group">
-            <label for="product_code">Product Code</label>
-            <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription()">
-                <option value="">Select Product Code</option>
-                {% for product in products %}
-                    <option value="{{ product.fg_code }}" data-description="{{ product.description }}" {% if product.fg_code == packing.product_code %}selected{% endif %}>{{ product.fg_code }}</option>
-                {% endfor %}
-            </select>
+
+        <!-- Production List -->
+        <div class="col-md-6">
+            <h3>Production List</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Week Commencing</th>
+                        <th>Production Date</th>
+                        <th>Production Code</th>
+                        <th>Description</th>
+                        <th>Batches</th>
+                        <th>Total KG</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for production in productions %}
+                    <tr>
+                        <td>{{ production.id }}</td>
+                        <td>{{ production.week_commencing | format_date }}</td>
+                        <td>{{ production.production_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ production.production_code }}</td>
+                        <td>{{ production.description or '' }}</td>
+                        <td>{{ production.batches | round(2) }}</td>
+                        <td>{{ production.total_kg | round(2) }}</td>
+                        <td>
+                            <a href="{{ url_for('production.production_edit', id=production.id) }}" class="btn btn-sm btn-warning">Edit</a>
+                            <form action="{{ url_for('production.production_delete', id=production.id) }}" method="post" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this entry?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8">No production entries found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6" style="text-align: right; font-weight: bold;">Total KG:</td>
+                        <td>{{ total_production_kg | round(2) }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
-        <div class="form-group">
-            <label for="product_description">Product Description</label>
-            <input type="text" class="form-control" id="product_description" name="product_description" value="{{ packing.product_description }}" readonly>
-        </div>
-        <div class="form-group">
-            <label for="special_order_kg">Special Order KG</label>
-            <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="{{ packing.special_order_kg }}" required>
-        </div>
-        <div class="form-group">
-            <label for="avg_weight_per_unit">AVG Weight per Unit (KG)</label>
-            <input type="number" step="0.01" class="form-control" id="avg_weight_per_unit" name="avg_weight_per_unit" value="{{ packing.avg_weight_per_unit }}" required>
-        </div>
-        <div class="form-group">
-            <label for="soh_requirement_units_week">SOH Requirement in Units/Week</label>
-            <input type="number" class="form-control" id="soh_requirement_units_week" name="soh_requirement_units_week" value="{{ packing.soh_requirement_units_week }}" required>
-        </div>
-        <div class="form-group">
-            <label for="weekly_average">Weekly Average</label>
-            <input type="number" step="0.01" class="form-control" id="weekly_average" name="weekly_average" value="{{ packing.weekly_average }}" required>
-        </div>
-        <button type="submit" class="btn btn-primary">Update</button>
-        <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">Cancel</a>
-    </form>
+    </div>
 </div>
 
 <script>

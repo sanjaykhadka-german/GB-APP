@@ -16,6 +16,10 @@
     {% endwith %}
 
     <form method="post" action="{{ url_for('filling.filling_create') }}">
+        <div class="form-group">
+            <label for="week_commencing">Week Commencing</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+        </div>
         <div class="mb-3">
             <label for="filling_date" class="form-label">Filling Date</label>
             <input type="date" class="form-control" id="filling_date" name="filling_date" required>

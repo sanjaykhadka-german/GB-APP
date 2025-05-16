@@ -24,7 +24,10 @@
     <!-- SOH List Section -->
     <section id="list">
         <h2>SOH List</h2>
-        <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary my-3">Add New SOH Entry</a>
+        <div class="d-flex gap-2 mb-3">
+            <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary">Add New SOH Entry</a>
+            <a href="{{ url_for('soh.soh_upload') }}" class="btn btn-success">Upload SOH Data</a>
+        </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -36,12 +39,13 @@
             {% endfor %}
         {% endif %}
         {% endwith %}
-        <a href="{{ url_for('soh.soh_upload') }}" class="btn btn-success mb-3">Upload SOH Data</a>
+
         <div id="resultSection" class="table-container">
             <table class="table table-bordered" id="sohListTable">
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Week Commencing</th>
                         <th>FG Code</th>
                         <th>Description</th>
                         <th>Dispatch Boxes</th>
@@ -50,7 +54,7 @@
                         <th>Packing Units</th>
                         <th>Total Boxes</th>
                         <th>Total Units</th>
-                        <th>Edit Date</th> <!-- New column -->
+                        <th>Edit Date</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -58,6 +62,7 @@
                     {% for soh in sohs %}
                     <tr>
                         <td>{{ soh.id or '' }}</td>
+                        <td>{{ soh.week_commencing | format_date if soh.week_commencing else '' }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
                         <td>{{ soh.description or '' }}</td>
                         <td>{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
@@ -66,7 +71,7 @@
                         <td>{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
                         <td>{{ soh.soh_total_boxes if soh.soh_total_boxes is not none else '' }}</td>
                         <td>{{ soh.soh_total_units if soh.soh_total_units is not none else '' }}</td>
-                        <td>{{ soh.edit_date.strftime('%Y-%m-%d %H:%M:%S') if soh.edit_date else '' }}</td> <!-- New column -->
+                        <td>{{ soh.edit_date.strftime('%Y-%m-%d %H:%M:%S') if soh.edit_date else '' }}</td>
                         <td>
                             <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
@@ -160,7 +165,7 @@
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="11" class="no-results">Error fetching SOH entries: ${response.error}</td>
+                            <td colspan="12" class="no-results">Error fetching SOH entries: ${response.error}</td>
                         </tr>
                     `);
                     return;
@@ -173,6 +178,7 @@
                             tableBody.append(`
                                 <tr>
                                     <td>${soh.id || ''}</td>
+                                    <td>${soh.week_commencing || ''}</td>
                                     <td>${soh.fg_code || ''}</td>
                                     <td>${soh.description || ''}</td>
                                     <td>${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
@@ -181,7 +187,7 @@
                                     <td>${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
                                     <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
                                     <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
-                                    <td>${soh.edit_date || ''}</td> <!-- New column -->
+                                    <td>${soh.edit_date || ''}</td>
                                     <td>
                                         <a href="/soh_edit/${soh.id}" class="btn btn-warning btn-sm">Edit</a>
                                         <form action="/soh_delete/${soh.id}" method="post" style="display:inline-block;">
@@ -195,7 +201,7 @@
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="11">
+                            <td colspan="12">
                                 <div class="no-results">
                                     <p>No SOH entries found for FG Code: ${fgCode}</p>
                                     <button class="add-soh-btn" onclick="addSOH('${fgCode}')">
@@ -212,7 +218,7 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="11" class="no-results">Error fetching SOH entries.</td>
+                        <td colspan="12" class="no-results">Error fetching SOH entries.</td>
                     </tr>
                 `);
             }
