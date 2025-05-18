@@ -72,6 +72,11 @@
         </div>
 
         <div class="mb-3">
+            <label for="production_description" class="form-label">Production</label>
+            <input type="text" class="form-control" id="production_description" name="production_description">
+        </div>
+
+        <div class="mb-3">
             <label for="units_per_bag">Units per Box</label>
             <input type="number" name="units_per_bag" id="units_per_bag" value="{{ joining.units_per_bag if joining else '' }}" step="any">
         </div>

@@ -1,35 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Usage Report</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f5f5f5;
-        }
-    </style>
-</head>
-<body>
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container mt-4">
     <h1>Usage Report</h1>
+
+    <div class="d-flex justify-content-between mb-3">
+        <a href="{{ url_for('recipe.recipe_page') }}" class="btn btn-primary">Back to Recipe Page</a>
+        <a href="{{ url_for('recipe.usage_download') }}" class="btn btn-success">Download as Excel</a>
+    </div>
 
     {% if grouped_usage_data %}
         {% for date, entries in grouped_usage_data.items() %}
             <h2>{{ date }}</h2>
-            <table>
+            <table class="table table-bordered">
                 <thead>
                     <tr>
+                        <th>Week Commencing</th>
+                        <th>Production Date</th>
                         <th>Recipe Code</th>
                         <th>Raw Material</th>
                         <th>Usage (kg)</th>
@@ -39,9 +26,11 @@
                 <tbody>
                     {% for entry in entries %}
                         <tr>
+                            <td>{{ entry.week_commencing }}</td>
+                            <td>{{ entry.production_date }}</td>
                             <td>{{ entry.recipe_code }}</td>
                             <td>{{ entry.raw_material }}</td>
-                            <td>{{ entry.usage }}</td>
+                            <td>{{ entry.usage_kg }}</td>
                             <td>{{ entry.percentage }}</td>
                         </tr>
                     {% endfor %}
@@ -51,7 +40,5 @@
     {% else %}
         <p>No usage data available.</p>
     {% endif %}
-
-    <a href="{{ url_for('recipe.recipe_page') }}">Back to Recipe Page</a>
-</body>
-</html>
+</div>
+{% endblock %}

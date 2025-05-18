@@ -1,8 +1,13 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, send_file, url_for, flash, jsonify
 from sqlalchemy.sql import text
 from decimal import Decimal
 import sqlalchemy.exc
 from datetime import datetime
+import pandas as pd
+from io import BytesIO
+from database import db
+from models import Production, RecipeMaster
+
 
 # Create a Blueprint for recipe routes
 recipe_bp = Blueprint('recipe', __name__, template_folder='templates')
@@ -168,46 +173,137 @@ def get_search_recipes():
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
     from database import db
-    from models import Production, RecipeMaster
+    from models import Production, RecipeMaster, UsageReport
+    from datetime import datetime
     
-    # Fetch all productions
-    productions = Production.query.all()
+    # Check if usage data exists in the database
+    usage_records = UsageReport.query.all()
     
-    # Dictionary to group usage data by production_date
+    if not usage_records:
+        # Fetch all productions
+        productions = Production.query.all()
+        
+        for production in productions:
+            recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
+            if not recipes:
+                continue
+            for recipe in recipes:
+                usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
+                # Create usage record
+                usage_record = UsageReport(
+                    production_date=production.production_date,
+                    week_commencing=production.week_commencing,
+                    recipe_code=production.production_code,
+                    raw_material=recipe.raw_material,
+                    usage_kg=round(usage_kg, 2),
+                    percentage=float(recipe.percentage)
+                )
+                db.session.add(usage_record)
+        db.session.commit()
+        usage_records = UsageReport.query.all()
+    
+    # Group usage data by production_date
     grouped_usage_data = {}
+    for record in usage_records:
+        date_str = record.production_date.strftime('%d/%m/%Y')
+        if date_str not in grouped_usage_data:
+            grouped_usage_data[date_str] = []
+        grouped_usage_data[date_str].append({
+            'recipe_code': record.recipe_code,
+            'raw_material': record.raw_material,
+            'usage_kg': record.usage_kg,
+            'percentage': record.percentage,
+            'week_commencing': record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else '',
+            'production_date': date_str
+        })
     
-    for production in productions:
-        recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-        if not recipes:
-            continue
-        for recipe in recipes:
-            usage = float(production.total_kg) * (float(recipe.percentage) / 100)
-            # Format production_date as string
-            date_str = production.production_date.strftime('%d/%m/%Y')
-            
-            # Initialize list for this date if not already present
-            if date_str not in grouped_usage_data:
-                grouped_usage_data[date_str] = []
-                
-            # Append usage data for this production and recipe
-            grouped_usage_data[date_str].append({
-                'recipe_code': production.production_code,
-                'raw_material': recipe.raw_material,
-                'usage': round(usage, 2),
-                'percentage': float(recipe.percentage)
-            })
-    
-    # Sort dates to ensure chronological order
+    # Sort dates
     sorted_usage_data = dict(sorted(grouped_usage_data.items(), key=lambda x: datetime.strptime(x[0], '%d/%m/%Y')))
     
-    return render_template('recipe/usage.html', grouped_usage_data=sorted_usage_data,current_page='usage')
+    return render_template('recipe/usage.html', grouped_usage_data=sorted_usage_data, current_page='usage')
+
+
+@recipe_bp.route('/usage_download', methods=['GET'])
+def usage_download():
+    from database import db
+    from models import UsageReport
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+    from io import BytesIO
+    from flask import send_file
+    from datetime import datetime
+    
+    # Fetch usage records
+    usage_records = UsageReport.query.all()
+    
+    # Create Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Usage Report"
+    
+    # Define headers
+    headers = [
+        "Week Commencing",
+        "Production Date",
+        "Recipe Code",
+        "Raw Material",
+        "Usage (kg)",
+        "Percentage (%)"
+    ]
+    ws.append(headers)
+    
+    # Style headers
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+    
+    # Populate data
+    for record in usage_records:
+        ws.append([
+            record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else '',
+            record.production_date.strftime('%d/%m/%Y'),
+            record.recipe_code,
+            record.raw_material,
+            record.usage_kg,
+            record.percentage
+        ])
+    
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2) * 1.2
+        ws.column_dimensions[column].width = adjusted_width
+    
+    # Save to BytesIO
+    excel_file = BytesIO()
+    wb.save(excel_file)
+    excel_file.seek(0)
+    
+    return send_file(
+        excel_file,
+        download_name=f"usage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+        as_attachment=True,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
     from database import db
     from models import Production, RecipeMaster
+
     productions = Production.query.all()
     usage_data = []
+
+    # Collect all usage data
     for production in productions:
         recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
         if not recipes:
@@ -215,23 +311,113 @@ def raw_material_report():
         for recipe in recipes:
             usage = float(production.total_kg) * (float(recipe.percentage) / 100)
             usage_data.append({
+                'week_commencing': production.week_commencing.strftime('%d/%m/%Y') if production.week_commencing else '',
                 'production_date': production.production_date.strftime('%d/%m/%Y'),
-                'recipe_code': production.production_code,
                 'raw_material': recipe.raw_material,
-                'usage': round(usage, 2),
-                'percentage': float(recipe.percentage)
+                'usage': round(usage, 2)
             })
+
+    # Aggregate usage by week_commencing, production_date, and raw_material
     raw_material_totals = {}
     for entry in usage_data:
-        raw_material = entry['raw_material']
-        usage = entry['usage']
-        if raw_material in raw_material_totals:
-            raw_material_totals[raw_material] += usage
+        key = (entry['week_commencing'], entry['production_date'], entry['raw_material'])
+        if key in raw_material_totals:
+            raw_material_totals[key] += entry['usage']
         else:
-            raw_material_totals[raw_material] = usage
+            raw_material_totals[key] = entry['usage']
+
+    # Convert to list of dictionaries for template
     raw_material_data = [
-        {'raw_material': material, 'meat_required': round(total, 2)}
-        for material, total in raw_material_totals.items()
+        {
+            'week_commencing': key[0],
+            'production_date': key[1],
+            'raw_material': key[2],
+            'usage': round(total, 2)
+        }
+        for key, total in raw_material_totals.items()
     ]
-    raw_material_data.sort(key=lambda x: x['raw_material'])
+
+    # Sort by week_commencing, production_date, and raw_material
+    raw_material_data.sort(key=lambda x: (x['week_commencing'] or '', x['production_date'], x['raw_material']))
+
     return render_template('recipe/raw_material.html', raw_material_data=raw_material_data, current_page='raw_material')
+
+@recipe_bp.route('/raw_material_download', methods=['GET'])
+def raw_material_download():
+    from database import db
+    from models import Production, RecipeMaster
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+    from io import BytesIO
+    from flask import send_file
+    from datetime import datetime
+
+    # Fetch raw material data
+    productions = Production.query.all()
+    raw_material_data = []
+
+    for production in productions:
+        recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
+        if not recipes:
+            continue
+        for recipe in recipes:
+            usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
+            raw_material_data.append({
+                'week_commencing': production.week_commencing.strftime('%d/%m/%Y') if production.week_commencing else '',
+                'production_date': production.production_date.strftime('%d/%m/%Y'),
+                'raw_material': recipe.raw_material,
+                'usage_kg': round(usage_kg, 2),
+            })
+
+    # Create Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Raw Material Report"
+
+    # Define headers
+    headers = [
+        "Week Commencing",
+        "Production Date",
+        "Raw Material",
+        "Usage (kg)"
+    ]
+    ws.append(headers)
+
+    # Style headers
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center')
+
+    # Populate data
+    for entry in raw_material_data:
+        ws.append([
+            entry['week_commencing'],
+            entry['production_date'],
+            entry['raw_material'],
+            entry['usage_kg']
+        ])
+
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2) * 1.2
+        ws.column_dimensions[column].width = adjusted_width
+
+    # Save to BytesIO
+    excel_file = BytesIO()
+    wb.save(excel_file)
+    excel_file.seek(0)
+
+    return send_file(
+        excel_file,
+        download_name=f"raw_material_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+        as_attachment=True,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )

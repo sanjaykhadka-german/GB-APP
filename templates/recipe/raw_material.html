@@ -1,67 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raw Material Report</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f5f5f5;
-        }
-    </style>
-</head>
-<body>
-    <header>
-        <h1>Raw Material Report</h1>
-        <nav>
-            <ul>
-                <li><a href="{{ url_for('index') }}">Home</a></li>
-                <li><a href="{{ url_for('recipe.recipe_page') }}">Recipe</a></li>
-                <li><a href="{{ url_for('joining.joining_list') }}">Joining</a></li>
-                <li><a href="{{ url_for('soh.soh_list') }}">SOH</a></li>
-                <li><a href="{{ url_for('packing.packing_list') }}">Packing</a></li>
-                <li><a href="{{ url_for('filling.filling_list') }}">Filling</a></li>
-                <li><a href="{{ url_for('production.production_list') }}">Production</a></li>               
-                <li><a href="{{ url_for('recipe.usage') }}">Usage Report</a></li>
-                <li
-                    class="{% if current_page == 'raw_material' %}active{% endif %}">
-                    <a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a>
-                </li>
-                <li><a href="{{ url_for('production_plan.production_plan_list') }}">Production Plan</a></li>
-                <li><a href="{{ url_for('production_plan.production_plan_create') }}">Create Production Plan</a></li>
-            </ul>
-        </nav>
-    </header>
+{% extends 'index.html' %}
 
-    <main>
-        <h2>Raw Material Report</h2>
-        <table>
+{% block content %}
+<div class="container mt-4">
+    <h1>Raw Material Report</h1>
+
+    <div class="d-flex justify-content-between mb-3">
+        <a href="{{ url_for('recipe.recipe_page') }}" class="btn btn-primary">Back to Recipe Page</a>
+        <a href="{{ url_for('recipe.raw_material_download') }}" class="btn btn-success">Download as Excel</a>
+    </div>
+
+    {% if raw_material_data %}
+        <table class="table table-bordered">
             <thead>
                 <tr>
+                    <th>Week Commencing</th>
+                    <th>Production Date</th>
                     <th>Raw Material</th>
-                    <th>Meat Required (KG)</th>
+                    <th>Usage (kg)</th>
                 </tr>
             </thead>
             <tbody>
                 {% for entry in raw_material_data %}
                 <tr>
+                    <td>{{ entry.week_commencing }}</td>
+                    <td>{{ entry.production_date }}</td>
                     <td>{{ entry.raw_material }}</td>
-                    <td>{{ entry.meat_required }}</td>
+                    <td>{{ entry.usage_kg }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </main>
-</body>
-</html>
+    {% else %}
+        <p>No raw material data available.</p>
+    {% endif %}
+</div>
+{% endblock %}

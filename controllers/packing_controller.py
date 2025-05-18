@@ -470,7 +470,7 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
     try:
         # Get production_code and description from Joining
         production_code = joining.production
-        description = joining.description
+        product_description = joining.product_description
 
         fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
         if len(fill_code_prefix) > 1:
@@ -508,7 +508,7 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
 
         if production:
             # Update existing Production entry
-            production.description = description
+            production.description = product_description #description 
             production.total_kg = total_kg
             production.batches = batches
             production.week_commencing = week_commencing  # Set week_commencing
@@ -517,7 +517,7 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
             production = Production(
                 production_date=filling_date,
                 production_code=production_code,
-                description=description,
+                description=product_description,
                 batches=batches,
                 total_kg=total_kg,
                 week_commencing=week_commencing  # Set week_commencing

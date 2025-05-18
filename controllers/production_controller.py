@@ -19,7 +19,8 @@ def production_create():
             production_date_str = request.form['production_date']
             production_date = datetime.strptime(production_date_str, '%Y-%m-%d').date()
             production_code = request.form['production_code']
-            description = request.form['description']
+            product_description = request.form['product_description']
+            #description = request.form['description']
             batches = float(request.form['batches']) if request.form.get('batches') else 0.0
             total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
 
@@ -32,7 +33,7 @@ def production_create():
             new_production = Production(
                 production_date=production_date,
                 production_code=production_code,
-                description=description,
+                description=product_description,
                 batches=batches,
                 total_kg=total_kg
             )
@@ -61,7 +62,8 @@ def production_edit(id):
             production_date_str = request.form['production_date']
             production.production_date = datetime.strptime(production_date_str, '%Y-%m-%d').date()
             production.production_code = request.form['production_code']
-            production.description = request.form['description']
+            production.productioon_description = request.form['product_description']
+            #production.description = request.form['description']
             production.batches = float(request.form['batches']) if request.form.get('batches') else 0.0
             production.total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
 

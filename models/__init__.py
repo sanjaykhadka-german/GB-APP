@@ -22,5 +22,6 @@ from .cooking_records import CookingRecord
 
 from .finished_goods import FinishedGoods
 from .allergen import Allergen
+from .usage import UsageReport
 
 # from .packing_plan import PackingPlan

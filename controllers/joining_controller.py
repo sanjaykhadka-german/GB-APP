@@ -71,32 +71,48 @@ def joining_create():
 
     return render_template('joining/create.html',current_page="joining")
 
-# Joining Edit Route
 @joining_bp.route('/joining_edit/<int:id>', methods=['GET', 'POST'])
 def joining_edit(id):
-    from app import db  # Defer import to runtime
-    from models.joining import Joining  # Defer import to runtime
-    joining = Joining.query.get(id)
+    from app import db
+    from models.joining import Joining
+    joining = Joining.query.get_or_404(id)
 
     if request.method == 'POST':
-        joining.fg_code = request.form['fg_code']
-        joining.description = request.form['description']
-        joining.fw = 'fw' in request.form
-        joining.make_to_order = 'make_to_order' in request.form
-        joining.min_level = float(request.form['min_level']) if request.form.get('min_level') else None
-        joining.max_level = float(request.form['max_level']) if request.form.get('max_level') else None
-        joining.kg_per_unit = float(request.form['kg_per_unit']) if request.form.get('kg_per_unit') else None
-        joining.loss = float(request.form['loss']) if request.form.get('loss') else None
-        joining.filling_code = request.form.get('filling_code')
-        joining.filling_description = request.form.get('filling_description')
-        joining.production = request.form.get('production')
-        joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None  # New field
+        print("Form data received:", request.form)  # Debug: Log form data
+        try:
+            joining.fg_code = request.form['fg_code']
+            joining.description = request.form.get('description')
+            joining.product_description = request.form.get('product_description')
+            joining.fw = 'fw' in request.form
+            joining.make_to_order = 'make_to_order' in request.form
+            joining.min_level = float(request.form['min_level']) if request.form.get('min_level') and request.form['min_level'].strip() else None
+            joining.max_level = float(request.form['max_level']) if request.form.get('max_level') and request.form['max_level'].strip() else None
+            joining.kg_per_unit = float(request.form['kg_per_unit']) if request.form.get('kg_per_unit') and request.form['kg_per_unit'].strip() else None
+            joining.loss = float(request.form['loss']) if request.form.get('loss') and request.form['loss'].strip() else None
+            joining.filling_code = request.form.get('filling_code')
+            joining.filling_description = request.form.get('filling_description')
+            joining.production = request.form.get('production')
+            joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') and request.form['units_per_bag'].strip() else None
 
-        db.session.commit()
-        flash("Joining updated successfully!", "success")
-        return redirect(url_for('joining.joining_list'))
+            print("Joining object before commit:", joining.__dict__)  # Debug: Log object state
+            db.session.commit()
+            print("Commit successful")  # Debug: Confirm commit
+            flash("Joining updated successfully!", "success")
+            return redirect(url_for('joining.joining_list'))
+        except KeyError as e:
+            db.session.rollback()
+            print(f"KeyError: Missing form field {e}")  # Debug: Log specific error
+            flash(f"Missing required field: {e}", "danger")
+        except ValueError as e:
+            db.session.rollback()
+            print(f"ValueError: Invalid value {e}")  # Debug: Log specific error
+            flash(f"Invalid value provided: {e}", "danger")
+        except Exception as e:
+            db.session.rollback()
+            print(f"General error: {e}")  # Debug: Log unexpected errors
+            flash(f"Error updating joining: {str(e)}", "danger")
 
-    return render_template('joining/edit.html', joining=joining,current_page="joining")
+    return render_template('joining/edit.html', joining=joining, current_page="joining")
 
 # Joining Delete Route
 @joining_bp.route('/joining_delete/<int:id>', methods=['POST'])

@@ -72,11 +72,17 @@
         </div>
 
         <div class="mb-3">
-            <label for="units_per_bag">Units per Box</label>
-            <input type="number" name="units_per_bag" id="units_per_bag" value="{{ joining.units_per_bag if joining else '' }}" step="any">
+            <label for="product_description" class="form-label">Product Description</label>
+            <input type="text" class="form-control" id="product_description" name="product_description" value="{{ joining.product_description if joining.product_description else '' }}">
+        </div>
+
+        <div class="mb-3">
+            <label for="units_per_bag" class="form-label">Units per Box</label>
+            <input type="number" step="any" class="form-control" id="units_per_bag" name="units_per_bag" value="{{ joining.units_per_bag if joining.units_per_bag is not none else '' }}">
         </div>
 
         <button type="submit" class="btn btn-warning">Update Joining</button>
+        <a href="{{ url_for('joining.joining_list') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 {% endblock %}
