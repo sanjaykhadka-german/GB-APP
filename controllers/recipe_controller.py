@@ -175,32 +175,78 @@ def usage():
     from database import db
     from models import Production, RecipeMaster, UsageReport
     from datetime import datetime
+
+    db.session.execute(text('TRUNCATE TABLE usage_report'))
+    db.session.commit()
+
+
     
-    # Check if usage data exists in the database
-    usage_records = UsageReport.query.all()
-    
-    if not usage_records:
+    try:
         # Fetch all productions
         productions = Production.query.all()
+        if not productions:
+            print("No production records found.")
         
         for production in productions:
             recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
+            print(f"Processing production: {production.production_code}")
+            print(f"Recipes found: {len(recipes)}")
+            
             if not recipes:
+                print(f"No recipes found for production code: {production.production_code}")
                 continue
+            
             for recipe in recipes:
-                usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
-                # Create usage record
-                usage_record = UsageReport(
-                    production_date=production.production_date,
-                    week_commencing=production.week_commencing,
-                    recipe_code=production.production_code,
-                    raw_material=recipe.raw_material,
-                    usage_kg=round(usage_kg, 2),
-                    percentage=float(recipe.percentage)
-                )
-                db.session.add(usage_record)
+                print(f"Processing recipe: {recipe.raw_material}")
+                try:
+                    # Calculate usage
+                    if production.total_kg is None or recipe.percentage is None:
+                        print(f"Invalid data: total_kg={production.total_kg}, percentage={recipe.percentage}")
+                        continue
+                    usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
+                    print(f"Calculated usage_kg: {usage_kg}")
+                    
+                    # Check if usage record already exists
+                    existing_record = UsageReport.query.filter_by(
+                        production_date=production.production_date,
+                        recipe_code=production.production_code,
+                        raw_material=recipe.raw_material
+                    ).first()
+                    
+                    if existing_record:
+                        # Update existing record
+                        existing_record.usage_kg = round(usage_kg, 2)
+                        existing_record.percentage = float(recipe.percentage)
+                        print(f"Updated usage record for {recipe.raw_material}")
+                    else:
+                        # Create new usage record
+                        usage_record = UsageReport(
+                            production_date=production.production_date,
+                            week_commencing=production.week_commencing,
+                            recipe_code=production.production_code,
+                            raw_material=recipe.raw_material,
+                            usage_kg=round(usage_kg, 2),
+                            percentage=float(recipe.percentage)
+                        )
+                        db.session.add(usage_record)
+                        print(f"Added new usage record for {recipe.raw_material}")
+                
+                except Exception as e:
+                    print(f"Error processing recipe {recipe.raw_material}: {str(e)}")
+                    continue
+        
+        # Commit changes to the database
         db.session.commit()
-        usage_records = UsageReport.query.all()
+        print("Database commit successful.")
+    
+    except Exception as e:
+        db.session.rollback()
+        print(f"Database commit failed: {str(e)}")
+        # Optionally, return an error response
+        return render_template('error.html', error=str(e)), 500
+    
+    # Fetch all usage records for display
+    usage_records = UsageReport.query.all()
     
     # Group usage data by production_date
     grouped_usage_data = {}
@@ -298,33 +344,65 @@ def usage_download():
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
     from database import db
-    from models import Production, RecipeMaster
+    from models import UsageReport, RawMaterial
+    from datetime import datetime
 
-    productions = Production.query.all()
-    usage_data = []
-
-    # Collect all usage data
-    for production in productions:
-        recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-        if not recipes:
-            continue
-        for recipe in recipes:
-            usage = float(production.total_kg) * (float(recipe.percentage) / 100)
-            usage_data.append({
-                'week_commencing': production.week_commencing.strftime('%d/%m/%Y') if production.week_commencing else '',
-                'production_date': production.production_date.strftime('%d/%m/%Y'),
-                'raw_material': recipe.raw_material,
-                'usage': round(usage, 2)
-            })
+    # Fetch all usage records from UsageReport
+    usage_records = UsageReport.query.all()
 
     # Aggregate usage by week_commencing, production_date, and raw_material
     raw_material_totals = {}
-    for entry in usage_data:
-        key = (entry['week_commencing'], entry['production_date'], entry['raw_material'])
+    for record in usage_records:
+        week_commencing = record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else ''
+        production_date = record.production_date.strftime('%d/%m/%Y')
+        raw_material = record.raw_material
+        usage_kg = record.usage_kg
+
+        key = (week_commencing, production_date, raw_material)
         if key in raw_material_totals:
-            raw_material_totals[key] += entry['usage']
+            raw_material_totals[key] += usage_kg
         else:
-            raw_material_totals[key] = entry['usage']
+            raw_material_totals[key] = usage_kg
+
+    # Save or update data in RawMaterial table
+    try:
+        for key, total in raw_material_totals.items():
+            week_commencing, production_date, raw_material = key
+            # Convert string dates back to datetime.date for database
+            production_date_obj = datetime.strptime(production_date, '%d/%m/%Y').date()
+            week_commencing_obj = datetime.strptime(week_commencing, '%d/%m/%Y').date() if week_commencing else None
+
+            # Check if record    record already exists
+            existing_record = RawMaterial.query.filter_by(
+                production_date=production_date_obj,
+                week_commencing=week_commencing_obj,
+                raw_material=raw_material
+            ).first()
+
+            if existing_record:
+                # Update existing record
+                existing_record.meat_required = round(total, 2)
+                print(f"Updated RawMaterial record for {raw_material} on {production_date}")
+            else:
+                # Create new record
+                new_record = RawMaterial(
+                    production_date=production_date_obj,
+                    week_commencing=week_commencing_obj,
+                    raw_material=raw_material,
+                    meat_required=round(total, 2)
+                )
+                db.session.add(new_record)
+                print(f"Added new RawMaterial record for {raw_material} on {production_date}")
+
+        # Commit changes to the database
+        db.session.commit()
+        print("RawMaterial table updated successfully.")
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving to RawMaterial table: {str(e)}")
+        # Optionally, handle the error (e.g., return an error page)
+        return render_template('error.html', error=str(e)), 500
 
     # Convert to list of dictionaries for template
     raw_material_data = [
@@ -338,36 +416,58 @@ def raw_material_report():
     ]
 
     # Sort by week_commencing, production_date, and raw_material
-    raw_material_data.sort(key=lambda x: (x['week_commencing'] or '', x['production_date'], x['raw_material']))
+    raw_material_data.sort(key=lambda x: (
+        x['week_commencing'] or '',
+        datetime.strptime(x['production_date'], '%d/%m/%Y') if x['production_date'] else datetime.min,
+        x['raw_material']
+    ))
 
     return render_template('recipe/raw_material.html', raw_material_data=raw_material_data, current_page='raw_material')
 
 @recipe_bp.route('/raw_material_download', methods=['GET'])
 def raw_material_download():
     from database import db
-    from models import Production, RecipeMaster
+    from models import UsageReport
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment
     from io import BytesIO
     from flask import send_file
     from datetime import datetime
 
-    # Fetch raw material data
-    productions = Production.query.all()
-    raw_material_data = []
+    # Fetch all usage records from UsageReport
+    usage_records = UsageReport.query.all()
 
-    for production in productions:
-        recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-        if not recipes:
-            continue
-        for recipe in recipes:
-            usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
-            raw_material_data.append({
-                'week_commencing': production.week_commencing.strftime('%d/%m/%Y') if production.week_commencing else '',
-                'production_date': production.production_date.strftime('%d/%m/%Y'),
-                'raw_material': recipe.raw_material,
-                'usage_kg': round(usage_kg, 2),
-            })
+    # Aggregate usage by week_commencing, production_date, and raw_material
+    raw_material_totals = {}
+    for record in usage_records:
+        week_commencing = record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else ''
+        production_date = record.production_date.strftime('%d/%m/%Y')
+        raw_material = record.raw_material
+        usage_kg = record.usage_kg
+
+        key = (week_commencing, production_date, raw_material)
+        if key in raw_material_totals:
+            raw_material_totals[key] += usage_kg
+        else:
+            raw_material_totals[key] = usage_kg
+
+    # Convert to list of dictionaries for Excel
+    raw_material_data = [
+        {
+            'week_commencing': key[0],
+            'production_date': key[1],
+            'raw_material': key[2],
+            'usage_kg': round(total, 2)
+        }
+        for key, total in raw_material_totals.items()
+    ]
+
+    # Sort by week_commencing, production_date, and raw_material
+    raw_material_data.sort(key=lambda x: (
+        x['week_commencing'] or '',
+        datetime.strptime(x['production_date'], '%d/%m/%Y') if x['production_date'] else datetime.min,
+        x['raw_material']
+    ))
 
     # Create Excel workbook
     wb = Workbook()
