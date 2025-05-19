@@ -264,6 +264,10 @@ def packing_edit(id):
 
     if request.method == 'POST':
         try:
+            # Store the original requirement_kg before any updates
+            original_requirement_kg = packing.requirement_kg or 0.0
+
+            # Update packing fields
             packing.packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
             packing.product_code = request.form['product_code']
             packing.product_description = request.form['product_description']
@@ -271,36 +275,39 @@ def packing_edit(id):
             packing.avg_weight_per_unit = float(request.form['avg_weight_per_unit']) if request.form['avg_weight_per_unit'] else 0.0
             packing.soh_requirement_units_week = int(request.form['soh_requirement_units_week']) if request.form['soh_requirement_units_week'] else 0
             packing.weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
-            # Handle week_commencing from form
             week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else None
 
-            # If week_commencing is not provided, calculate it
             if not week_commencing:
                 def get_monday_of_week(dt):
                     return dt - timedelta(days=dt.weekday())
                 week_commencing = get_monday_of_week(packing.packing_date)
 
-            # Fetch SOH data for the specific week
+            # Fetch SOH data
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
-            soh_units = soh.soh_total_units if soh else 0  # L2
+            soh_units = soh.soh_total_units if soh else 0
 
-            # Calculations based on Excel formulas
+            # Recalculate packing fields
             avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0
             special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-            packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2
-            packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2
-            packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2
-            packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2
-            packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2
-            packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0  # F2
-            packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0  # G2
-            packing.avg_weight_per_unit_calc = avg_weight_per_unit  # M2 = H2
-            packing.soh_units = soh_units  # L2
-            packing.week_commencing = week_commencing  # Update week_commencing
+            packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0
+            packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+            packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+            packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+            packing.avg_weight_per_unit_calc = avg_weight_per_unit
+            packing.soh_units = soh_units
+            packing.week_commencing = week_commencing
 
+            # Calculate the delta for requirement_kg
+            new_requirement_kg = packing.requirement_kg or 0.0
+            delta_kg = new_requirement_kg - original_requirement_kg
+
+            # Commit the packing changes
             db.session.commit()
 
-            # Update or create corresponding Filling entry
+            # Update or create the corresponding Filling entry
             joining = Joining.query.filter_by(fg_code=packing.product_code).first()
             if joining:
                 filling = Filling.query.filter_by(
@@ -309,20 +316,27 @@ def packing_edit(id):
                 ).first()
 
                 if filling:
-                    filling.kilo_per_size += packing.requirement_kg  # Use = instead of += to avoid double-counting
+                    # Update existing filling entry with the delta
+                    filling.kilo_per_size = (filling.kilo_per_size or 0.0) + delta_kg
                     filling.description = joining.filling_description
-                    filling.week_commencing = week_commencing  # Set week_commencing
+                    filling.week_commencing = week_commencing
+                    # If kilo_per_size is zero or negative, consider deleting the filling entry
+                    if filling.kilo_per_size <= 0:
+                        db.session.delete(filling)
                 else:
-                    filling = Filling(
-                        filling_date=packing.packing_date,
-                        fill_code=joining.filling_code,
-                        description=joining.filling_description,
-                        kilo_per_size=packing.requirement_kg,
-                        week_commencing=week_commencing  # Set week_commencing
-                    )
-                    db.session.add(filling)
+                    # Only create a new filling entry if delta_kg is positive
+                    if delta_kg > 0:
+                        filling = Filling(
+                            filling_date=packing.packing_date,
+                            fill_code=joining.filling_code,
+                            description=joining.filling_description,
+                            kilo_per_size=delta_kg,
+                            week_commencing=week_commencing
+                        )
+                        db.session.add(filling)
                 db.session.commit()
 
+                # Update the corresponding Production entry
                 update_production_entry(packing.packing_date, joining.filling_code, joining, week_commencing)
             else:
                 flash(f"No Joining record found for product code {packing.product_code}. Filling entry not updated.", 'warning')
@@ -339,20 +353,31 @@ def packing_edit(id):
             db.session.rollback()
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
-    # Fetch product codes for dropdown
+    # Existing code for GET request remains unchanged
     products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
+    recipe_code_prefix = packing.product_code.split('.')[0] if '.' in packing.product_code else packing.product_code
+    related_packings = Packing.query.filter(
+        Packing.week_commencing == packing.week_commencing,
+        Packing.product_code.ilike(f"{recipe_code_prefix}%")
+    ).all()
+    related_fillings = Filling.query.join(Joining, Filling.fill_code == Joining.filling_code).filter(
+        Filling.week_commencing == packing.week_commencing,
+        Filling.filling_date == packing.packing_date,
+        Joining.fg_code.ilike(f"{recipe_code_prefix}%")
+    ).all()
+    related_productions = Production.query.filter(
+        Production.week_commencing == packing.week_commencing,
+        Production.production_date == packing.packing_date
+    ).all()
+    total_production_kg = sum(production.total_kg for production in related_productions if production.total_kg is not None)
 
-    # Fetch production entries
-    productions = Production.query.order_by(Production.production_date.desc()).all()
-    
-    # Calculate total_kg sum
-    total_production_kg = sum(production.total_kg for production in productions if production.total_kg is not None)
-
-    return render_template('packing/edit.html', 
-                         packing=packing, 
-                         products=products, 
-                         productions=productions, 
-                         total_production_kg=total_production_kg, 
+    return render_template('packing/edit.html',
+                         packing=packing,
+                         products=products,
+                         related_packings=related_packings,
+                         related_fillings=related_fillings,
+                         related_productions=related_productions,
+                         total_production_kg=total_production_kg,
                          current_page="packing")
 
 
