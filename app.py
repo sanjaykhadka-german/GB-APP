@@ -49,6 +49,7 @@ def create_app():
     from controllers.recipe_controller import recipe_bp
     from controllers.production_plan_controller import production_plan_bp
     from controllers.inject_products_controller import injected_products_bp
+    
 
     app.register_blueprint(joining_bp)
     app.register_blueprint(soh_bp)
@@ -62,7 +63,8 @@ def create_app():
     # Import models
     # We import the models module which will import all model classes
     from models import soh, finished_goods, item_master, recipe_master, production_plan, injected_products
-    from models import machinery, department, item_type, category, production, packing, filling
+    from models import machinery, department, item_type, category, production, packing, filling, allergen, joining_allergen
+    
 
     @app.template_filter('format_date')
     def format_date(value):

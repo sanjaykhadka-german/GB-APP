@@ -81,6 +81,15 @@
             <input type="number" name="units_per_bag" id="units_per_bag" value="{{ joining.units_per_bag if joining else '' }}" step="any">
         </div>
 
+        <div class="mb-3">
+            <label for="allergens" class="form-label">Allergens</label>
+            <select class="form-control" id="allergens" name="allergens" multiple>
+                {% for allergen in all_allergens %}
+                    <option value="{{ allergen.allergens_id }}">{{ allergen.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <button type="submit" class="btn btn-success">Create Joining</button>
     </form>
 </div>

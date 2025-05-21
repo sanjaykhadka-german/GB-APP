@@ -16,6 +16,11 @@
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
 
+            <div class="form-group">
+                <label for="search_week_commencing">Week Commencing:</label>
+                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
+            </div>
+
             <button type="button" onclick="fetchSOHs()">Search</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
@@ -27,6 +32,7 @@
         <div class="d-flex gap-2 mb-3">
             <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary">Add New SOH Entry</a>
             <a href="{{ url_for('soh.soh_upload') }}" class="btn btn-success">Upload SOH Data</a>
+            <button type="button" class="btn btn-warning" id="bulkEditButton" onclick="openBulkEditModal()" disabled>Bulk Edit</button>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -44,23 +50,25 @@
             <table class="table table-bordered" id="sohListTable">
                 <thead>
                     <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
                         <th>ID</th>
-                        <th>Week Commencing</th>
-                        <th>FG Code</th>
-                        <th>Description</th>
+                        <th class="sortable" data-column="week_commencing">Week Commencing <span class="sort-icon"> </span> </th>
+                        <th class="sortable" data-column="fg_code">FG Code <span class="sort-icon"> </span> </th>
+                        <th class="sortable" data-column="description">Description <span class="sort-icon"> </span> </th>
                         <th>Dispatch Boxes</th>
                         <th>Dispatch Units</th>
                         <th>Packing Boxes</th>
                         <th>Packing Units</th>
                         <th>Total Boxes</th>
                         <th>Total Units</th>
-                        <th>Edit Date</th>
+                        <th class="sortable" data-column="edit_date">Edit Date <span class="sort-icon"> </span> </th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for soh in sohs %}
                     <tr>
+                        <td><input type="checkbox" class="soh-checkbox" value="{{ soh.id }}"></td>
                         <td>{{ soh.id or '' }}</td>
                         <td>{{ soh.week_commencing | format_date if soh.week_commencing else '' }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
@@ -84,6 +92,52 @@
             </table>
         </div>
     </section>
+
+    <!-- Bulk Edit Modal -->
+
+    <div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bulkEditModalLabel">Bulk Edit SOH Entries</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="bulkEditForm">
+
+                        <div class="form-group">
+                            <label for="bulk_week_commencing">Week Commencing:</label>
+                            <input type="date" class="form-control" id="bulk_week_commencing" name="week_commencing">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk_soh_dispatch_boxes">Dispatch Boxes:</label>
+                            <input type="number" class="form-control" id="bulk_soh_dispatch_boxes" name="soh_dispatch_boxes" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk_soh_dispatch_units">Dispatch Units:</label>
+                            <input type="number" class="form-control" id="bulk_soh_dispatch_units" name="soh_dispatch_units" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk_soh_packing_boxes">Packing Boxes:</label>
+                            <input type="number" class="form-control" id="bulk_soh_packing_boxes" name="soh_packing_boxes" step="any">
+                        </div>
+                        <div class="form-group">
+                            <label for="bulk_soh_packing_units">Packing Units:</label>
+                            <input type="number" class="form-control" id="bulk_soh_packing_units" name="soh_packing_units" step="any">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">Save Changes</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
 </div>
 
 <style>
@@ -97,11 +151,43 @@
         z-index: 1000;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
+
+     .sortable {
+        cursor: pointer;
+        position: relative;
+    }
+
+    .sort-icon::after {
+        content: '\2195'; /* Up/down arrow */
+        margin-left: 5px;
+        opacity: 0.3;
+    }
+
+    .sort-asc .sort-icon::after {
+        content: '\2191'; /* Up arrow */
+        opacity: 1;
+    }
+
+    .sort-desc .sort-icon::after {
+        content: '\2193'; /* Down arrow */
+        opacity: 1;
+    }
+
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
+        // Track the current sort order
+        let sortBy = '{{ sort_by | default("id") }}';
+        let sortDirection = '{{ sort_direction | default("asc") }}';
+
+        // Initialize sort indicators
+        if (sortBy) {
+            $(`.sortable[data-column="${sortBy}"]`).addClass(`sort-${sortDirection}`);
+        }
+
+
         // Autocomplete for FG Code
         $("#search_fg_code").keyup(function() {
             var fgCode = $(this).val().trim();
@@ -141,6 +227,45 @@
                 $("#fg_code_suggestions").empty();
             }
         });
+
+        // Enable/disable Bulk Edit button based on checkbox selection
+
+        $(document).on('change', '.soh-checkbox, #selectAll', function() {
+            var checkedBoxes = $('.soh-checkbox:checked').length;
+            $('#bulkEditButton').prop('disabled', checkedBoxes === 0);
+            if (this.id === 'selectAll') {
+                $('.soh-checkbox').prop('checked', $(this).prop('checked'));
+            }
+
+        });
+
+
+
+        // Clear checkboxes after modal close
+        $('#bulkEditModal').on('hidden.bs.modal', function() {
+            $('#bulkEditForm')[0].reset();
+            $('.soh-checkbox').prop('checked', false);
+            $('#selectAll').prop('checked', false);
+            $('#bulkEditButton').prop('disabled', true);
+        });
+
+        // Handle column sort click
+        $('.sortable').click(function() {
+            var column = $(this).data('column');
+            // Toggle direction if same column, otherwise default to asc
+            if (sortBy === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortBy = column;
+                sortDirection = 'asc';
+            }
+
+            // Update sort indicators
+            $('.sortable').removeClass('sort-asc sort-desc');
+            $(this).addClass(`sort-${sortDirection}`);
+            fetchSOHs();
+        });
+
     });
 
     // Function to add a new SOH entry
@@ -152,11 +277,18 @@
     function fetchSOHs() {
         var fgCode = $("#search_fg_code").val().trim();
         var description = $("#search_description").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var sortBy = $('.sortable.sort-asc, .sortable.sort-desc').data('column') || 'id';
+        var sortDirection = $('.sortable.sort-asc').length > 0 ? 'asc' : $('.sortable.sort-desc').length > 0 ? 'desc' : '{{ sort_direction | default("asc") }}';
 
         $.ajax({
             url: "{{ url_for('soh.get_search_sohs') }}",
             type: "GET",
-            data: { fg_code: fgCode, description: description },
+            data: { fg_code: fgCode, description: description,
+                week_commencing : weekCommencing,
+                sort_by: sortBy,
+                sort_direction: sortDirection
+             },
             success: function(response) {
                 var tableBody = $("#sohListTable tbody");
                 tableBody.empty();
@@ -165,7 +297,7 @@
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="12" class="no-results">Error fetching SOH entries: ${response.error}</td>
+                            <td colspan="13" class="no-results">Error fetching SOH entries: ${response.error}</td>
                         </tr>
                     `);
                     return;
@@ -177,6 +309,7 @@
                         if (soh.id !== null && soh.id !== undefined) {
                             tableBody.append(`
                                 <tr>
+                                    <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                     <td>${soh.id || ''}</td>
                                     <td>${soh.week_commencing || ''}</td>
                                     <td>${soh.fg_code || ''}</td>
@@ -201,7 +334,7 @@
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="12">
+                            <td colspan="13">
                                 <div class="no-results">
                                     <p>No SOH entries found for FG Code: ${fgCode}</p>
                                     <button class="add-soh-btn" onclick="addSOH('${fgCode}')">
@@ -218,11 +351,62 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="12" class="no-results">Error fetching SOH entries.</td>
+                        <td colspan="13" class="no-results">Error fetching SOH entries.</td>
                     </tr>
                 `);
             }
         });
     }
+
+// Open Bulk Edit Modal
+
+    function openBulkEditModal() {
+        if ($('.soh-checkbox:checked').length > 0) {
+            $('#bulkEditModal').modal('show');
+        }
+    }
+
+
+    // Submit Bulk Edit
+
+    function submitBulkEdit() {
+        var selectedIds = $('.soh-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+
+
+        var formData = {
+            ids: selectedIds,
+            week_commencing: $('#bulk_week_commencing').val().trim(),
+            soh_dispatch_boxes: $('#bulk_soh_dispatch_boxes').val().trim(),
+            soh_dispatch_units: $('#bulk_soh_dispatch_units').val().trim(),
+            soh_packing_boxes: $('#bulk_soh_packing_boxes').val().trim(),
+            soh_packing_units: $('#bulk_soh_packing_units').val().trim()
+        };
+
+
+        $.ajax({
+            url: "{{ url_for('soh.soh_bulk_edit') }}",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(formData),
+
+            success: function(response) {
+                if (response.success) {
+                    $('#bulkEditModal').modal('hide');
+                    fetchSOHs(); // Refresh the table
+                    alert('SOH entries updated successfully!');
+
+                } else {
+                    alert('Error updating SOH entries: ' + response.error);
+                }
+
+            },
+            error: function() {
+                alert('Error updating SOH entries.');
+            }
+        });
+    }
+
 </script>
 {% endblock %}

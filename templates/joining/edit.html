@@ -81,6 +81,17 @@
             <input type="number" step="any" class="form-control" id="units_per_bag" name="units_per_bag" value="{{ joining.units_per_bag if joining.units_per_bag is not none else '' }}">
         </div>
 
+        <div class="mb-3">
+            <label for="allergens" class="form-label">Allergens</label>
+            <select class="form-control" id="allergens" name="allergens" multiple>
+                {% for allergen in all_allergens %}
+                    <option value="{{ allergen.allergens_id }}" {{ 'selected' if allergen in joining.allergens else '' }}>
+                        {{ allergen.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
         <button type="submit" class="btn btn-warning">Update Joining</button>
         <a href="{{ url_for('joining.joining_list') }}" class="btn btn-secondary">Cancel</a>
     </form>

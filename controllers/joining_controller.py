@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from sqlalchemy.sql import text
+from sqlalchemy.orm import joinedload
 import sqlalchemy.exc
 
 # Create a Blueprint for joining routes
@@ -33,6 +34,9 @@ def joining_list():
 def joining_create():
     from app import db
     from models.joining import Joining
+    from models.allergen import Allergen
+
+
     if request.method == 'POST':
         print("Form data:", request.form)  # Debug: Log form data
         fg_code = request.form['fg_code']
@@ -47,7 +51,7 @@ def joining_create():
         filling_description = request.form.get('filling_description')
         production = request.form.get('production')
         units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None
-        print("Units per bag:", units_per_bag)  # Debug: Log units_per_bag
+        allergens = request.form.getlist('allergens')
 
         new_joining = Joining(
             fg_code=fg_code,
@@ -64,17 +68,30 @@ def joining_create():
             units_per_bag=units_per_bag
         )
         db.session.add(new_joining)
+        db.session.flush()  # Flush to get the new joining ID
+
+         # Associate selected allergens
+
+        if allergens:
+            selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergens)).all()
+            new_joining.allergens = selected_allergens
+
+
         db.session.commit()
 
         flash("Joining created successfully!", "success")
         return redirect(url_for('joining.joining_list'))
-
-    return render_template('joining/create.html',current_page="joining")
+    
+    # fetch allergens for the dopdown
+    all_allergens = Allergen.query.all()
+    return render_template('joining/create.html',all_allergens=all_allergens,current_page="joining")
 
 @joining_bp.route('/joining_edit/<int:id>', methods=['GET', 'POST'])
 def joining_edit(id):
     from app import db
     from models.joining import Joining
+    from models.allergen import Allergen
+
     joining = Joining.query.get_or_404(id)
 
     if request.method == 'POST':
@@ -93,6 +110,11 @@ def joining_edit(id):
             joining.filling_description = request.form.get('filling_description')
             joining.production = request.form.get('production')
             joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') and request.form['units_per_bag'].strip() else None
+            allergens = request.form.getlist('allergens')
+
+            # update allergens
+            selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergens)).all()
+            joining.allergens = selected_allergens
 
             print("Joining object before commit:", joining.__dict__)  # Debug: Log object state
             db.session.commit()
@@ -112,7 +134,9 @@ def joining_edit(id):
             print(f"General error: {e}")  # Debug: Log unexpected errors
             flash(f"Error updating joining: {str(e)}", "danger")
 
-    return render_template('joining/edit.html', joining=joining, current_page="joining")
+    # Fetch allergens for the dropdown
+    all_allergens = Allergen.query.all()
+    return render_template('joining/edit.html', joining=joining, all_allergens=all_allergens, current_page="joining")
 
 # Joining Delete Route
 @joining_bp.route('/joining_delete/<int:id>', methods=['POST'])
@@ -160,7 +184,7 @@ def get_search_joinings():
     search_description = request.args.get('description', '').strip()
 
     try:
-        joinings_query = Joining.query
+        joinings_query = Joining.query.options(joinedload(Joining.allergens))
 
         if search_fg_code:
             joinings_query = joinings_query.filter(Joining.fg_code.ilike(f"%{search_fg_code}%"))
@@ -183,7 +207,8 @@ def get_search_joinings():
                 "filling_code": joining.filling_code or "",
                 "filling_description": joining.filling_description or "",
                 "production": joining.production or "",
-                "units_per_bag": joining.units_per_bag if joining.units_per_bag is not None else ""  # New field
+                "units_per_bag": joining.units_per_bag if joining.units_per_bag is not None else "",
+                "allergens": [allergen.name for allergen in joining.allergens]
             }
             for joining in joinings
         ]

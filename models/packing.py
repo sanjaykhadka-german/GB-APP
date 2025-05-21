@@ -9,7 +9,7 @@ class Packing(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     week_commencing = db.Column(db.Date, nullable=True)
     packing_date = db.Column(db.Date, nullable=False)
-    product_code = db.Column(db.String(50),unique=True, nullable=False)
+    product_code = db.Column(db.String(50), nullable=False)
     product_description = db.Column(db.String(255))
     special_order_kg = db.Column(db.Float, default=0.0)
     special_order_unit = db.Column(db.Integer, default=0)
@@ -24,6 +24,7 @@ class Packing(db.Model):
     total_stock_kg = db.Column(db.Float, default=0.0)
     total_stock_units = db.Column(db.Integer, default=0)
     weekly_average = db.Column(db.Float, default=0.0)
+    priority = db.Column(db.Integer, default=0)
 
     __table_args__ = (
         db.ForeignKeyConstraint(

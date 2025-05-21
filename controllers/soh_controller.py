@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
 from sqlalchemy.sql import text
+from sqlalchemy import asc, desc
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import pytz
@@ -213,6 +214,9 @@ def soh_list():
 
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    sort_by = request.args.get('sort_by', 'id').strip()
+    sort_direction = request.args.get('sort_direction', 'asc').strip()
 
     try:
         sohs_query = SOH.query
@@ -220,6 +224,20 @@ def soh_list():
             sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
         if search_description:
             sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
+            except ValueError as e:
+                flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
+                return redirect(request.url)
+            
+        #Apply sorting
+        if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
+            if sort_direction == 'desc':
+                sohs_query = sohs_query.order_by(desc(getattr(SOH, sort_by)))
+            else:
+                sohs_query = sohs_query.order_by(asc(getattr(SOH, sort_by)))
 
         sohs = sohs_query.all()
     except Exception as e:
@@ -228,8 +246,11 @@ def soh_list():
 
     return render_template('soh/list.html',
                            sohs=sohs,
-                           SEARCH_FG_CODE=search_fg_code,
-                           SEARCH_DESCRIPTION=search_description,
+                           search_fg_code=search_fg_code,
+                           search_description=search_description,
+                           search_week_commencing=search_week_commencing,
+                           sort_by=sort_by,
+                           sort_direction=sort_direction,
                            current_page="soh")
 
 @soh_bp.route('/soh_create', methods=['GET', 'POST'])
@@ -426,6 +447,9 @@ def get_search_sohs():
 
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    sort_by = request.args.get('sort_by', 'id').strip()
+    sort_direction = request.args.get('sort_direction', 'asc').strip()
 
     try:
         sohs_query = SOH.query
@@ -434,6 +458,20 @@ def get_search_sohs():
             sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
         if search_description:
             sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
+            except ValueError as e:
+                flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
+                return jsonify({"error": "Invalid date format"}), 400
+        
+        # Apply sorting
+        if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
+            if sort_direction == 'desc':
+                sohs_query = sohs_query.order_by(desc(getattr(SOH, sort_by)))
+            else:
+                sohs_query = sohs_query.order_by(asc(getattr(SOH, sort_by)))
 
         sohs = sohs_query.all()
 
@@ -458,3 +496,99 @@ def get_search_sohs():
     except Exception as e:
         print("Error fetching search SOHs:", e)
         return jsonify({"error": "Failed to fetch SOH entries"}), 500
+    
+    
+@soh_bp.route('/soh_bulk_edit', methods=['POST'])
+def soh_bulk_edit():
+    from app import db
+    from models.soh import SOH
+    from models.joining import Joining
+
+    try:
+        data = request.get_json()
+        ids = data.get('ids', [])
+        if not ids:
+            return jsonify({"success": False, "error": "No SOH entries selected"}), 400
+
+        week_commencing = data.get('week_commencing', '').strip()
+        soh_dispatch_boxes = data.get('soh_dispatch_boxes', '')
+        soh_dispatch_units = data.get('soh_dispatch_units', '')
+        soh_packing_boxes = data.get('soh_packing_boxes', '')
+        soh_packing_units = data.get('soh_packing_units', '')
+
+        # Convert and validate inputs
+        week_commencing_date = None
+        if week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({"success": False, "error": "Invalid Week Commencing date format"}), 400
+
+        # Convert numeric fields, allowing empty strings to skip updates
+        def safe_float(value, default=None):
+            try:
+                return float(value) if value.strip() else default
+            except (ValueError, AttributeError):
+                return default
+
+        dispatch_boxes = safe_float(soh_dispatch_boxes)
+        dispatch_units = safe_float(soh_dispatch_units)
+        packing_boxes = safe_float(soh_packing_boxes)
+        packing_units = safe_float(soh_packing_units)
+
+        for soh_id in ids:
+            soh = SOH.query.get_or_404(soh_id)
+
+            # Update only fields that were provided
+            if week_commencing:
+                soh.week_commencing = week_commencing_date
+
+            fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
+            units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
+
+            # Use existing values if not provided
+            soh_dispatch_boxes_val = dispatch_boxes if dispatch_boxes is not None else soh.soh_dispatch_boxes or 0.0
+            soh_dispatch_units_val = dispatch_units if dispatch_units is not None else soh.soh_dispatch_units or 0.0
+            soh_packing_boxes_val = packing_boxes if packing_boxes is not None else soh.soh_packing_boxes or 0.0
+            soh_packing_units_val = packing_units if packing_units is not None else soh.soh_packing_units or 0.0
+
+            # Update fields
+            soh.soh_dispatch_boxes = soh_dispatch_boxes_val
+            soh.soh_dispatch_units = soh_dispatch_units_val
+            soh.soh_packing_boxes = soh_packing_boxes_val
+            soh.soh_packing_units = soh_packing_units_val
+
+            # Recalculate totals
+            soh.soh_total_boxes = soh_dispatch_boxes_val + soh_packing_boxes_val
+            soh.soh_total_units = (
+                (soh_dispatch_boxes_val * units_per_bag) +
+                (soh_packing_boxes_val * units_per_bag) +
+                soh_dispatch_units_val +
+                soh_packing_units_val
+            )
+
+            soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
+
+            # Update packing entry if necessary
+            if soh.soh_total_boxes > 0 or soh.soh_total_units > 0:
+                avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+                success, message = update_packing_entry(
+                    fg_code=soh.fg_code,
+                    description=soh.description,
+                    packing_date=date.today(),
+                    special_order_kg=0.0,
+                    avg_weight_per_unit=avg_weight_per_unit,
+                    soh_requirement_units_week=0,
+                    weekly_average=0.0,
+                    week_commencing=soh.week_commencing
+                )
+                if not success:
+                    print(f"Failed to update Packing for {soh.fg_code}: {message}")
+
+        db.session.commit()
+        return jsonify({"success": True})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in bulk edit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

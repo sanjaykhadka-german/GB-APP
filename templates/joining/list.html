@@ -55,6 +55,7 @@
                         <th>Production</th>
                         <th>Product Description</th> <!-- New column -->
                         <th>Units_per_box</th>
+                        <th>Allergens</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -76,6 +77,7 @@
                         <td>{{ joining.production or '' }}</td>
                         <td>{{ joining.product_description or '' }}</td> <!-- New column -->
                         <td>{{ joining.units_per_bag if joining.units_per_bag is not none else '' }}</td>
+                        <td>{{ joining.allergens | map(attribute='name') | join(', ') or 'None' }}</td> <!-- New column -->
                         <td>
                             <a href="{{ url_for('joining.joining_edit', id=joining.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('joining.joining_delete', id=joining.id) }}" method="post" style="display:inline-block;">
@@ -206,7 +208,7 @@
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="15" class="no-results">Error fetching joinings: ${response.error}</td>
+                            <td colspan="16" class="no-results">Error fetching joinings: ${response.error}</td>
                         </tr>
                     `);
                     return;
@@ -216,6 +218,9 @@
                     response.forEach(function(joining) {
                         // Only include rows with a valid id
                         if (joining.id !== null && joining.id !== undefined) {
+                            // Format allergens as a comma-separated string
+                            var allergens = joining.allergens && joining.allergens.length > 0 ? joining.allergens.join(', ') : 'None';
+
                             tableBody.append(`
                                 <tr>
                                     <td>${joining.id || ''}</td>
@@ -232,6 +237,7 @@
                                     <td>${joining.production || ''}</td>
                                     <td>${joining.product_description || ''}</td> <!-- New column -->
                                     <td>${joining.units_per_bag !== null && joining.units_per_bag !== undefined ? joining.units_per_bag : ''}</td>
+                                    <td>${allergens}</td> <!-- New column -->
                                     <td>
                                         <a href="/joining_edit/${joining.id}" class="btn btn-warning btn-sm">Edit</a>
                                         <form action="/joining_delete/${joining.id}" method="post" style="display:inline-block;">
@@ -245,7 +251,7 @@
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="15">
+                            <td colspan="16">
                                 <div class="no-results">
                                     <p>No joinings found for FG Code: ${fgCode}</p>
                                     <button class="add-joining-btn" onclick="addJoining('${fgCode}')">
@@ -262,7 +268,7 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="15" class="no-results">Error fetching joinings.</td>
+                        <td colspan="16" class="no-results">Error fetching joinings.</td>
                     </tr>
                 `);
             }
