@@ -383,9 +383,11 @@ def packing_edit(id):
         Filling.filling_date == packing.packing_date,
         Joining.fg_code.ilike(f"{recipe_code_prefix}%")
     ).all()
-    related_productions = Production.query.filter(
+    # Modified query to filter productions by recipe family
+    related_productions = Production.query.join(Joining, Production.production_code == Joining.production).filter(
         Production.week_commencing == packing.week_commencing,
-        Production.production_date == packing.packing_date
+        Production.production_date == packing.packing_date,
+        Joining.fg_code.ilike(f"{recipe_code_prefix}%")
     ).all()
     total_production_kg = sum(production.total_kg for production in related_productions if production.total_kg is not None)
 
