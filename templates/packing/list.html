@@ -5,18 +5,28 @@
     <!-- Packing Search Section -->
     <section id="search">
         <h2>Packing Search</h2>
-        <form id="searchForm" onsubmit="return false;">
+        <form id="searchForm">
+            
             <div class="form-group">
                 <label for="search_fg_code">Product Code:</label>
                 <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
             </div>
-
             <div class="form-group">
                 <label for="search_description">Description:</label>
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
 
+            <div class="form-group">
+                <label for="search_packing_date">Packing Date:</label>
+                <input type="date" id="search_packing_date" name="packing_date" value="">
+            </div>
+            <div class="form-group">
+                <label for="search_week_commencing">Week Commencing:</label>
+                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
+            </div>
+            
             <button type="button" onclick="fetchPackings()">Search</button>
+            <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
     </section>
@@ -25,6 +35,7 @@
     <section id="list">
         <h2>Packing List</h2>
         <a href="{{ url_for('packing.packing_create') }}" class="btn btn-primary my-3">Create New Packing</a>
+        <a href="#" class="btn btn-primary my-3" data-bs-toggle="modal" data-bs-target="#bulkEditModal">Bulk Edit</a>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -41,65 +52,75 @@
             <table class="table table-bordered" id="packingListTable">
                 <thead>
                     <tr>
-                        <th>Week Commencing</th>
-                        <th>Packing Date</th>
-                        <th>Product Code</th>
-                        <th>Product Description</th>
-                        <th>Special Order KG</th>
-                        <th>Special Order Unit</th>
-                        <th>Requirement KG</th>
-                        <th>Requirement Unit</th>
-                        <th>AVG Weight per Unit</th>
-                        <th>SOH Req KG/Week</th>
-                        <th>SOH Req Units/Week</th>
-                        <th>SOH KG</th>
-                        <th>SOH Units</th>
-                        <th>Avg Weight/Unit (Calc)</th>
-                        <th>Total Stock KG</th>
-                        <th>Total Stock Units</th>
-                        <th>Weekly Average</th>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
+                        <th data-column="packing_date">Packing Date <span class="sort-arrow"></span></th>
+                        <th data-column="product_code">Product Code <span class="sort-arrow"></span></th>
+                        <th data-column="product_description">Product Description <span class="sort-arrow"></span></th>
+                        <th data-column="special_order_kg">Special Order KG <span class="sort-arrow"></span></th>
+                        <th data-column="special_order_unit">Special Order Unit <span class="sort-arrow"></span></th>
+                        <th data-column="requirement_kg">Requirement KG <span class="sort-arrow"></span></th>
+                        <th data-column="requirement_unit">Requirement Unit <span class="sort-arrow"></span></th>
+                        <th data-column="avg_weight_per_unit">AVG Weight per Unit <span class="sort-arrow"></span></th>
+                        <th data-column="soh_requirement_kg_week">SOH Req KG/Week <span class="sort-arrow"></span></th>
+                        <th data-column="soh_requirement_units_week">SOH Req Units/Week <span class="sort-arrow"></span></th>
+                        <th data-column="soh_kg">SOH KG <span class="sort-arrow"></span></th>
+                        <th data-column="soh_units">SOH Units <span class="sort-arrow"></span></th>
+                        <th data-column="avg_weight_per_unit_calc">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
+                        <th data-column="total_stock_kg">Total Stock KG <span class="sort-arrow"></span></th>
+                        <th data-column="total_stock_units">Total Stock Units <span class="sort-arrow"></span></th>
+                        <th data-column="weekly_average">Weekly Average <span class="sort-arrow"></span></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for data in packing_data %}
-                    {% set packing = data.packing %}
-                    <tr>
-                        <td>{{ data.week_commencing | default('') }}</td>
-                        <td>{{ packing.packing_date }}</td>
-                        <td>{{ packing.product_code }}</td>
-                        <td>{{ packing.product_description }}</td>
-                        <td>{{ packing.special_order_kg }}</td>
-                        <td>{{ data.special_order_unit }}</td>
-                        <td>{{ data.requirement_kg }}</td>
-                        <td>{{ data.requirement_unit }}</td>
-                        <td>{{ packing.avg_weight_per_unit }}</td>
-                        <td>{{ data.soh_requirement_kg_week }}</td>
-                        <td>{{ packing.soh_requirement_units_week }}</td>
-                        <td>{{ data.soh_kg }}</td>
-                        <td>{{ data.soh_units }}</td>
-                        <td>{{ packing.avg_weight_per_unit_calc }}</td>
-                        <td>{{ data.total_stock_kg }}</td>
-                        <td>{{ data.total_stock_units }}</td>
-                        <td>{{ packing.weekly_average }}</td>
-                        <td>
-                            <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-warning btn-sm">Edit</a>
-                            <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    <!-- Populated dynamically by JavaScript -->
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="6" style="text-align: right; font-weight: bold;">Total:</td>
-                        <td id="total_requirement_kg">{{ total_requirement_kg | round(2) if total_requirement_kg is defined else '' }}</td>
-                        <td id="total_requirement_unit">{{ total_requirement_unit if total_requirement_unit is defined else '' }}</td>
+                        <td colspan="7" style="text-align: right; font-weight: bold;">Total:</td>
+                        <td id="total_requirement_kg"></td>
+                        <td id="total_requirement_unit"></td>
                         <td colspan="10"></td>
                     </tr>
                 </tfoot>
             </table>
+        </div>
+
+        <!-- Bulk Edit Modal -->
+        <div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="bulkEditModalLabel">Bulk Edit Packing Entries</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="bulkEditForm">
+                            <div class="mb-3">
+                                <label for="bulk_special_order_kg" class="form-label">Special Order (KG)</label>
+                                <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_avg_weight_per_unit" class="form-label">Avg Weight per Unit (KG)</label>
+                                <input type="number" step="0.01" class="form-control" id="bulk_avg_weight_per_unit" name="avg_weight_per_unit">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_soh_requirement_units_week" class="form-label">SOH Requirement Units/Week</label>
+                                <input type="number" class="form-control" id="bulk_soh_requirement_units_week" name="soh_requirement_units_week">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_weekly_average" class="form-label">Weekly Average</label>
+                                <input type="number" step="0.01" class="form-control" id="bulk_weekly_average" name="weekly_average">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">Save Changes</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 </div>
@@ -155,10 +176,35 @@
         background-color: #f8f9fa;
         font-weight: bold;
     }
+    th[data-column] {
+        cursor: pointer;
+        position: relative;
+    }
+    .sort-arrow {
+        display: inline-block;
+        margin-left: 5px;
+        font-size: 0.8em;
+        vertical-align: middle;
+    }
+    .sort-arrow.asc::after {
+        content: '▲'; /* Up arrow for ascending */
+    }
+    .sort-arrow.desc::after {
+        content: '▼'; /* Down arrow for descending */
+    }
+    .sort-arrow.multi-sort-order::before {
+        font-size: 0.7em;
+        vertical-align: super;
+        margin-right: 2px;
+        color: #666;
+        font-weight: bold;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+    let sortCriteria = [];
+
     $(document).ready(function() {
         // Autocomplete for Product Code
         $("#search_fg_code").keyup(function() {
@@ -190,7 +236,7 @@
             $("#search_fg_code").val($(this).data("fg-code"));
             $("#search_description").val($(this).data("description"));
             $("#fg_code_suggestions").empty();
-            fetchPackings(); // Trigger search after selecting suggestion
+            fetchPackings();
         });
 
         // Hide suggestions when clicking outside
@@ -200,57 +246,102 @@
             }
         });
 
-        // Initial fetch to ensure totals are displayed
+        // Select/deselect all checkboxes
+        $("#selectAll").click(function() {
+            $(".packing-select").prop("checked", this.checked);
+        });
+
+        // Column sorting (single and multiple with Ctrl+Click)
+        $("#packingListTable th[data-column]").click(function(event) {
+            const column = $(this).data("column");
+            const isCtrlClick = event.ctrlKey || event.metaKey;
+
+            if (isCtrlClick) {
+                // Ctrl+Click: Add to multi-sort or toggle existing
+                const existingCriterionIndex = sortCriteria.findIndex(c => c.column === column);
+
+                if (existingCriterionIndex !== -1) {
+                    // Column already part of sort, toggle its direction
+                    sortCriteria[existingCriterionIndex].direction =
+                        sortCriteria[existingCriterionIndex].direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // Add new column to multi-sort (default ascending)
+                    sortCriteria.push({ column: column, direction: 'asc' });
+                }
+            } else {
+                // Normal Click: Clear previous sort and set this as primary
+                const isCurrentPrimary = sortCriteria.length > 0 && sortCriteria[0].column === column;
+
+                sortCriteria = [];
+
+                if (isCurrentPrimary) {
+                    // If it was already the primary, toggle its direction
+                    sortCriteria.push({
+                        column: column,
+                        direction: $(this).find('.sort-arrow').hasClass('asc') ? 'desc' : 'asc'
+                    });
+                } else {
+                    // Set as new primary sort (ascending)
+                    sortCriteria.push({ column: column, direction: 'asc' });
+                }
+            }
+
+            fetchPackings();
+            updateSortUI();
+        });
+
+        // Trigger search on input change
+        $("#search_packing_date, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
+            fetchPackings();
+        });
+
+        // Initial fetch
         fetchPackings();
     });
 
-    // Function to add a new packing entry
-    function addPacking(fgCode) {
-        window.location.href = `{{ url_for('packing.packing_create') }}?fg_code=${fgCode}`;
-    }
-
-    // Fetch packing list based on search criteria
     function fetchPackings() {
+        var packingDate = $("#search_packing_date").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
         var fgCode = $("#search_fg_code").val().trim();
         var description = $("#search_description").val().trim();
+
+        var sortBy = sortCriteria.map(criterion => criterion.column);
+        var sortOrder = sortCriteria.map(criterion => criterion.direction);
 
         $.ajax({
             url: "{{ url_for('packing.get_search_packings') }}",
             type: "GET",
-            data: { fg_code: fgCode, description: description },
+            data: {
+                packing_date: packingDate,
+                week_commencing: weekCommencing,
+                fg_code: fgCode,
+                description: description,
+                sort_by: sortBy,
+                sort_order: sortOrder
+            },
             success: function(response) {
                 console.log("Response from get_search_packings:", response);
                 var tableBody = $("#packingListTable tbody");
                 tableBody.empty();
                 $("#resultSection").removeClass("hidden");
 
-                // Initialize totals
-                var totalRequirementKg = 0;
-                var totalRequirementUnit = 0;
-
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="18" class="no-results">Error fetching packing entries: ${response.error}</td>
+                            <td colspan="19" class="no-results">Error: ${response.error}</td>
                         </tr>
                     `);
-                    // Clear totals in case of error
-                    console.log("Error in response, clearing totals");
                     $("#total_requirement_kg").text('');
                     $("#total_requirement_unit").text('');
                     return;
                 }
 
-                if (response.length > 0) {
-                    response.forEach(function(packing) {
-                        // Only include rows with a valid id
+                if (response.data && response.data.length > 0) {
+                    response.data.forEach(function(packing) {
                         if (packing.id !== null && packing.id !== undefined) {
-                            // Accumulate totals (convert to number and check for valid values)
-                            totalRequirementKg += (packing.requirement_kg && !isNaN(packing.requirement_kg)) ? Number(packing.requirement_kg) : 0;
-                            totalRequirementUnit += (packing.requirement_unit && !isNaN(packing.requirement_unit)) ? Number(packing.requirement_unit) : 0;
-
                             tableBody.append(`
                                 <tr>
+                                    <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
                                     <td>${packing.week_commencing || ''}</td>
                                     <td>${packing.packing_date || ''}</td>
                                     <td>${packing.product_code || ''}</td>
@@ -279,45 +370,119 @@
                         }
                     });
 
-                    // Log totals for debugging
-                    console.log("Total Requirement KG:", totalRequirementKg);
-                    console.log("Total Requirement Unit:", totalRequirementUnit);
-                    // Update footer with totals (formatted to 2 decimal places for KG)
-                    $("#total_requirement_kg").text(totalRequirementKg.toFixed(2));
-                    $("#total_requirement_unit").text(totalRequirementUnit);
+                    $("#total_requirement_kg").text(response.total_requirement_kg.toFixed(2));
+                    $("#total_requirement_unit").text(response.total_requirement_unit);
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="18" class="no-results">
-                                <div class="no-results">
-                                    <p>No packing entries found for Product Code: ${fgCode}</p>
-                                    <button class="add-packing-btn" onclick="addPacking('${fgCode}')">
-                                        Add Packing Entry for Product Code ${fgCode}
-                                    </button>
-                                </div>
+                            <td colspan="19" class="no-results">
+                                <p>No packing entries found for Product Code: ${fgCode}</p>
+                                <button class="add-packing-btn" onclick="addPacking('${fgCode}')">
+                                    Add Packing Entry for Product Code ${fgCode}
+                                </button>
                             </td>
                         </tr>
                     `);
-                    // Clear totals when no results
-                    console.log("No results, clearing totals");
                     $("#total_requirement_kg").text('');
                     $("#total_requirement_unit").text('');
                 }
             },
-            error: function() {
+            error: function(xhr) {
                 var tableBody = $("#packingListTable tbody");
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="18" class="no-results">Error fetching packing entries.</td>
+                        <td colspan="19" class="no-results">Error fetching packing entries: ${xhr.responseJSON?.error || 'Unknown error'}</td>
                     </tr>
                 `);
-                // Clear totals in case of error
-                console.log("Error fetching packings, clearing totals");
                 $("#total_requirement_kg").text('');
                 $("#total_requirement_unit").text('');
             }
         });
     }
+
+    function exportToExcel() {
+        var packingDate = $("#search_packing_date").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var fgCode = $("#search_fg_code").val().trim();
+        var description = $("#search_description").val().trim();
+        var sortBy = sortCriteria.map(criterion => criterion.column);
+        var sortOrder = sortCriteria.map(criterion => criterion.direction);
+
+        var url = "{{ url_for('packing.export_packings') }}?packing_date=" + encodeURIComponent(packingDate) +
+                  "&week_commencing=" + encodeURIComponent(weekCommencing) +
+                  "&fg_code=" + encodeURIComponent(fgCode) +
+                  "&description=" + encodeURIComponent(description);
+        
+        sortBy.forEach((sort, index) => {
+            url += `&sort_by=${encodeURIComponent(sort)}&sort_order=${encodeURIComponent(sortOrder[index])}`;
+        });
+
+        window.location.href = url;
+    }
+
+    window.submitBulkEdit = function() {
+        const selectedIds = $(".packing-select:checked").map(function() {
+            return $(this).val();
+        }).get();
+
+        if (selectedIds.length === 0) {
+            alert("Please select at least one packing entry.");
+            return;
+        }
+
+        const formData = {
+            ids: selectedIds,
+            special_order_kg: $("#bulk_special_order_kg").val(),
+            avg_weight_per_unit: $("#bulk_avg_weight_per_unit").val(),
+            soh_requirement_units_week: $("#bulk_soh_requirement_units_week").val(),
+            weekly_average: $("#bulk_weekly_average").val()
+        };
+
+        $.ajax({
+            url: "{{ url_for('packing.bulk_edit') }}",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify(formData),
+            success: function(response) {
+                if (response.success) {
+                    $("#bulkEditModal").modal("hide");
+                    fetchPackings();
+                    alert("Packing entries updated successfully!");
+                } else {
+                    alert("Error: " + response.message);
+                }
+            },
+            error: function() {
+                alert("Error updating packing entries.");
+            }
+        });
+    };
+
+    // Update UI (sort arrows and order numbers)
+    function updateSortUI() {
+        $("#packingListTable th[data-column]").each(function() {
+            const arrow = $(this).find('.sort-arrow');
+            arrow.removeClass('asc desc multi-sort-order');
+            arrow.css('--sort-order', '');
+
+            const column = $(this).data("column");
+            const criterionIndex = sortCriteria.findIndex(c => c.column === column);
+
+            if (criterionIndex !== -1) {
+                const criterion = sortCriteria[criterionIndex];
+                arrow.addClass(criterion.direction);
+                if (sortCriteria.length > 1) {
+                    arrow.addClass('multi-sort-order');
+                    arrow.css('--sort-order', `'${criterionIndex + 1}'`);
+                }
+            }
+        });
+    }
+
+    // Add CSS rule for order number
+    $(document).ready(function() {
+        $('<style>.sort-arrow.multi-sort-order::before { content: var(--sort-order); }</style>').appendTo('head');
+    });
 </script>
 {% endblock %}

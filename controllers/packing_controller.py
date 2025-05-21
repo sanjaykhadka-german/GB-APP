@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from models.packing import Packing
 from models.production import Production
 from models.soh import SOH
@@ -8,6 +8,13 @@ from datetime import date, datetime, timedelta
 from database import db
 from sqlalchemy.sql import text
 from sqlalchemy import func
+import pandas as pd
+import io
+import logging
+
+#set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 packing = Blueprint('packing', __name__, url_prefix='/packing')
 
@@ -75,6 +82,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             if filling:
                 filling.kilo_per_size = packing.requirement_kg
                 filling.description = joining.filling_description
+                filling.week_commencing = week_commencing  # Set week_commencing
             else:
                 filling = Filling(
                     filling_date=packing.packing_date,
@@ -88,12 +96,12 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
             update_production_entry(packing.packing_date, joining.filling_code, joining,week_commencing=week_commencing)  # Pass week_commencing
         else:
-            print(f"No Joining record found for product code {fg_code}. Filling entry not updated.")
+            logger.warning(f"No Joining record found for product code {fg_code}. Filling entry not updated.")
 
         return True, "Packing entry updated successfully"
     except Exception as e:
         db.session.rollback()
-        print(f"Error updating packing entry for {fg_code}: {str(e)}")
+        logger.warning(f"Error updating packing entry for {fg_code}: {str(e)}")
         return False, f"Error updating packing entry: {str(e)}"
 
 @packing.route('/')
@@ -101,6 +109,7 @@ def packing_list():
     # Get search parameters from query string
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
 
     # Query packings with optional filters
     packings_query = Packing.query
@@ -108,6 +117,12 @@ def packing_list():
         packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
     if search_description:
         packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
+    if search_week_commencing:
+        try:
+            week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+            packings_query = packings_query.filter(Packing.week_commencing == week_commencing_date)
+        except ValueError:
+            flash('Invalid date format for week commencing. Please use YYYY-MM-DD.', 'danger')
 
     packings = packings_query.all()
     packing_data = []
@@ -121,7 +136,7 @@ def packing_list():
 
     for packing in packings:
         # Calculate week_commencing for the packing_date
-        week_commencing = get_monday_of_week(packing.packing_date)
+        week_commencing = packing.week_commencing or get_monday_of_week(packing.packing_date)
 
         # Fetch SOH units (L2) from SOH model for the specific week
         soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
@@ -156,6 +171,7 @@ def packing_list():
         })
 
     return render_template('packing/list.html',
+                        search_week_commencing=search_week_commencing,
                          packing_data=packing_data,
                          search_fg_code=search_fg_code,
                          search_description=search_description,
@@ -174,11 +190,13 @@ def packing_create():
             avg_weight_per_unit = float(request.form['avg_weight_per_unit']) if request.form['avg_weight_per_unit'] else 0.0
             soh_requirement_units_week = int(request.form['soh_requirement_units_week']) if request.form['soh_requirement_units_week'] else 0
             weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
+            week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else None
 
             # Calculate week_commencing for the packing_date
-            def get_monday_of_week(dt):
-                return dt - timedelta(days=dt.weekday())
-            week_commencing = get_monday_of_week(packing_date)
+            if not week_commencing:
+                def get_monday_of_week(dt):
+                    return dt - timedelta(days=dt.weekday())
+                week_commencing = get_monday_of_week(packing_date)
 
             # Fetch SOH data for the specific week
             soh = SOH.query.filter_by(fg_code=product_code, week_commencing=week_commencing).first()
@@ -423,51 +441,85 @@ def autocomplete_packing():
         suggestions = [{"fg_code": row[0], "description": row[1]} for row in results]
         return jsonify(suggestions)
     except Exception as e:
-        print("Error fetching packing autocomplete suggestions:", e)
+        logger.error("Error fetching packing autocomplete suggestions:", e)
         return jsonify([])
 
 @packing.route('/get_search_packings', methods=['GET'])
 def get_search_packings():
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_packing_date = request.args.get('packing_date', '').strip()
+    sort_columns = request.args.getlist('sort_by')  # List for multiple sorting
+    sort_orders = request.args.getlist('sort_order')  # Corresponding orders
 
     try:
         packings_query = Packing.query
+
+        logger.debug(f"Filters - fg_code: {search_fg_code}, description: {search_description}, week_commencing: {search_week_commencing}, packing_date: {search_packing_date}")
+        logger.debug(f"Sort columns: {sort_columns}, Sort orders: {sort_orders}")
 
         if search_fg_code:
             packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
         if search_description:
             packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.week_commencing == week_commencing_date)
+            except ValueError:
+                logger.warning(f"Invalid Week Commencing date format: {search_week_commencing}")
+                return jsonify({"error": "Invalid Week Commencing date format. Use YYYY-MM-DD."}), 400
+        if search_packing_date:
+            try:
+                packing_date = datetime.strptime(search_packing_date, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.packing_date == packing_date)
+            except ValueError:
+                logger.warning(f"Invalid Packing Date format: {search_packing_date}")
+                return jsonify({"error": "Invalid Packing Date format. Use YYYY-MM-DD."}), 400
+
+        # Apply multiple column sorting
+        if sort_columns and sort_orders:
+            order_clauses = []
+            for col, order in zip(sort_columns, sort_orders):
+                if hasattr(Packing, col):
+                    column = getattr(Packing, col)
+                    order_clauses.append(column.asc() if order.lower() == 'asc' else column.desc())
+            if order_clauses:
+                packings_query = packings_query.order_by(*order_clauses)
 
         packings = packings_query.all()
+        logger.debug(f"Found {len(packings)} packing entries after filtering")
+
         packing_data = []
+        total_requirement_kg = 0
+        total_requirement_unit = 0
 
         def get_monday_of_week(dt):
             return dt - timedelta(days=dt.weekday())
 
         for packing in packings:
-            # Calculate week_commencing for the packing_date
-            week_commencing = get_monday_of_week(packing.packing_date)
-
-            # Fetch SOH units (L2) from SOH model for the specific week
+            week_commencing = packing.week_commencing or get_monday_of_week(packing.packing_date)
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
-            soh_units = soh.soh_total_units if soh else 0  # L2
+            soh_units = soh.soh_total_units if soh else 0
 
-            # Calculations based on Excel formulas
-            avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0  # H2, M2
-            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0  # D2
-            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0  # E2
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # K2
-            soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0  # I2
-            total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0  # N2
-            total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0  # O2
-            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0  # F2
-            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0  # G2
+            avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0
+            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0
+            total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+            total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
+            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+
+            total_requirement_kg += requirement_kg
+            total_requirement_unit += requirement_unit
 
             packing_data.append({
                 "id": packing.id,
                 "packing_date": packing.packing_date.strftime('%Y-%m-%d') if packing.packing_date else "",
-                "week_commencing": week_commencing.strftime('%Y-%m-%d') if week_commencing else "",  # Add week_commencing
+                "week_commencing": week_commencing.strftime('%Y-%m-%d') if week_commencing else "",
                 "product_code": packing.product_code or "",
                 "product_description": packing.product_description or "",
                 "special_order_kg": packing.special_order_kg if packing.special_order_kg is not None else "",
@@ -485,10 +537,170 @@ def get_search_packings():
                 "weekly_average": packing.weekly_average if packing.weekly_average is not None else ""
             })
 
-        return jsonify(packing_data)
+        logger.debug(f"Packing data prepared with {len(packing_data)} entries")
+        return jsonify({
+            "data": packing_data,
+            "total_requirement_kg": total_requirement_kg,
+            "total_requirement_unit": total_requirement_unit
+        })
     except Exception as e:
-        print("Error fetching search packings:", e)
-        return jsonify({"error": "Failed to fetch packing entries"}), 500
+        logger.error(f"Error fetching search packings: {str(e)}", exc_info=True)
+        return jsonify({"error": f"Failed to fetch packing entries: {str(e)}"}), 500
+    
+
+@packing.route('/bulk_edit', methods=['POST'])
+def bulk_edit():
+    try:
+        data = request.get_json()
+        ids = data.get('ids', [])
+
+        if not ids:
+            return jsonify({"success": False, "message": "No packing entries selected"}), 400
+
+        for packing_id in ids:
+            packing = Packing.query.get(packing_id)
+            if not packing:
+                continue
+
+            # Update only provided fields
+            if 'special_order_kg' in data and data['special_order_kg']:
+                packing.special_order_kg = float(data['special_order_kg'])
+            if 'avg_weight_per_unit' in data and data['avg_weight_per_unit']:
+                packing.avg_weight_per_unit = float(data['avg_weight_per_unit'])
+            if 'soh_requirement_units_week' in data and data['soh_requirement_units_week']:
+                packing.soh_requirement_units_week = int(data['soh_requirement_units_week'])
+            if 'weekly_average' in data and data['weekly_average']:
+                packing.weekly_average = float(data['weekly_average'])
+
+            # Recalculate derived fields
+            success, message = update_packing_entry(
+                fg_code=packing.product_code,
+                description=packing.product_description,
+                packing_date=packing.packing_date,
+                special_order_kg=packing.special_order_kg,
+                avg_weight_per_unit=packing.avg_weight_per_unit,
+                soh_requirement_units_week=packing.soh_requirement_units_week,
+                weekly_average=packing.weekly_average,
+                week_commencing=packing.week_commencing
+            )
+            if not success:
+                return jsonify({"success": False, "message": message}), 500
+
+        return jsonify({"success": True, "message": "Packing entries updated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error in bulk edit packing: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+
+@packing.route('/export', methods=['GET'])
+def export_packings():
+    try:
+        search_fg_code = request.args.get('fg_code', '').strip()
+        search_description = request.args.get('description', '').strip()
+        search_week_commencing = request.args.get('week_commencing', '').strip()
+        search_packing_date = request.args.get('packing_date', '').strip()
+        sort_columns = request.args.getlist('sort_by')
+        sort_orders = request.args.getlist('sort_order')
+
+        packings_query = Packing.query
+
+        if search_fg_code:
+            packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
+        if search_description:
+            packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.week_commencing == week_commencing_date)
+            except ValueError:
+                flash('Invalid Week Commencing date format. Use YYYY-MM-DD.', 'danger')
+                return redirect(url_for('packing.packing_list'))
+        if search_packing_date:
+            try:
+                packing_date = datetime.strptime(search_packing_date, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.packing_date == packing_date)
+            except ValueError:
+                flash('Invalid Packing Date format. Use YYYY-MM-DD.', 'danger')
+                return redirect(url_for('packing.packing_list'))
+
+        if sort_columns and sort_orders:
+            order_clauses = []
+            for col, order in zip(sort_columns, sort_orders):
+                if hasattr(Packing, col):
+                    column = getattr(Packing, col)
+                    order_clauses.append(column.asc() if order.lower() == 'asc' else column.desc())
+            if order_clauses:
+                packings_query = packings_query.order_by(*order_clauses)
+
+        packings = packings_query.all()
+        logger.debug(f"Export: Found {len(packings)} packing entries")
+
+        packing_data = []
+
+        def get_monday_of_week(dt):
+            return dt - timedelta(days=dt.weekday())
+
+        for packing in packings:
+            week_commencing = packing.week_commencing or get_monday_of_week(packing.packing_date)
+            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
+
+            avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0
+            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit and packing.soh_requirement_units_week is not None else 0
+            total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+            total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
+            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+
+            packing_data.append({
+                'Packing Date': packing.packing_date.strftime('%Y-%m-%d') if packing.packing_date else '',
+                'Week Commencing': week_commencing.strftime('%Y-%m-%d') if week_commencing else '',
+                'Product Code': packing.product_code or '',
+                'Product Description': packing.product_description or '',
+                'Special Order KG': packing.special_order_kg if packing.special_order_kg is not None else '',
+                'Special Order Unit': special_order_unit,
+                'Requirement KG': requirement_kg,
+                'Requirement Unit': requirement_unit,
+                'AVG Weight per Unit': packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else '',
+                'SOH Req KG/Week': soh_requirement_kg_week,
+                'SOH Req Units/Week': packing.soh_requirement_units_week if packing.soh_requirement_units_week is not None else '',
+                'SOH KG': soh_kg,
+                'SOH Units': soh_units,
+                'Avg Weight/Unit (Calc)': packing.avg_weight_per_unit_calc if packing.avg_weight_per_unit_calc is not None else '',
+                'Total Stock KG': total_stock_kg,
+                'Total Stock Units': total_stock_units,
+                'Weekly Average': packing.weekly_average if packing.weekly_average is not None else ''
+            })
+
+        logger.debug(f"Export: Prepared {len(packing_data)} rows for Excel")
+
+        if not packing_data:
+            flash('No data to export after applying filters.', 'warning')
+            return redirect(url_for('packing.packing_list'))
+
+        df = pd.DataFrame(packing_data)
+        logger.debug(f"Export: DataFrame created with {len(df)} rows")
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Packing Data')
+        output.seek(0)
+
+        return send_file(
+            output,
+            download_name=f"packing_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            as_attachment=True,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        logger.error(f"Error exporting to Excel: {str(e)}")
+        flash(f"Error exporting to Excel: {str(e)}", 'danger')
+        return redirect(url_for('packing.packing_list'))
 
 def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
     """Helper function to create or update a Production entry."""
