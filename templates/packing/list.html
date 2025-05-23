@@ -24,7 +24,7 @@
                 <label for="search_week_commencing">Week Commencing:</label>
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
-            
+
             <button type="button" onclick="fetchPackings()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
@@ -50,29 +50,32 @@
 
         <div id="resultSection" class="table-container">
             <table class="table table-bordered" id="packingListTable">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAll"></th>
-                        <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
-                        <th data-column="packing_date">Packing Date <span class="sort-arrow"></span></th>
-                        <th data-column="product_code">Product Code <span class="sort-arrow"></span></th>
-                        <th data-column="product_description">Product Description <span class="sort-arrow"></span></th>
-                        <th data-column="special_order_kg">Special Order KG <span class="sort-arrow"></span></th>
-                        <th data-column="special_order_unit">Special Order Unit <span class="sort-arrow"></span></th>
-                        <th data-column="requirement_kg">Requirement KG <span class="sort-arrow"></span></th>
-                        <th data-column="requirement_unit">Requirement Unit <span class="sort-arrow"></span></th>
-                        <th data-column="avg_weight_per_unit">AVG Weight per Unit <span class="sort-arrow"></span></th>
-                        <th data-column="soh_requirement_kg_week">SOH Req KG/Week <span class="sort-arrow"></span></th>
-                        <th data-column="soh_requirement_units_week">SOH Req Units/Week <span class="sort-arrow"></span></th>
-                        <th data-column="soh_kg">SOH KG <span class="sort-arrow"></span></th>
-                        <th data-column="soh_units">SOH Units <span class="sort-arrow"></span></th>
-                        <th data-column="avg_weight_per_unit_calc">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
-                        <th data-column="total_stock_kg">Total Stock KG <span class="sort-arrow"></span></th>
-                        <th data-column="total_stock_units">Total Stock Units <span class="sort-arrow"></span></th>
-                        <th data-column="weekly_average">Weekly Average <span class="sort-arrow"></span></th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+            <thead>
+                <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
+                <th data-column="packing_date">Packing Date <span class="sort-arrow"></span></th>
+                <th data-column="product_code">Product Code <span class="sort-arrow"></span></th>
+                <th data-column="product_description">Product Description <span class="sort-arrow"></span></th>
+                <th data-column="special_order_kg">Special Order KG <span class="sort-arrow"></span></th>
+                <!--<th>Special Order Unit</th> -->
+                <th data-column="special_order_unit">Special Order Unit <span class="sort-arrow"></span></th>
+                <th data-column="requirement_kg">Requirement KG <span class="sort-arrow"></span></th>
+                <th data-column="requirement_unit">Requirement Unit <span class="sort-arrow"></span></th>
+                <!-- <th>Requirement KG</th> -->
+                <!-- <th>Requirement Unit</th> -->
+                <th data-column="avg_weight_per_unit">AVG Weight per Unit <span class="sort-arrow"></span></th>
+                <th>SOH Req KG/Week</th> 
+                <th data-column="soh_requirement_units_week">SOH Req Units/Week <span class="sort-arrow"></span></th>
+                <th>SOH KG</th> 
+                <th>SOH Units</th> 
+                <th data-column="avg_weight_per_unit_calc">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
+                <th>Total Stock KG</th> 
+                <th>Total Stock Units</th> 
+                <th data-column="weekly_average">Weekly Average <span class="sort-arrow"></span></th>
+                <th>Actions</th>
+                </tr>
+            </thead>
                 <tbody>
                     <!-- Populated dynamically by JavaScript -->
                 </tbody>
@@ -256,6 +259,8 @@
             const column = $(this).data("column");
             const isCtrlClick = event.ctrlKey || event.metaKey;
 
+            console.log(`Clicked column: ${column}, Ctrl+Click: ${isCtrlClick}`);
+
             if (isCtrlClick) {
                 // Ctrl+Click: Add to multi-sort or toggle existing
                 const existingCriterionIndex = sortCriteria.findIndex(c => c.column === column);
@@ -286,6 +291,8 @@
                 }
             }
 
+            console.log('Sort Criteria:', sortCriteria);
+
             fetchPackings();
             updateSortUI();
         });
@@ -300,106 +307,105 @@
     });
 
     function fetchPackings() {
-        var packingDate = $("#search_packing_date").val().trim();
-        var weekCommencing = $("#search_week_commencing").val().trim();
-        var fgCode = $("#search_fg_code").val().trim();
-        var description = $("#search_description").val().trim();
+    var packingDate = $("#search_packing_date").val().trim();
+    var weekCommencing = $("#search_week_commencing").val().trim();
+    var fgCode = $("#search_fg_code").val().trim();
+    var description = $("#search_description").val().trim();
 
-        var sortBy = sortCriteria.map(criterion => criterion.column);
-        var sortOrder = sortCriteria.map(criterion => criterion.direction);
+    var sortBy = sortCriteria.map(criterion => criterion.column);
+    var sortOrder = sortCriteria.map(criterion => criterion.direction);
 
-        $.ajax({
-            url: "{{ url_for('packing.get_search_packings') }}",
-            type: "GET",
-            data: {
-                packing_date: packingDate,
-                week_commencing: weekCommencing,
-                fg_code: fgCode,
-                description: description,
-                sort_by: sortBy,
-                sort_order: sortOrder
-            },
-            success: function(response) {
-                console.log("Response from get_search_packings:", response);
-                var tableBody = $("#packingListTable tbody");
-                tableBody.empty();
-                $("#resultSection").removeClass("hidden");
+    $.ajax({
+        url: "{{ url_for('packing.get_search_packings') }}",
+        type: "GET",
+        data: {
+            packing_date: packingDate,
+            week_commencing: weekCommencing,
+            fg_code: fgCode,
+            description: description,
+            sort_by: sortBy,
+            sort_order: sortOrder
+        },
+        success: function(response) {
+            var tableBody = $("#packingListTable tbody");
+            tableBody.empty();
+            $("#resultSection").removeClass("hidden");
 
-                if (response.error) {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="19" class="no-results">Error: ${response.error}</td>
-                        </tr>
-                    `);
-                    $("#total_requirement_kg").text('');
-                    $("#total_requirement_unit").text('');
-                    return;
-                }
+            // Initialize totals
+            let totalRequirementKG = 0;
+            let totalRequirementUnit = 0;
 
-                if (response.data && response.data.length > 0) {
-                    response.data.forEach(function(packing) {
-                        if (packing.id !== null && packing.id !== undefined) {
-                            tableBody.append(`
-                                <tr>
-                                    <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
-                                    <td>${packing.week_commencing || ''}</td>
-                                    <td>${packing.packing_date || ''}</td>
-                                    <td>${packing.product_code || ''}</td>
-                                    <td>${packing.product_description || ''}</td>
-                                    <td>${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}</td>
-                                    <td>${packing.special_order_unit !== null && packing.special_order_unit !== undefined ? packing.special_order_unit : ''}</td>
-                                    <td>${packing.requirement_kg !== null && packing.requirement_kg !== undefined ? packing.requirement_kg : ''}</td>
-                                    <td>${packing.requirement_unit !== null && packing.requirement_unit !== undefined ? packing.requirement_unit : ''}</td>
-                                    <td>${packing.avg_weight_per_unit !== null && packing.avg_weight_per_unit !== undefined ? packing.avg_weight_per_unit : ''}</td>
-                                    <td>${packing.soh_requirement_kg_week !== null && packing.soh_requirement_kg_week !== undefined ? packing.soh_requirement_kg_week : ''}</td>
-                                    <td>${packing.soh_requirement_units_week !== null && packing.soh_requirement_units_week !== undefined ? packing.soh_requirement_units_week : ''}</td>
-                                    <td>${packing.soh_kg !== null && packing.soh_kg !== undefined ? packing.soh_kg : ''}</td>
-                                    <td>${packing.soh_units !== null && packing.soh_units !== undefined ? packing.soh_units : ''}</td>
-                                    <td>${packing.avg_weight_per_unit_calc !== null && packing.avg_weight_per_unit_calc !== undefined ? packing.avg_weight_per_unit_calc : ''}</td>
-                                    <td>${packing.total_stock_kg !== null && packing.total_stock_kg !== undefined ? packing.total_stock_kg : ''}</td>
-                                    <td>${packing.total_stock_units !== null && packing.total_stock_units !== undefined ? packing.total_stock_units : ''}</td>
-                                    <td>${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}</td>
-                                    <td>
-                                        <a href="/packing/edit/${packing.id}" class="btn btn-warning btn-sm">Edit</a>
-                                        <form action="/packing/delete/${packing.id}" method="post" style="display:inline-block;">
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            `);
-                        }
-                    });
-
-                    $("#total_requirement_kg").text(response.total_requirement_kg.toFixed(2));
-                    $("#total_requirement_unit").text(response.total_requirement_unit);
-                } else {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="19" class="no-results">
-                                <p>No packing entries found for Product Code: ${fgCode}</p>
-                                <button class="add-packing-btn" onclick="addPacking('${fgCode}')">
-                                    Add Packing Entry for Product Code ${fgCode}
-                                </button>
-                            </td>
-                        </tr>
-                    `);
-                    $("#total_requirement_kg").text('');
-                    $("#total_requirement_unit").text('');
-                }
-            },
-            error: function(xhr) {
-                var tableBody = $("#packingListTable tbody");
-                tableBody.empty();
+            if (response.error) {
                 tableBody.append(`
                     <tr>
-                        <td colspan="19" class="no-results">Error fetching packing entries: ${xhr.responseJSON?.error || 'Unknown error'}</td>
+                        <td colspan="19" class="no-results">Error: ${response.error}</td>
                     </tr>
                 `);
                 $("#total_requirement_kg").text('');
                 $("#total_requirement_unit").text('');
+                alert('Error fetching packing entries: ' + response.error);
+                sortCriteria = [];
+                updateSortUI();
+                return;
             }
-        });
-    }
+
+            if (response.data && response.data.length > 0) {
+                response.data.forEach(function(packing) {
+                    // Sum totals
+                    totalRequirementKG += parseFloat(packing.requirement_kg) || 0;
+                    totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
+
+                    tableBody.append(`
+                        <tr>
+                            <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
+                            <td>${packing.week_commencing || ''}</td>
+                            <td>${packing.packing_date || ''}</td>
+                            <td>${packing.product_code || ''}</td>
+                            <td>${packing.product_description || ''}</td>
+                            <td>${packing.special_order_kg || ''}</td>
+                            <td>${packing.special_order_unit || ''}</td>
+                            <td>${packing.requirement_kg || ''}</td>
+                            <td>${packing.requirement_unit || ''}</td>
+                            <td>${packing.avg_weight_per_unit || ''}</td>
+                            <td>${packing.soh_requirement_kg_week || ''}</td>
+                            <td>${packing.soh_requirement_units_week || ''}</td>
+                            <td>${packing.soh_kg || ''}</td>
+                            <td>${packing.soh_units || ''}</td>
+                            <td>${packing.avg_weight_per_unit_calc || ''}</td>
+                            <td>${packing.total_stock_kg || ''}</td>
+                            <td>${packing.total_stock_units || ''}</td>
+                            <td>${packing.weekly_average || ''}</td>
+                            <td>
+                                <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-warning">Edit</a>
+                                <a href="/packing/delete/${packing.id}" class="btn btn-sm btn-success" onclick="return confirm('Are you sure?')">Delete</a>
+                            </td>
+                        </tr>
+                    `);
+                });
+            } else {
+                tableBody.append(`
+                    <tr>
+                        <td colspan="19" class="no-results">No results found.</td>
+                    </tr>
+                `);
+            }
+
+            // Update the totals in the footer
+            $("#total_requirement_kg").text(totalRequirementKG.toFixed(2));
+            $("#total_requirement_unit").text(totalRequirementUnit);
+
+        },
+        error: function(xhr, status, error) {
+            $("#packingListTable tbody").html(`
+                <tr>
+                    <td colspan="19" class="no-results">Error loading data: ${error}</td>
+                </tr>
+            `);
+            $("#total_requirement_kg").text('');
+            $("#total_requirement_unit").text('');
+        }
+    });
+}
 
     function exportToExcel() {
         var packingDate = $("#search_packing_date").val().trim();

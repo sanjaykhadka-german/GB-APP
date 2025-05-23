@@ -43,7 +43,7 @@
                             <td>{{ production.batches }}</td>
                             <td>{{ production.total_kg }}</td>
                             <td>
-                                <a href="{{ url_for('production.production_edit', id=production.id, packing_id=packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                                <a href="{{ url_for('production.production_edit', id=production.id, packing_id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                                 <form action="{{ url_for('production.production_delete', id=production.id) }}" method="POST" style="display:inline;">
                                     <input type="hidden" name="packing_id" value="{{ packing.id }}">
                                     <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this production entry?');">Delete</button>
@@ -111,7 +111,7 @@
                     <td>{{ packing.soh_requirement_units_week }}</td>
                     <td>{{ packing.weekly_average }}</td>
                     <td>
-                        <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                        <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                         <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing entry?');">Delete</button>
                         </form>
@@ -192,20 +192,28 @@
                 <td>{{ filling.description }}</td>
                 <td>{{ filling.kilo_per_size }}</td>
                 <td>
-                    <a href="{{ url_for('filling.filling_edit', id=filling.id, packing_id=packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <a href="{{ url_for('filling.filling_edit', id=filling.id, packing_id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                     <form action="{{ url_for('filling.filling_delete', id=filling.id) }}" method="POST" style="display:inline;">
                         <input type="hidden" name="packing_id" value="{{ packing.id }}">
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this filling entry?');">Delete</button>
                     </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6">No related filling entries found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="6">No related filling entries found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="text-end"><strong>Total:</strong></td>
+            <td>{{ related_fillings | sum(attribute='kilo_per_size') | round(2) }}</td>
+            <td></td>
+        </tr>
+    </tfoot>
+
+
 </div>
 
 <!-- JavaScript for Bulk Edit -->
