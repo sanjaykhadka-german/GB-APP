@@ -730,3 +730,52 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
     except Exception as e:
         db.session.rollback()
         flash(f"Error updating Production entry: {str(e)}", 'error')
+
+@packing.route('/update_cell', methods=['POST'])
+def update_cell():
+    try:
+        data = request.get_json()
+        packing_id = data.get('id')
+        field = data.get('field')
+        value = data.get('value')
+
+        if not packing_id or not field:
+            return jsonify({"success": False, "message": "Missing packing ID or field"}), 400
+
+        packing = Packing.query.get(packing_id)
+        if not packing:
+            return jsonify({"success": False, "message": "Packing entry not found"}), 404
+
+        # Validate and update the specified field
+        if field == 'special_order_kg':
+            packing.special_order_kg = float(value) if value is not None else 0.0
+        elif field == 'avg_weight_per_unit':
+            packing.avg_weight_per_unit = float(value) if value is not None else 0.0
+        elif field == 'soh_requirement_units_week':
+            packing.soh_requirement_units_week = int(value) if value is not None else 0
+        elif field == 'weekly_average':
+            packing.weekly_average = float(value) if value is not None else 0.0
+        else:
+            return jsonify({"success": False, "message": "Invalid field"}), 400
+
+        # Recalculate dependent fields
+        success, message = update_packing_entry(
+            fg_code=packing.product_code,
+            description=packing.product_description,
+            packing_date=packing.packing_date,
+            special_order_kg=packing.special_order_kg,
+            avg_weight_per_unit=packing.avg_weight_per_unit,
+            soh_requirement_units_week=packing.soh_requirement_units_week,
+            weekly_average=packing.weekly_average,
+            week_commencing=packing.week_commencing
+        )
+
+        if not success:
+            db.session.rollback()
+            return jsonify({"success": False, "message": message}), 500
+
+        return jsonify({"success": True, "message": "Cell updated successfully"})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating cell: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500

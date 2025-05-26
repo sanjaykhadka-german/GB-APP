@@ -75,7 +75,7 @@
         <div class="mb-3">
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#bulkEditModal">Bulk Edit Selected</button>
         </div>
-        <table class="table table-bordered table-striped" id="packingTable">
+        <table class="table table-bordered table-striped editabletable" id="packingTable">
             <thead>
                 <tr>
                     <th><input type="checkbox" id="selectAll"></th>
@@ -104,12 +104,13 @@
                     <td>{{ packing.product_code }}</td>
                     <td>{{ packing.product_description }}</td>
                     <td>{{ packing.special_order_kg }}</td>
+                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="special_order_kg">{{ packing.special_order_kg }}</div></td>
                     <td>{{ packing.special_order_unit }}</td>
                     <td>{{ packing.requirement_kg }}</td>
                     <td>{{ packing.requirement_unit }}</td>
-                    <td>{{ packing.avg_weight_per_unit }}</td>
-                    <td>{{ packing.soh_requirement_units_week }}</td>
-                    <td>{{ packing.weekly_average }}</td>
+                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="avg_weight_per_unit">{{ packing.avg_weight_per_unit }}</div></td>
+                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="soh_requirement_units_week">{{ packing.soh_requirement_units_week }}</div></td>
+                <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="weekly_average">{{ packing.weekly_average }}</div></td>
                     <td>
                         <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                         <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
@@ -272,6 +273,108 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEditModal'));
         modal.hide();
     });
+
+    // Initialize editable table
+    initEditableTable();
+
+    function initEditableTable() {
+        var tables = document.getElementsByClassName("editabletable");
+        for (var i = 0; i < tables.length; i++) {
+            makeTableEditable(tables[i]);
+        }
+    }
+
+    function makeTableEditable(table) {
+        var rows = table.rows;
+        for (var r = 0; r < rows.length; r++) {
+            var cols = rows[r].cells;
+            for (var c = 0; c < cols.length; c++) {
+                var cell = cols[c];
+                var div = cell.querySelector('div[contenteditable]');
+                if (div) {
+                    var listener = makeEditListener(table, r, c);
+                    div.addEventListener("input", listener, false);
+                }
+            }
+        }
+    }
+
+    function makeEditListener(table, row, col) {
+        return function(event) {
+            var cell = getCellElement(table, row, col);
+            var text = cell.innerHTML.replace(/<br>$/, '');
+            var items = split(text);
+            var packingId = cell.getAttribute('data-id');
+            var field = cell.getAttribute('data-field');
+
+            if (items.length === 1) {
+                // Single value: send update to server
+                updateCell(packingId, field, items[0]);
+                return;
+            }
+
+            // Multiple values: populate subsequent cells
+            var r = row;
+            var c = col;
+            for (var i = 0; i < items.length && r < table.rows.length; i++) {
+                var currentCell = getCellElement(table, r, c);
+                var currentField = currentCell.getAttribute('data-field');
+                var currentPackingId = currentCell.getAttribute('data-id');
+                currentCell.innerHTML = items[i]; // Update cell content
+                updateCell(currentPackingId, currentField, items[i]); // Send update to server
+
+                c++;
+                if (c === table.rows[r].cells.length) {
+                    r++;
+                    c = 0;
+                }
+            }
+            cell.focus();
+            window.location.reload(); // Refresh page to reflect recalculated fields
+        };
+    }
+
+    function getCellElement(table, row, col) {
+        return table.rows[row].cells[col].firstChild;
+    }
+
+    function split(str) {
+        return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
+    }
+
+    function updateCell(packingId, field, value) {
+        // Ensure value is numeric and valid
+        if (value === '' || isNaN(value)) {
+            value = 0; // Default to 0 for empty or invalid input
+        } else {
+            value = parseFloat(value);
+        }
+
+        fetch('{{ url_for("packing.update_cell") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload(); // Refresh page to update calculated fields
+            } else {
+                alert('Error updating cell: ' + data.message);
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            alert('Error updating cell: ' + error.message);
+            window.location.reload();
+        });
+    }
 });
 </script>
 

@@ -49,7 +49,7 @@
         {% endwith %}
 
         <div id="resultSection" class="table-container">
-            <table class="table table-bordered" id="packingListTable">
+            <table class="table table-bordered editabletable" id="packingListTable">
             <thead>
                 <tr>
                 <th><input type="checkbox" id="selectAll"></th>
@@ -307,105 +307,205 @@
     });
 
     function fetchPackings() {
-    var packingDate = $("#search_packing_date").val().trim();
-    var weekCommencing = $("#search_week_commencing").val().trim();
-    var fgCode = $("#search_fg_code").val().trim();
-    var description = $("#search_description").val().trim();
+        var packingDate = $("#search_packing_date").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var fgCode = $("#search_fg_code").val().trim();
+        var description = $("#search_description").val().trim();
 
-    var sortBy = sortCriteria.map(criterion => criterion.column);
-    var sortOrder = sortCriteria.map(criterion => criterion.direction);
+        var sortBy = sortCriteria.map(criterion => criterion.column);
+        var sortOrder = sortCriteria.map(criterion => criterion.direction);
 
-    $.ajax({
-        url: "{{ url_for('packing.get_search_packings') }}",
-        type: "GET",
-        data: {
-            packing_date: packingDate,
-            week_commencing: weekCommencing,
-            fg_code: fgCode,
-            description: description,
-            sort_by: sortBy,
-            sort_order: sortOrder
-        },
-        success: function(response) {
-            var tableBody = $("#packingListTable tbody");
-            tableBody.empty();
-            $("#resultSection").removeClass("hidden");
+        $.ajax({
+            url: "{{ url_for('packing.get_search_packings') }}",
+            type: "GET",
+            data: {
+                packing_date: packingDate,
+                week_commencing: weekCommencing,
+                fg_code: fgCode,
+                description: description,
+                sort_by: sortBy,
+                sort_order: sortOrder
+            },
+            success: function(response) {
+                var tableBody = $("#packingListTable tbody");
+                tableBody.empty();
+                $("#resultSection").removeClass("hidden");
 
-            // Initialize totals
-            let totalRequirementKG = 0;
-            let totalRequirementUnit = 0;
+                // Initialize totals
+                let totalRequirementKG = 0;
+                let totalRequirementUnit = 0;
 
-            if (response.error) {
-                tableBody.append(`
+                if (response.error) {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="19" class="no-results">Error: ${response.error}</td>
+                        </tr>
+                    `);
+                    $("#total_requirement_kg").text('');
+                    $("#total_requirement_unit").text('');
+                    alert('Error fetching packing entries: ' + response.error);
+                    sortCriteria = [];
+                    updateSortUI();
+                    return;
+                }
+
+                if (response.data && response.data.length > 0) {
+                    response.data.forEach(function(packing) {
+                        // Sum totals
+                        totalRequirementKG += parseFloat(packing.requirement_kg) || 0;
+                        totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
+
+                        tableBody.append(`
+                            <tr>
+                                <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
+                                <td>${packing.week_commencing || ''}</td>
+                                <td>${packing.packing_date || ''}</td>
+                                <td>${packing.product_code || ''}</td>
+                                <td>${packing.product_description || ''}</td>
+                                <td><div contenteditable="true" data-id="${packing.id}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
+                                <td>${packing.special_order_unit || ''}</td>
+                                <td>${packing.requirement_kg || ''}</td>
+                                <td>${packing.requirement_unit || ''}</td>
+                                <td><div contenteditable="true" data-id="${packing.id}" data-field="avg_weight_per_unit">${packing.avg_weight_per_unit || ''}</div></td>
+                                <td>${packing.soh_requirement_kg_week || ''}</td>
+                                <td><div contenteditable="true" data-id="${packing.id}" data-field="soh_requirement_units_week">${packing.soh_requirement_units_week || ''}</div></td>
+                                <td>${packing.soh_kg || ''}</td>
+                                <td>${packing.soh_units || ''}</td>
+                                <td>${packing.avg_weight_per_unit_calc || ''}</td>
+                                <td>${packing.total_stock_kg || ''}</td>
+                                <td>${packing.total_stock_units || ''}</td>
+                                <td><div contenteditable="true" data-id="${packing.id}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
+                                <td>
+                                    <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-warning">Edit</a>
+                                    <a href="/packing/delete/${packing.id}" class="btn btn-sm btn-success" onclick="return confirm('Are you sure?')">Delete</a>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="19" class="no-results">No results found.</td>
+                        </tr>
+                    `);
+                }
+
+                // Update the totals in the footer
+                $("#total_requirement_kg").text(totalRequirementKG.toFixed(2));
+                $("#total_requirement_unit").text(totalRequirementUnit);
+
+                // Initialize editable table after populating
+                initEditableTable();
+            },
+            error: function(xhr, status, error) {
+                $("#packingListTable tbody").html(`
                     <tr>
-                        <td colspan="19" class="no-results">Error: ${response.error}</td>
+                        <td colspan="19" class="no-results">Error loading data: ${error}</td>
                     </tr>
                 `);
                 $("#total_requirement_kg").text('');
                 $("#total_requirement_unit").text('');
-                alert('Error fetching packing entries: ' + response.error);
-                sortCriteria = [];
-                updateSortUI();
+            }
+        });
+    }
+
+    // Add the provided JavaScript for editable functionality
+    function initEditableTable() {
+        var tables = document.getElementsByClassName("editabletable");
+        for (var i = 0; i < tables.length; i++) {
+            makeTableEditable(tables[i]);
+        }
+    }
+
+    function makeTableEditable(table) {
+        var rows = table.rows;
+        for (var r = 0; r < rows.length; r++) {
+            var cols = rows[r].cells;
+            for (var c = 0; c < cols.length; c++) {
+                var cell = cols[c];
+                var div = cell.querySelector('div[contenteditable]');
+                if (div) {
+                    var listener = makeEditListener(table, r, c);
+                    div.addEventListener("input", listener, false);
+                }
+            }
+        }
+    }
+
+    function makeEditListener(table, row, col) {
+        return function(event) {
+            var cell = getCellElement(table, row, col);
+            var text = cell.innerHTML.replace(/<br>$/, '');
+            var items = split(text);
+            var packingId = cell.getAttribute('data-id');
+            var field = cell.getAttribute('data-field');
+
+            if (items.length === 1) {
+                // Single value: send update to server
+                updateCell(packingId, field, items[0]);
                 return;
             }
 
-            if (response.data && response.data.length > 0) {
-                response.data.forEach(function(packing) {
-                    // Sum totals
-                    totalRequirementKG += parseFloat(packing.requirement_kg) || 0;
-                    totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
+            // Multiple values: populate subsequent cells
+            var r = row;
+            var c = col;
+            for (var i = 0; i < items.length && r < table.rows.length; i++) {
+                var currentCell = getCellElement(table, r, c);
+                var currentField = currentCell.getAttribute('data-field');
+                var currentPackingId = currentCell.getAttribute('data-id');
+                currentCell.innerHTML = items[i]; // Update cell content
+                updateCell(currentPackingId, currentField, items[i]); // Send update to server
 
-                    tableBody.append(`
-                        <tr>
-                            <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
-                            <td>${packing.week_commencing || ''}</td>
-                            <td>${packing.packing_date || ''}</td>
-                            <td>${packing.product_code || ''}</td>
-                            <td>${packing.product_description || ''}</td>
-                            <td>${packing.special_order_kg || ''}</td>
-                            <td>${packing.special_order_unit || ''}</td>
-                            <td>${packing.requirement_kg || ''}</td>
-                            <td>${packing.requirement_unit || ''}</td>
-                            <td>${packing.avg_weight_per_unit || ''}</td>
-                            <td>${packing.soh_requirement_kg_week || ''}</td>
-                            <td>${packing.soh_requirement_units_week || ''}</td>
-                            <td>${packing.soh_kg || ''}</td>
-                            <td>${packing.soh_units || ''}</td>
-                            <td>${packing.avg_weight_per_unit_calc || ''}</td>
-                            <td>${packing.total_stock_kg || ''}</td>
-                            <td>${packing.total_stock_units || ''}</td>
-                            <td>${packing.weekly_average || ''}</td>
-                            <td>
-                                <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-warning">Edit</a>
-                                <a href="/packing/delete/${packing.id}" class="btn btn-sm btn-success" onclick="return confirm('Are you sure?')">Delete</a>
-                            </td>
-                        </tr>
-                    `);
-                });
-            } else {
-                tableBody.append(`
-                    <tr>
-                        <td colspan="19" class="no-results">No results found.</td>
-                    </tr>
-                `);
+                c++;
+                if (c === table.rows[r].cells.length) {
+                    r++;
+                    c = 0;
+                }
             }
+            cell.focus();
+            fetchPackings(); // Refresh table to reflect recalculated fields
+        };
+    }
 
-            // Update the totals in the footer
-            $("#total_requirement_kg").text(totalRequirementKG.toFixed(2));
-            $("#total_requirement_unit").text(totalRequirementUnit);
+    function getCellElement(table, row, col) {
+        return table.rows[row].cells[col].firstChild;
+    }
 
-        },
-        error: function(xhr, status, error) {
-            $("#packingListTable tbody").html(`
-                <tr>
-                    <td colspan="19" class="no-results">Error loading data: ${error}</td>
-                </tr>
-            `);
-            $("#total_requirement_kg").text('');
-            $("#total_requirement_unit").text('');
+    function split(str) {
+        return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
+    }
+
+    function updateCell(packingId, field, value) {
+        // Ensure value is numeric and valid
+        if (value === '' || isNaN(value)) {
+            value = 0; // Default to 0 for empty or invalid input
+        } else {
+            value = parseFloat(value);
         }
-    });
-}
+
+        $.ajax({
+            url: "{{ url_for('packing.update_cell') }}",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value
+            }),
+            success: function(response) {
+                if (response.success) {
+                    fetchPackings(); // Refresh table to update calculated fields
+                } else {
+                    alert("Error updating cell: " + response.message);
+                    fetchPackings(); // Refresh to revert invalid changes
+                }
+            },
+            error: function() {
+                alert("Error updating cell.");
+                fetchPackings();
+            }
+        });
+    }
 
     function exportToExcel() {
         var packingDate = $("#search_packing_date").val().trim();
