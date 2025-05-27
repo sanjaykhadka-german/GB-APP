@@ -14,9 +14,25 @@ def filling_list():
     # Get search parameters from query string
     search_fill_code = request.args.get('fill_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_filling_date = request.args.get('filling_date', '').strip()
 
     # Query fillings with optional filters
     fillings_query = Filling.query
+    if search_week_commencing:
+        try:
+            week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+            fillings_query = fillings_query.filter(Filling.week_commencing == week_commencing_date)
+        except ValueError:
+            flash("Invalid Week Commencing date format.", 'error')
+
+    if search_filling_date:
+        try:
+            filling_date = datetime.strptime(search_filling_date, '%Y-%m-%d').date()
+            fillings_query = fillings_query.filter(Filling.filling_date == filling_date)
+        except ValueError:
+            flash("Invalid Filling Date format.", 'error')
+            
     if search_fill_code:
         fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
     if search_description:
@@ -35,6 +51,8 @@ def filling_list():
                          filling_data=filling_data,
                          search_fill_code=search_fill_code,
                          search_description=search_description,
+                         search_week_commencing=search_week_commencing,
+                         search_filling_date=search_filling_date,
                          current_page="filling")
 
 @filling_bp.route('/filling_create', methods=['GET', 'POST'])
@@ -69,7 +87,7 @@ def filling_create():
             db.session.commit()
 
             # Update or create corresponding Production entry
-            update_production_entry(filling_date, fill_code, joining)
+            update_production_entry(filling_date, fill_code, joining,week_commencing)
 
             flash("Filling entry created successfully!", "success")
             return redirect(url_for('filling.filling_list'))
@@ -112,11 +130,11 @@ def filling_edit(id):
             db.session.commit()
 
             # Update or create corresponding Production entry for new values
-            update_production_entry(filling.filling_date, filling.fill_code, joining)
+            update_production_entry(filling.filling_date, filling.fill_code, joining,filling.week_commencing)
             # Update Production entry for old values (in case date or fill_code changed)
             old_joining = Joining.query.filter_by(filling_code=old_fill_code).first()
             if old_joining and (old_filling_date != filling.filling_date or old_fill_code != filling.fill_code):
-                update_production_entry(old_filling_date, old_fill_code, old_joining)
+                update_production_entry(old_filling_date, old_fill_code, old_joining,filling.week_commencing)
 
             flash("Filling entry updated successfully!", "success")
             return redirect(url_for('filling.filling_list'))
@@ -143,7 +161,7 @@ def filling_delete(id):
         # Update corresponding Production entry
         joining = Joining.query.filter_by(filling_code=fill_code).first()
         if joining:
-            update_production_entry(filling_date, fill_code, joining)
+            update_production_entry(filling_date, fill_code, joining,filling.week_commencing)
 
         flash("Filling entry deleted successfully!", "danger")
     except Exception as e:
@@ -173,9 +191,24 @@ def autocomplete_filling():
 def get_search_fillings():
     search_fill_code = request.args.get('fill_code', '').strip()
     search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_filling_date = request.args.get('filling_date', '').strip()
 
     try:
         fillings_query = Filling.query
+
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.week_commencing == week_commencing_date)
+            except ValueError:
+                return jsonify({"error": "Invalid Week Commencing date format"}), 400
+        if search_filling_date:
+            try:
+                filling_date = datetime.strptime(search_filling_date, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.filling_date == filling_date)
+            except ValueError:
+                return jsonify({"error": "Invalid Filling Date format"}), 400
 
         if search_fill_code:
             fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
@@ -188,7 +221,7 @@ def get_search_fillings():
             {
                 "id": filling.id,
                 "filling_date": filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else "",
-                "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",  # Include week_commencing
+                "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",  
                 "fill_code": filling.fill_code or "",
                 "description": filling.description or "",
                 "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""

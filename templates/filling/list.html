@@ -15,6 +15,14 @@
                 <label for="search_description">Description:</label>
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
+            <div class="form-group">
+                <label for="search_week_commencing">Week Commencing:</label>
+                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
+            </div>
+            <div class="form-group">
+                <label for="search_filling_date">Filling Date:</label>
+                <input type="date" id="search_filling_date" name="filling_date" value="{{ search_filling_date | default('') }}">
+            </div>
 
             <button type="button" onclick="fetchFillings()">Search</button>
             <div id="fill_code_suggestions" class="suggestion-list"></div>
@@ -41,7 +49,7 @@
             <table class="table table-bordered" id="fillingListTable">
                 <thead>
                     <tr>
-                        <th>Week Commencing</th> <!-- New column -->
+                        <th>Week Commencing</th>
                         <th>Filling Date</th>
                         <th>Fill Code</th>
                         <th>Description</th>
@@ -53,7 +61,7 @@
                     {% for data in filling_data %}
                     {% set filling = data.filling %}
                     <tr>
-                        <td>{{ filling.week_commencing | format_date }}</td> <!-- New column -->
+                        <td>{{ filling.week_commencing | format_date }}</td>
                         <td>{{ filling.filling_date }}</td>
                         <td>{{ filling.fill_code }}</td>
                         <td>{{ filling.description }}</td>
@@ -174,11 +182,16 @@
     function fetchFillings() {
         var fillCode = $("#search_fill_code").val().trim();
         var description = $("#search_description").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var fillingDate = $("#search_filling_date").val().trim();
 
         $.ajax({
             url: "{{ url_for('filling.get_search_fillings') }}",
             type: "GET",
-            data: { fill_code: fillCode, description: description },
+            data: { fill_code: fillCode, 
+                description: description,
+                week_commencing: weekCommencing,
+                filling_date: fillingDate},
             success: function(response) {
                 var tableBody = $("#fillingListTable tbody");
                 tableBody.empty();
@@ -199,7 +212,7 @@
                         if (filling.id !== null && filling.id !== undefined) {
                             tableBody.append(`
                                 <tr>
-                                    <td>${filling.week_commencing || ''}</td> <!-- New column -->
+                                    <td>${filling.week_commencing || ''}</td>
                                     <td>${filling.filling_date || ''}</td>
                                     <td>${filling.fill_code || ''}</td>
                                     <td>${filling.description || ''}</td>

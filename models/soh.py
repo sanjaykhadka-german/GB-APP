@@ -1,4 +1,4 @@
-# models/soh.py
+
 from database import db
 
 class SOH(db.Model):
