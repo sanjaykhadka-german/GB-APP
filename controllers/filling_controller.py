@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from datetime import datetime, timedelta  # Added timedelta for week_commencing calculation
 from database import db
 from models.filling import Filling
@@ -6,6 +6,8 @@ from models.joining import Joining
 from models.production import Production
 from sqlalchemy import func
 from sqlalchemy.sql import text
+import openpyxl
+from io import BytesIO
 
 filling_bp = Blueprint('filling', __name__, template_folder='templates')
 
@@ -233,6 +235,80 @@ def get_search_fillings():
     except Exception as e:
         print("Error fetching search fillings:", e)
         return jsonify({"error": "Failed to fetch filling entries"}), 500
+    
+# Export Fillings to Excel
+@filling_bp.route('/export_fillings_excel', methods=['GET'])
+def export_fillings_excel():
+    search_fill_code = request.args.get('fill_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_filling_date = request.args.get('filling_date', '').strip()
+
+    try:
+        fillings_query = Filling.query
+
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.week_commencing == week_commencing_date)
+            except ValueError:
+                flash("Invalid Week Commencing date format.", 'error')
+                return redirect(url_for('filling.filling_list'))
+        if search_filling_date:
+            try:
+                filling_date = datetime.strptime(search_filling_date, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.filling_date == filling_date)
+            except ValueError:
+                flash("Invalid Filling Date format.", 'error')
+                return redirect(url_for('filling.filling_list'))
+        if search_fill_code:
+            fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+        if search_description:
+            fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+
+        fillings = fillings_query.all()
+
+        # Create a new workbook and select the active sheet
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Fillings"
+
+        # Define headers
+        headers = ["ID", "Week Commencing", "Filling Date", "Fill Code", "Description", "Kilo per Size"]
+        ws.append(headers)
+
+        # Add data rows
+        for filling in fillings:
+            ws.append([
+                filling.id,
+                filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else '',
+                filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else '',
+                filling.fill_code or '',
+                filling.description or '',
+                filling.kilo_per_size if filling.kilo_per_size is not None else ''
+            ])
+
+        # Create a BytesIO object to save the Excel file
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"fillings_export_{timestamp}.xlsx"
+
+        # Send the file as a downloadable attachment
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        print("Error generating Excel file:", e)
+        flash(f"Error generating Excel file: {str(e)}", 'error')
+        return redirect(url_for('filling.filling_list'))
 
 def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
     """Helper function to create or update a Production entry."""

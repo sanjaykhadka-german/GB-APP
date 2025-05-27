@@ -25,6 +25,7 @@
             </div>
 
             <button type="button" onclick="fetchFillings()">Search</button>
+            <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fill_code_suggestions" class="suggestion-list"></div>
         </form>
     </section>
@@ -252,6 +253,24 @@
                 `);
             }
         });
+    }
+
+    // Export to Excel based on current filters
+    function exportToExcel() {
+        var fillCode = $("#search_fill_code").val().trim();
+        var description = $("#search_description").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var fillingDate = $("#search_filling_date").val().trim();
+
+        // Construct the URL with query parameters
+        var url = "{{ url_for('filling.export_fillings_excel') }}?" +
+                  "fill_code=" + encodeURIComponent(fillCode) +
+                  "&description=" + encodeURIComponent(description) +
+                  "&week_commencing=" + encodeURIComponent(weekCommencing) +
+                  "&filling_date=" + encodeURIComponent(fillingDate);
+
+        // Trigger the download
+        window.location.href = url;
     }
 </script>
 {% endblock %}

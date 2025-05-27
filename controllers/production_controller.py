@@ -1,10 +1,12 @@
-from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash, send_file
 from datetime import datetime, timedelta
 from database import db  
 from models.production import Production
 from models.filling import Filling
 from models.joining import Joining
 from sqlalchemy.sql import text
+import openpyxl
+from io import BytesIO
 
 production_bp = Blueprint('production', __name__, template_folder='templates')
 
@@ -211,3 +213,80 @@ def get_search_productions():
     except Exception as e:
         print("Error fetching search productions:", e)
         return jsonify({"error": "Failed to fetch production entries"}), 500
+
+
+    
+# Export Productions to Excel
+@production_bp.route('/export_productions_excel', methods=['GET'])
+def export_productions_excel():
+    search_production_code = request.args.get('production_code', '').strip()
+    search_description = request.args.get('description', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_production_date = request.args.get('production_date', '').strip()
+
+    try:
+        productions_query = Production.query
+
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                productions_query = productions_query.filter(Production.week_commencing == week_commencing_date)
+            except ValueError:
+                flash("Invalid Week Commencing date format.", 'error')
+                return redirect(url_for('production.production_list'))
+        if search_production_date:
+            try:
+                production_date = datetime.strptime(search_production_date, '%Y-%m-%d').date()
+                productions_query = productions_query.filter(Production.production_date == production_date)
+            except ValueError:
+                flash("Invalid Production Date format.", 'error')
+                return redirect(url_for('production.production_list'))
+        if search_production_code:
+            productions_query = productions_query.filter(Production.production_code.ilike(f"%{search_production_code}%"))
+        if search_description:
+            productions_query = productions_query.filter(Production.description.ilike(f"%{search_description}%"))
+
+        productions = productions_query.all()
+
+        # Create a new workbook and select the active sheet
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Productions"
+
+        # Define headers
+        headers = ["ID", "Week Commencing", "Production Date", "Production Code", "Description", "Batches", "Total KG"]
+        ws.append(headers)
+
+        # Add data rows
+        for production in productions:
+            ws.append([
+                production.id,
+                production.week_commencing.strftime('%Y-%m-%d') if production.week_commencing else '',
+                production.production_date.strftime('%Y-%m-%d') if production.production_date else '',
+                production.production_code or '',
+                production.description or '',
+                production.batches if production.batches is not None else '',
+                production.total_kg if production.total_kg is not None else ''
+            ])
+
+        # Create a BytesIO object to save the Excel file
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"productions_export_{timestamp}.xlsx"
+
+        # Send the file as a downloadable attachment
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        print("Error generating Excel file:", e)
+        flash(f"Error generating Excel file: {str(e)}", 'error')
+        return redirect(url_for('production.production_list'))

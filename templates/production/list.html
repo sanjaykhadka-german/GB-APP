@@ -23,6 +23,7 @@
                 <input type="date" id="search_production_date" name="production_date" value="{{ search_production_date | default('') }}">
             </div>
             <button type="button" onclick="fetchProductions()">Search</button>
+            <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="production_code_suggestions" class="suggestion-list"></div>
         </form>
     </section>
@@ -261,5 +262,24 @@
             }
         });
     }
+
+    // Export to Excel based on current filters
+    function exportToExcel() {
+        var productionCode = $("#search_production_code").val().trim();
+        var description = $("#search_description").val().trim();
+        var weekCommencing = $("#search_week_commencing").val().trim();
+        var productionDate = $("#search_production_date").val().trim();
+
+        // Construct the URL with query parameters
+        var url = "{{ url_for('production.export_productions_excel') }}?" +
+                  "production_code=" + encodeURIComponent(productionCode) +
+                  "&description=" + encodeURIComponent(description) +
+                  "&week_commencing=" + encodeURIComponent(weekCommencing) +
+                  "&production_date=" + encodeURIComponent(productionDate);
+
+        // Trigger the download
+        window.location.href = url;
+    }
+
 </script>
 {% endblock %}
