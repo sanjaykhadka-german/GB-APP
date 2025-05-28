@@ -340,7 +340,7 @@ def soh_edit(id):
     if request.method == 'POST':
         try:
             fg_code = request.form['fg_code'].strip()
-            week_commencing = request.form.get('week_commencing')  # Second field
+            week_commencing = request.form.get('week_commencing')
             description = request.form['description'].strip()
             soh_dispatch_boxes = float(request.form.get('soh_dispatch_boxes', 0.0)) if request.form.get('soh_dispatch_boxes') else 0.0
             soh_dispatch_units = float(request.form.get('soh_dispatch_units', 0.0)) if request.form.get('soh_dispatch_units') else 0.0

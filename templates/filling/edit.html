@@ -18,21 +18,21 @@
     <form method="post" action="{{ url_for('filling.filling_edit', id=filling.id) }}">
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
-            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ filling.week_commencing | format_date if filling.week_commencing else '' }}">
         </div>
-        <div class="mb-3">
+        <div class="form-group">
             <label for="filling_date" class="form-label">Filling Date</label>
             <input type="date" class="form-control" id="filling_date" name="filling_date" value="{{ filling.filling_date.strftime('%Y-%m-%d') }}" required>
         </div>
-        <div class="mb-3">
+        <div class="form-group">
             <label for="fill_code" class="form-label">Fill Code</label>
             <input type="text" class="form-control" id="fill_code" name="fill_code" value="{{ filling.fill_code }}">
         </div>
-        <div class="mb-3">
+        <div class="form-group">
             <label for="description" class="form-label">Description</label>
             <input type="text" class="form-control" id="description" name="description" value="{{ filling.description or '' }}">
         </div>
-        <div class="mb-3">
+        <div class="form-group">
             <label for="kilo_per_size" class="form-label">Kilo per Size</label>
             <input type="number" step="0.01" class="form-control" id="kilo_per_size" name="kilo_per_size" value="{{ filling.kilo_per_size }}" required>
         </div>

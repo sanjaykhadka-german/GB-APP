@@ -311,7 +311,7 @@
                                 <tr>
                                     <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                     <td>${soh.id || ''}</td>
-                                    <td>${soh.week_commencing || ''}</td>
+                                    <td>${soh.week_commencing ? soh.week_commencing | format_date : ''}</td>
                                     <td>${soh.fg_code || ''}</td>
                                     <td>${soh.description || ''}</td>
                                     <td>${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
