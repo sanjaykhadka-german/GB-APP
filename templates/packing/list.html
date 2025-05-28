@@ -6,7 +6,6 @@
     <section id="search">
         <h2>Packing Search</h2>
         <form id="searchForm">
-            
             <div class="form-group">
                 <label for="search_fg_code">Product Code:</label>
                 <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
@@ -15,7 +14,6 @@
                 <label for="search_description">Description:</label>
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
-
             <div class="form-group">
                 <label for="search_packing_date">Packing Date:</label>
                 <input type="date" id="search_packing_date" name="packing_date" value="">
@@ -24,11 +22,41 @@
                 <label for="search_week_commencing">Week Commencing:</label>
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
-
             <button type="button" onclick="fetchPackings()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
+    </section>
+
+    <!-- Column Visibility Toggle Section -->
+    <section id="column-toggle">
+        <h3>Column Visibility</h3>
+        <div class="column-toggle">
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="2" onchange="toggleColumn(2)"> Week Commencing</label>
+                <label><input type="checkbox" checked data-col-index="3" onchange="toggleColumn(3)"> Packing Date</label>
+                <label><input type="checkbox" checked data-col-index="6" onchange="toggleColumn(6)"> Special Order KG</label>
+                <label><input type="checkbox" checked data-col-index="7" onchange="toggleColumn(7)"> Special Order Unit</label>
+                <label><input type="checkbox" checked data-col-index="10" onchange="toggleColumn(10)"> Avg Weight per Unit</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" data-col-index="11" onchange="toggleColumn(11)"> SOH Req KG/Week</label>
+                <label><input type="checkbox" checked data-col-index="12" onchange="toggleColumn(12)"> SOH Req Units/Week</label>
+                <label><input type="checkbox" data-col-index="13" onchange="toggleColumn(13)"> SOH KG</label>
+                <label><input type="checkbox" data-col-index="14" onchange="toggleColumn(14)"> SOH Units</label>
+                <label><input type="checkbox" data-col-index="15" onchange="toggleColumn(15)"> Avg Weight/Unit (Calc)</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Total Stock KG</label>
+                <label><input type="checkbox" data-col-index="17" onchange="toggleColumn(17)"> Total Stock Units</label>
+                <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Weekly Average</label>
+            </div>
+            <div class="toggle-actions">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showAllColumns()">Show All</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="resetToDefault()">Reset to Default</button>
+            </div>
+        </div>
     </section>
 
     <!-- Packing List Section -->
@@ -52,32 +80,29 @@
             <table class="table table-bordered editabletable" id="packingListTable">
             <thead>
                 <tr>
-                <th><input type="checkbox" id="selectAll"></th>
-                <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
-                <th data-column="packing_date">Packing Date <span class="sort-arrow"></span></th>
-                <th data-column="product_code">Product Code <span class="sort-arrow"></span></th>
-                <th data-column="product_description">Product Description <span class="sort-arrow"></span></th>
-                <th data-column="special_order_kg">Special Order KG <span class="sort-arrow"></span></th>
-                <!--<th>Special Order Unit</th> -->
-                <th data-column="special_order_unit">Special Order Unit <span class="sort-arrow"></span></th>
-                <th data-column="requirement_kg">Requirement KG <span class="sort-arrow"></span></th>
-                <th data-column="requirement_unit">Requirement Unit <span class="sort-arrow"></span></th>
-                <!-- <th>Requirement KG</th> -->
-                <!-- <th>Requirement Unit</th> -->
-                <th data-column="avg_weight_per_unit">AVG Weight per Unit <span class="sort-arrow"></span></th>
-                <th>SOH Req KG/Week</th> 
-                <th data-column="soh_requirement_units_week">SOH Req Units/Week <span class="sort-arrow"></span></th>
-                <th>SOH KG</th> 
-                <th>SOH Units</th> 
-                <th data-column="avg_weight_per_unit_calc">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
-                <th>Total Stock KG</th> 
-                <th>Total Stock Units</th> 
-                <th data-column="weekly_average">Weekly Average <span class="sort-arrow"></span></th>
-                <th>Actions</th>
+                    <th data-col-index="1"><input type="checkbox" id="selectAll"></th>
+                    <th data-column="week_commencing" data-col-index="2">Week Commencing <span class="sort-arrow"></span></th>
+                    <th data-column="packing_date" data-col-index="3">Packing Date <span class="sort-arrow"></span></th>
+                    <th data-column="product_code" data-col-index="4">Product Code <span class="sort-arrow"></span></th>
+                    <th data-column="product_description" data-col-index="5">Product Description <span class="sort-arrow"></span></th>
+                    <th data-column="special_order_kg" data-col-index="6">Special Order KG <span class="sort-arrow"></span></th>
+                    <th data-column="special_order_unit" data-col-index="7">Special Order Unit <span class="sort-arrow"></span></th>
+                    <th data-column="requirement_kg" data-col-index="8">Requirement KG <span class="sort-arrow"></span></th>
+                    <th data-column="requirement_unit" data-col-index="9">Requirement Unit <span class="sort-arrow"></span></th>
+                    <th data-column="avg_weight_per_unit" data-col-index="10">AVG Weight per Unit <span class="sort-arrow"></span></th>
+                    <th data-col-index="11">SOH Req KG/Week</th>
+                    <th data-column="soh_requirement_units_week" data-col-index="12">SOH Req Units/Week <span class="sort-arrow"></span></th>
+                    <th data-col-index="13">SOH KG</th>
+                    <th data-col-index="14">SOH Units</th>
+                    <th data-column="avg_weight_per_unit_calc" data-col-index="15">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
+                    <th data-col-index="16">Total Stock KG</th>
+                    <th data-col-index="17">Total Stock Units</th>
+                    <th data-column="weekly_average" data-col-index="18">Weekly Average <span class="sort-arrow"></span></th>
+                    <th data-col-index="19">Actions</th>
                 </tr>
             </thead>
                 <tbody>
-                    <!-- Populated dynamically by JavaScript -->
+                    <tr><td colspan="19" class="no-results">Loading...</td></tr>
                 </tbody>
                 <tfoot>
                     <tr>
@@ -154,9 +179,172 @@
     .form-group {
         margin-bottom: 15px;
     }
+    
+    /* Column Toggle Styles */
+    #column-toggle {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #dee2e6;
+    }
+    
+    #column-toggle h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #495057;
+        font-size: 1.1rem;
+    }
+    
+    .column-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 5px;
+    }
+    
+    .column-toggle label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 0.9rem;
+        min-width: 180px;
+        padding: 2px 0;
+    }
+    
+    .column-toggle input[type="checkbox"] {
+        margin-right: 6px;
+        transform: scale(1.1);
+    }
+    
+    .toggle-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    /* Packing List Section */
+    #list {
+        margin-top: 0;
+    }
+    
+    #list h2 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    
+    .btn.my-3 {
+        margin: 5px 0;
+    }
+    
+    /* Responsive Table Styles */
     .table-container {
         overflow-x: auto;
+        width: 100%;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-top: 0;
     }
+    
+    #packingListTable {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin: 0;
+    }
+    
+    #packingListTable th,
+    #packingListTable td {
+        border: 1px solid #ddd;
+        padding: 6px 8px;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #packingListTable th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        font-size: 11px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+    
+    /* Optimize specific column widths */
+    #packingListTable th:nth-child(1),
+    #packingListTable td:nth-child(1) { 
+        width: 40px; 
+        max-width: 40px; 
+        text-align: center;
+    }
+    
+    #packingListTable th:nth-child(4),
+    #packingListTable td:nth-child(4) { 
+        width: 100px; 
+        max-width: 120px; 
+    }
+    
+    #packingListTable th:nth-child(5),
+    #packingListTable td:nth-child(5) { 
+        width: 150px; 
+        max-width: 200px; 
+    }
+    
+    #packingListTable th:nth-child(19),
+    #packingListTable td:nth-child(19) { 
+        width: 120px; 
+        max-width: 120px; 
+        text-align: center;
+    }
+    
+    /* Responsive breakpoints */
+    @media (max-width: 1600px) {
+        #packingListTable {
+            font-size: 11px;
+        }
+        #packingListTable th,
+        #packingListTable td {
+            padding: 4px 6px;
+        }
+    }
+    
+    @media (max-width: 1400px) {
+        #packingListTable {
+            font-size: 10px;
+        }
+        #packingListTable th,
+        #packingListTable td {
+            padding: 3px 4px;
+        }
+        .toggle-row {
+            flex-direction: column;
+            gap: 5px;
+        }
+        .column-toggle label {
+            min-width: auto;
+        }
+    }
+    
+    @media (max-width: 1200px) {
+        #packingListTable {
+            font-size: 9px;
+        }
+        #packingListTable th,
+        #packingListTable td {
+            padding: 2px 3px;
+        }
+    }
+    
     .no-results {
         text-align: center;
         padding: 20px;
@@ -190,10 +378,10 @@
         vertical-align: middle;
     }
     .sort-arrow.asc::after {
-        content: '▲'; /* Up arrow for ascending */
+        content: '▲';
     }
     .sort-arrow.desc::after {
-        content: '▼'; /* Down arrow for descending */
+        content: '▼';
     }
     .sort-arrow.multi-sort-order::before {
         font-size: 0.7em;
@@ -206,389 +394,436 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    let sortCriteria = [];
+let sortCriteria = [];
+// Track column visibility (true = visible, false = hidden)
+let columnVisibility = Array(19).fill(true); // Initialize all 19 columns as visible
 
-    $(document).ready(function() {
-        // Autocomplete for Product Code
-        $("#search_fg_code").keyup(function() {
-            var fgCode = $(this).val().trim();
-            if (fgCode.length > 0) {
-                $.ajax({
-                    url: "{{ url_for('packing.autocomplete_packing') }}",
-                    type: "GET",
-                    data: { query: fgCode },
-                    success: function(response) {
-                        var suggestionsHtml = "<ul>";
-                        response.forEach(function(packing) {
-                            suggestionsHtml += `<li data-fg-code="${packing.fg_code}" data-description="${packing.description}">${packing.fg_code} - ${packing.description}</li>`;
-                        });
-                        suggestionsHtml += "</ul>";
-                        $("#fg_code_suggestions").html(suggestionsHtml);
-                    },
-                    error: function() {
-                        $("#fg_code_suggestions").empty();
-                    }
-                });
-            } else {
-                $("#fg_code_suggestions").empty();
-            }
-        });
-
-        // Handle suggestion click
-        $(document).on("click", "#fg_code_suggestions li", function() {
-            $("#search_fg_code").val($(this).data("fg-code"));
-            $("#search_description").val($(this).data("description"));
-            $("#fg_code_suggestions").empty();
-            fetchPackings();
-        });
-
-        // Hide suggestions when clicking outside
-        $(document).click(function(event) {
-            if (!$(event.target).closest("#search_fg_code, #fg_code_suggestions").length) {
-                $("#fg_code_suggestions").empty();
-            }
-        });
-
-        // Select/deselect all checkboxes
-        $("#selectAll").click(function() {
-            $(".packing-select").prop("checked", this.checked);
-        });
-
-        // Column sorting (single and multiple with Ctrl+Click)
-        $("#packingListTable th[data-column]").click(function(event) {
-            const column = $(this).data("column");
-            const isCtrlClick = event.ctrlKey || event.metaKey;
-
-            console.log(`Clicked column: ${column}, Ctrl+Click: ${isCtrlClick}`);
-
-            if (isCtrlClick) {
-                // Ctrl+Click: Add to multi-sort or toggle existing
-                const existingCriterionIndex = sortCriteria.findIndex(c => c.column === column);
-
-                if (existingCriterionIndex !== -1) {
-                    // Column already part of sort, toggle its direction
-                    sortCriteria[existingCriterionIndex].direction =
-                        sortCriteria[existingCriterionIndex].direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    // Add new column to multi-sort (default ascending)
-                    sortCriteria.push({ column: column, direction: 'asc' });
-                }
-            } else {
-                // Normal Click: Clear previous sort and set this as primary
-                const isCurrentPrimary = sortCriteria.length > 0 && sortCriteria[0].column === column;
-
-                sortCriteria = [];
-
-                if (isCurrentPrimary) {
-                    // If it was already the primary, toggle its direction
-                    sortCriteria.push({
-                        column: column,
-                        direction: $(this).find('.sort-arrow').hasClass('asc') ? 'desc' : 'asc'
+$(document).ready(function() {
+    // Autocomplete for Product Code
+    $("#search_fg_code").keyup(function() {
+        var fgCode = $(this).val().trim();
+        if (fgCode.length > 0) {
+            $.ajax({
+                url: "{{ url_for('packing.autocomplete_packing') }}",
+                type: "GET",
+                data: { query: fgCode },
+                success: function(response) {
+                    console.log("Autocomplete response:", response);
+                    var suggestionsHtml = "<ul>";
+                    response.forEach(function(packing) {
+                        suggestionsHtml += `<li data-fg-code="${packing.fg_code}" data-description="${packing.description}">${packing.fg_code} - ${packing.description}</li>`;
                     });
-                } else {
-                    // Set as new primary sort (ascending)
-                    sortCriteria.push({ column: column, direction: 'asc' });
+                    suggestionsHtml += "</ul>";
+                    $("#fg_code_suggestions").html(suggestionsHtml).show();
+                },
+                error: function(xhr, status, error) {
+                    console.error("Autocomplete error:", status, error, xhr.responseText);
+                    $("#fg_code_suggestions").empty().hide();
                 }
-            }
+            });
+        } else {
+            $("#fg_code_suggestions").empty().hide();
+        }
+    });
 
-            console.log('Sort Criteria:', sortCriteria);
-
-            fetchPackings();
-            updateSortUI();
-        });
-
-        // Trigger search on input change
-        $("#search_packing_date, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
-            fetchPackings();
-        });
-
-        // Initial fetch
+    // Click suggestion to fill input
+    $(document).on('click', '#fg_code_suggestions li', function() {
+        $('#search_fg_code').val($(this).data('fg-code'));
+        $('#search_description').val($(this).data('description'));
+        $('#fg_code_suggestions').empty().hide();
         fetchPackings();
     });
 
-    function fetchPackings() {
-        var packingDate = $("#search_packing_date").val().trim();
-        var weekCommencing = $("#search_week_commencing").val().trim();
-        var fgCode = $("#search_fg_code").val().trim();
-        var description = $("#search_description").val().trim();
+    // Hide suggestions when clicking outside
+    $(document).click(function(event) {
+        if (!$(event.target).closest('#fg_code_suggestions, #search_fg_code').length) {
+            $('#fg_code_suggestions').empty().hide();
+        }
+    });
 
-        var sortBy = sortCriteria.map(criterion => criterion.column);
-        var sortOrder = sortCriteria.map(criterion => criterion.direction);
+    // Select/Deselect all checkboxes
+    $('#selectAll').on('change', function() {
+        $('#packingListTable tbody input[type="checkbox"]').prop('checked', this.checked);
+    });
 
-        $.ajax({
-            url: "{{ url_for('packing.get_search_packings') }}",
-            type: "GET",
-            data: {
-                packing_date: packingDate,
-                week_commencing: weekCommencing,
-                fg_code: fgCode,
-                description: description,
-                sort_by: sortBy,
-                sort_order: sortOrder
-            },
-            success: function(response) {
-                var tableBody = $("#packingListTable tbody");
-                tableBody.empty();
-                $("#resultSection").removeClass("hidden");
+    // Sorting columns
+    $('#packingListTable th[data-column]').on('click', function(event) {
+        const column = $(this).data('column');
+        const isCtrlClick = event.ctrlKey || event.metaKey;
+        console.log(`Clicked column: ${column}, Ctrl+Click: ${isCtrlClick}`);
 
-                // Initialize totals
-                let totalRequirementKG = 0;
-                let totalRequirementUnit = 0;
+        if (isCtrlClick) {
+            const existingCriterionIndex = sortCriteria.findIndex(c => c.column === column);
+            if (existingCriterionIndex !== -1) {
+                sortCriteria[existingCriterionIndex].direction =
+                    sortCriteria[existingCriterionIndex].direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortCriteria.push({ column: column, direction: 'asc' });
+            }
+        } else {
+            const isCurrentPrimary = sortCriteria.length > 0 && sortCriteria[0].column === column;
+            sortCriteria = [];
+            if (isCurrentPrimary) {
+                sortCriteria.push({
+                    column: column,
+                    direction: $(this).find('.sort-arrow').hasClass('asc') ? 'desc' : 'asc'
+                });
+            } else {
+                sortCriteria.push({ column: column, direction: 'asc' });
+            }
+        }
+        console.log('Sort Criteria:', sortCriteria);
+        fetchPackings();
+        updateSortUI();
+    });
 
-                if (response.error) {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="19" class="no-results">Error: ${response.error}</td>
-                        </tr>
-                    `);
-                    $("#total_requirement_kg").text('');
-                    $("#total_requirement_unit").text('');
-                    alert('Error fetching packing entries: ' + response.error);
-                    sortCriteria = [];
-                    updateSortUI();
-                    return;
-                }
+    // Trigger search on input change
+    $("#search_packing_date, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
+        fetchPackings();
+    });
 
-                if (response.data && response.data.length > 0) {
-                    response.data.forEach(function(packing) {
-                        // Sum totals
-                        totalRequirementKG += parseFloat(packing.requirement_kg) || 0;
-                        totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
+    // Initial fetch
+    console.log("Initiating initial fetchPackings");
+    fetchPackings();
 
-                        tableBody.append(`
-                            <tr>
-                                <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
-                                <td>${packing.week_commencing || ''}</td>
-                                <td>${packing.packing_date || ''}</td>
-                                <td>${packing.product_code || ''}</td>
-                                <td>${packing.product_description || ''}</td>
-                                <td><div contenteditable="true" data-id="${packing.id}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
-                                <td>${packing.special_order_unit || ''}</td>
-                                <td>${packing.requirement_kg || ''}</td>
-                                <td>${packing.requirement_unit || ''}</td>
-                                <td><div contenteditable="true" data-id="${packing.id}" data-field="avg_weight_per_unit">${packing.avg_weight_per_unit || ''}</div></td>
-                                <td>${packing.soh_requirement_kg_week || ''}</td>
-                                <td><div contenteditable="true" data-id="${packing.id}" data-field="soh_requirement_units_week">${packing.soh_requirement_units_week || ''}</div></td>
-                                <td>${packing.soh_kg || ''}</td>
-                                <td>${packing.soh_units || ''}</td>
-                                <td>${packing.avg_weight_per_unit_calc || ''}</td>
-                                <td>${packing.total_stock_kg || ''}</td>
-                                <td>${packing.total_stock_units || ''}</td>
-                                <td><div contenteditable="true" data-id="${packing.id}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
-                                <td>
-                                    <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-warning">Edit</a>
-                                    <a href="/packing/delete/${packing.id}" class="btn btn-success btn-sm"  onclick="return confirm('Are you sure?')">Delete</a>
-                                </td>
-                            </tr>
-                        `);
-                    });
-                } else {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="19" class="no-results">No results found.</td>
-                        </tr>
-                    `);
-                }
+    // Add CSS rule for sort order number
+    $('<style>.sort-arrow.multi-sort-order::before { content: var(--sort-order); }</style>').appendTo('head');
+});
 
-                // Update the totals in the footer
-                $("#total_requirement_kg").text(totalRequirementKG.toFixed(2));
-                $("#total_requirement_unit").text(totalRequirementUnit);
+// Fetch packing entries based on search and sorting
+function fetchPackings() {
+    let packingDate = $("#search_packing_date").val().trim();
+    let weekCommencing = $("#search_week_commencing").val().trim();
+    let fgCode = $("#search_fg_code").val().trim();
+    let description = $("#search_description").val().trim();
+    let sortBy = sortCriteria.map(criterion => criterion.column);
+    let sortOrder = sortCriteria.map(criterion => criterion.direction);
 
-                // Initialize editable table after populating
-                initEditableTable();
-            },
-            error: function(xhr, status, error) {
-                $("#packingListTable tbody").html(`
-                    <tr>
-                        <td colspan="19" class="no-results">Error loading data: ${error}</td>
-                    </tr>
-                `);
+    console.log("Fetching packings with data:", { packing_date: packingDate, week_commencing: weekCommencing, fg_code: fgCode, description: description, sort_by: sortBy, sort_order: sortOrder });
+
+    $('#packingListTable tbody').html('<tr><td colspan="19" class="no-results">Loading...</td></tr>');
+
+    $.ajax({
+        url: "{{ url_for('packing.get_search_packings') }}",
+        type: "GET",
+        data: {
+            packing_date: packingDate,
+            week_commencing: weekCommencing,
+            fg_code: fgCode,
+            description: description,
+            sort_by: sortBy,
+            sort_order: sortOrder
+        },
+        success: function(response) {
+            console.log("Fetch packings response:", response);
+            let tableBody = $("#packingListTable tbody");
+            tableBody.empty();
+            $("#resultSection").removeClass("hidden");
+
+            let totalRequirementKg = 0;
+            let totalRequirementUnit = 0;
+
+            if (response.error) {
+                tableBody.append(`<tr><td colspan="19" class="no-results">Error: ${response.error}</td></tr>`);
                 $("#total_requirement_kg").text('');
                 $("#total_requirement_unit").text('');
-            }
-        });
-    }
-
-    // Add the provided JavaScript for editable functionality
-    function initEditableTable() {
-        var tables = document.getElementsByClassName("editabletable");
-        for (var i = 0; i < tables.length; i++) {
-            makeTableEditable(tables[i]);
-        }
-    }
-
-    function makeTableEditable(table) {
-        var rows = table.rows;
-        for (var r = 0; r < rows.length; r++) {
-            var cols = rows[r].cells;
-            for (var c = 0; c < cols.length; c++) {
-                var cell = cols[c];
-                var div = cell.querySelector('div[contenteditable]');
-                if (div) {
-                    var listener = makeEditListener(table, r, c);
-                    div.addEventListener("input", listener, false);
-                }
-            }
-        }
-    }
-
-    function makeEditListener(table, row, col) {
-        return function(event) {
-            var cell = getCellElement(table, row, col);
-            var text = cell.innerHTML.replace(/<br>$/, '');
-            var items = split(text);
-            var packingId = cell.getAttribute('data-id');
-            var field = cell.getAttribute('data-field');
-
-            if (items.length === 1) {
-                // Single value: send update to server
-                updateCell(packingId, field, items[0]);
+                alert('Error fetching packing entries: ' + response.error);
+                sortCriteria = [];
+                updateSortUI();
                 return;
             }
 
-            // Multiple values: populate subsequent cells
-            var r = row;
-            var c = col;
-            for (var i = 0; i < items.length && r < table.rows.length; i++) {
-                var currentCell = getCellElement(table, r, c);
-                var currentField = currentCell.getAttribute('data-field');
-                var currentPackingId = currentCell.getAttribute('data-id');
-                currentCell.innerHTML = items[i]; // Update cell content
-                updateCell(currentPackingId, currentField, items[i]); // Send update to server
+            if (response.data && response.data.length > 0) {
+                response.data.forEach(function(packing) {
+                totalRequirementKg += parseFloat(packing.requirement_kg) || 0;
+                totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
 
-                c++;
-                if (c === table.rows[r].cells.length) {
-                    r++;
-                    c = 0;
-                }
+                // Log the packing.id and generated URL for debugging
+                console.log("Packing ID:", packing.id);
+                const editUrl = "{{ url_for('packing.packing_edit', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '');
+                console.log("Generated Edit URL:", editUrl);
+
+                tableBody.append(`
+                    <tr>
+                        <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
+                        <td>${packing.week_commencing || ''}</td>
+                        <td>${packing.packing_date || ''}</td>
+                        <td>${packing.product_code || ''}</td>
+                        <td>${packing.product_description || ''}</td>
+                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
+                        <td>${packing.special_order_unit || ''}</td>
+                        <td>${packing.requirement_kg || ''}</td>
+                        <td>${packing.requirement_unit || ''}</td>
+                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="avg_weight_per_unit">${packing.avg_weight_per_unit || ''}</div></td>
+                        <td>${packing.soh_requirement_kg_week || ''}</td>
+                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="soh_requirement_units_week">${packing.soh_requirement_units_week || ''}</div></td>
+                        <td>${packing.soh_kg || ''}</td>
+                        <td>${packing.soh_units || ''}</td>
+                        <td>${packing.avg_weight_per_unit_calc || ''}</td>
+                        <td>${packing.total_stock_kg || ''}</td>
+                        <td>${packing.total_stock_units || ''}</td>
+                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
+                        <td>
+                            <a href="${editUrl}" class="btn btn-sm btn-secondary">Edit</a>
+                            <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                        </td>
+                    </tr>
+                `);
+});
+            } else {
+                tableBody.append(`<tr><td colspan="19" class="no-results">No results found.</td></tr>`);
             }
-            cell.focus();
-            fetchPackings(); // Refresh table to reflect recalculated fields
-        };
-    }
 
-    function getCellElement(table, row, col) {
-        return table.rows[row].cells[col].firstChild;
-    }
-
-    function split(str) {
-        return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
-    }
-
-    function updateCell(packingId, field, value) {
-        // Ensure value is numeric and valid
-        if (value === '' || isNaN(value)) {
-            value = 0; // Default to 0 for empty or invalid input
-        } else {
-            value = parseFloat(value);
+            $("#total_requirement_kg").text(totalRequirementKg.toFixed(2));
+            $("#total_requirement_unit").text(totalRequirementUnit);
+            initEditableTable();
+            // Reapply column visibility after rendering
+            applyColumnVisibility();
+        },
+        error: function(xhr, status, error) {
+            console.error("Fetch packings error:", status, error, xhr.responseText);
+            $("#packingListTable tbody").html(`<tr><td colspan="19" class="no-results">Error loading data: ${xhr.responseText || error}</td></tr>`);
+            $("#total_requirement_kg").text('');
+            $("#total_requirement_unit").text('');
+            // Reapply column visibility even on error
+            applyColumnVisibility();
         }
+    });
+}
 
-        $.ajax({
-            url: "{{ url_for('packing.update_cell') }}",
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify({
-                id: packingId,
-                field: field,
-                value: value
-            }),
-            success: function(response) {
-                if (response.success) {
-                    fetchPackings(); // Refresh table to update calculated fields
-                } else {
-                    alert("Error updating cell: " + response.message);
-                    fetchPackings(); // Refresh to revert invalid changes
-                }
-            },
-            error: function() {
-                alert("Error updating cell.");
-                fetchPackings();
+// Apply column visibility based on the columnVisibility array
+function applyColumnVisibility() {
+    for (let i = 1; i <= 19; i++) {
+        if (!columnVisibility[i - 1]) {
+            $(`#packingListTable th[data-col-index="${i}"], #packingListTable td:nth-child(${i})`).hide();
+        } else {
+            $(`#packingListTable th[data-col-index="${i}"], #packingListTable td:nth-child(${i})`).show();
+        }
+    }
+}
+
+// Editable table functionality
+function initEditableTable() {
+    var tables = document.getElementsByClassName("editabletable");
+    for (var i = 0; i < tables.length; i++) {
+        makeTableEditable(tables[i]);
+    }
+}
+
+function makeTableEditable(table) {
+    var rows = table.rows;
+    for (var r = 0; r < rows.length; r++) {
+        var cols = rows[r].cells;
+        for (var c = 0; c < cols.length; c++) {
+            var cell = cols[c];
+            var div = cell.querySelector('div[contenteditable]');
+            if (div) {
+                var listener = makeEditListener(table, r, c);
+                div.addEventListener("input", listener, false);
             }
-        });
+        }
     }
+}
 
-    function exportToExcel() {
-        var packingDate = $("#search_packing_date").val().trim();
-        var weekCommencing = $("#search_week_commencing").val().trim();
-        var fgCode = $("#search_fg_code").val().trim();
-        var description = $("#search_description").val().trim();
-        var sortBy = sortCriteria.map(criterion => criterion.column);
-        var sortOrder = sortCriteria.map(criterion => criterion.direction);
+function makeEditListener(table, row, col) {
+    return function(event) {
+        var cell = getCellElement(table, row, col);
+        var text = cell.innerHTML.replace(/<br>$/, '');
+        var items = split(text);
+        var packingId = cell.getAttribute('data-id');
+        var field = cell.getAttribute('data-field');
 
-        var url = "{{ url_for('packing.export_packings') }}?packing_date=" + encodeURIComponent(packingDate) +
-                  "&week_commencing=" + encodeURIComponent(weekCommencing) +
-                  "&fg_code=" + encodeURIComponent(fgCode) +
-                  "&description=" + encodeURIComponent(description);
-        
-        sortBy.forEach((sort, index) => {
-            url += `&sort_by=${encodeURIComponent(sort)}&sort_order=${encodeURIComponent(sortOrder[index])}`;
-        });
-
-        window.location.href = url;
-    }
-
-    window.submitBulkEdit = function() {
-        const selectedIds = $(".packing-select:checked").map(function() {
-            return $(this).val();
-        }).get();
-
-        if (selectedIds.length === 0) {
-            alert("Please select at least one packing entry.");
+        if (items.length === 1) {
+            updateCell(packingId, field, items[0]);
             return;
         }
 
-        const formData = {
-            ids: selectedIds,
-            special_order_kg: $("#bulk_special_order_kg").val(),
-            avg_weight_per_unit: $("#bulk_avg_weight_per_unit").val(),
-            soh_requirement_units_week: $("#bulk_soh_requirement_units_week").val(),
-            weekly_average: $("#bulk_weekly_average").val()
-        };
-
-        $.ajax({
-            url: "{{ url_for('packing.bulk_edit') }}",
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify(formData),
-            success: function(response) {
-                if (response.success) {
-                    $("#bulkEditModal").modal("hide");
-                    fetchPackings();
-                    alert("Packing entries updated successfully!");
-                } else {
-                    alert("Error: " + response.message);
-                }
-            },
-            error: function() {
-                alert("Error updating packing entries.");
+        var r = row;
+        var c = col;
+        for (var i = 0; i < items.length && r < table.rows.length; i++) {
+            var currentCell = getCellElement(table, r, c);
+            var currentField = currentCell.getAttribute('data-field');
+            var currentPackingId = currentCell.getAttribute('data-id');
+            currentCell.innerHTML = items[i];
+            updateCell(currentPackingId, currentField, items[i]);
+            c++;
+            if (c === table.rows[r].cells.length) {
+                r++;
+                c = 0;
             }
-        });
+        }
+        cell.focus();
+        fetchPackings();
     };
+}
 
-    // Update UI (sort arrows and order numbers)
-    function updateSortUI() {
-        $("#packingListTable th[data-column]").each(function() {
-            const arrow = $(this).find('.sort-arrow');
-            arrow.removeClass('asc desc multi-sort-order');
-            arrow.css('--sort-order', '');
+function getCellElement(table, row, col) {
+    return table.rows[row].cells[col].firstChild;
+}
 
-            const column = $(this).data("column");
-            const criterionIndex = sortCriteria.findIndex(c => c.column === column);
+function split(str) {
+    return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
+}
 
-            if (criterionIndex !== -1) {
-                const criterion = sortCriteria[criterionIndex];
-                arrow.addClass(criterion.direction);
-                if (sortCriteria.length > 1) {
-                    arrow.addClass('multi-sort-order');
-                    arrow.css('--sort-order', `'${criterionIndex + 1}'`);
-                }
-            }
-        });
+function updateCell(packingId, field, value) {
+    if (value === '' || isNaN(value)) {
+        value = 0;
+    } else {
+        value = parseFloat(value);
     }
 
-    // Add CSS rule for order number
-    $(document).ready(function() {
-        $('<style>.sort-arrow.multi-sort-order::before { content: var(--sort-order); }</style>').appendTo('head');
+    $.ajax({
+        url: "{{ url_for('packing.update_cell') }}",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+            id: packingId,
+            field: field,
+            value: value
+        }),
+        success: function(response) {
+            console.log("Update cell response:", response);
+            if (response.success) {
+                fetchPackings();
+            } else {
+                alert("Error updating cell: " + response.message);
+                fetchPackings();
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Update cell error:", status, error, xhr.responseText);
+            alert("Error updating cell.");
+            fetchPackings();
+        }
     });
+}
+
+// Column toggle logic
+function toggleColumn(colIndex) {
+    columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
+    $(`#packingListTable th[data-col-index="${colIndex}"], #packingListTable td:nth-child(${colIndex})`).toggle();
+}
+
+function showEssentialColumns() {
+    // Define essential columns
+    const essentialColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 19];
+    // Reset visibility array
+    columnVisibility = Array(19).fill(false);
+    essentialColumns.forEach(idx => {
+        columnVisibility[idx - 1] = true;
+    });
+    applyColumnVisibility();
+    // Sync checkboxes
+    $('#column-toggle input[type="checkbox"]').each(function() {
+        let idx = parseInt($(this).attr('data-col-index'));
+        $(this).prop('checked', [2, 3, 6, 7, 8, 9].includes(idx));
+    });
+}
+
+function showAllColumns() {
+    columnVisibility = Array(19).fill(true);
+    applyColumnVisibility();
+    // Sync checkboxes
+    $('#column-toggle input[type="checkbox"]').prop('checked', true);
+}
+
+function resetToDefault() {
+    // Default visible columns
+    const defaultVisible = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 18, 19];
+    columnVisibility = Array(19).fill(false);
+    defaultVisible.forEach(idx => {
+        columnVisibility[idx - 1] = true;
+    });
+    applyColumnVisibility();
+    // Sync checkboxes
+    $('#column-toggle input[type="checkbox"]').each(function() {
+        let idx = parseInt($(this).attr('data-col-index'));
+        let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 18];
+        $(this).prop('checked', defaultVisibleCols.includes(idx));
+    });
+}
+
+// Export to Excel
+function exportToExcel() {
+    let packingDate = $("#search_packing_date").val().trim();
+    let weekCommencing = $("#search_week_commencing").val().trim();
+    let fgCode = $("#search_fg_code").val().trim();
+    let description = $("#search_description").val().trim();
+    let sortBy = sortCriteria.map(criterion => criterion.column);
+    let sortOrder = sortCriteria.map(criterion => criterion.direction);
+
+    let url = "{{ url_for('packing.export_packings') }}?packing_date=" + encodeURIComponent(packingDate) +
+              "&week_commencing=" + encodeURIComponent(weekCommencing) +
+              "&fg_code=" + encodeURIComponent(fgCode) +
+              "&description=" + encodeURIComponent(description);
+    
+    sortBy.forEach((sort, index) => {
+        url += `&sort_by=${encodeURIComponent(sort)}&sort_order=${encodeURIComponent(sortOrder[index])}`;
+    });
+
+    window.location.href = url;
+}
+
+// Bulk edit logic
+function submitBulkEdit() {
+    let selectedIds = $(".packing-select:checked").map(function() {
+        return $(this).val();
+    }).get();
+
+    if (selectedIds.length === 0) {
+        alert("Please select at least one packing entry.");
+        return;
+    }
+
+    let formData = {
+        ids: selectedIds,
+        special_order_kg: $("#bulk_special_order_kg").val(),
+        avg_weight_per_unit: $("#bulk_avg_weight_per_unit").val(),
+        soh_requirement_units_week: $("#bulk_soh_requirement_units_week").val(),
+        weekly_average: $("#bulk_weekly_average").val()
+    };
+
+    $.ajax({
+        url: "{{ url_for('packing.bulk_edit') }}",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify(formData),
+        success: function(response) {
+            console.log("Bulk edit response:", response);
+            if (response.success) {
+                $("#bulkEditModal").modal("hide");
+                fetchPackings();
+                alert("Packing entries updated successfully!");
+            } else {
+                alert("Error: " + response.message);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error("Bulk edit error:", status, error, xhr.responseText);
+            alert("Error updating packing entries.");
+        }
+    });
+}
+
+// Update sort UI
+function updateSortUI() {
+    $("#packingListTable th[data-column]").each(function() {
+        const arrow = $(this).find('.sort-arrow');
+        arrow.removeClass('asc desc multi-sort-order');
+        arrow.css('--sort-order', '');
+
+        const column = $(this).data("column");
+        const criterionIndex = sortCriteria.findIndex(c => c.column === column);
+
+        if (criterionIndex !== -1) {
+            const criterion = sortCriteria[criterionIndex];
+            arrow.addClass(criterion.direction);
+            if (sortCriteria.length > 1) {
+                arrow.addClass('multi-sort-order');
+                arrow.css('--sort-order', `'${criterionIndex + 1}'`);
+            }
+        }
+    });
+}
 </script>
 {% endblock %}

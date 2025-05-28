@@ -371,25 +371,33 @@ def packing_edit(id):
             db.session.rollback()
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
-    # Existing code for GET request remains unchanged
+    # GET request: Fetch related data for the edit page
     products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
     recipe_code_prefix = packing.product_code.split('.')[0] if '.' in packing.product_code else packing.product_code
+
+    # Fetch related packings for the same week and recipe family
     related_packings = Packing.query.filter(
         Packing.week_commencing == packing.week_commencing,
         Packing.product_code.ilike(f"{recipe_code_prefix}%")
     ).all()
+    logger.debug(f"Related packings: {len(related_packings)} entries for week {packing.week_commencing} and prefix {recipe_code_prefix}")
+
+    # Fetch related fillings for the same week and recipe family
     related_fillings = Filling.query.join(Joining, Filling.fill_code == Joining.filling_code).filter(
         Filling.week_commencing == packing.week_commencing,
-        #Filling.filling_date == packing.packing_date,
         Joining.fg_code.ilike(f"{recipe_code_prefix}%")
     ).all()
-    # Modified query to filter productions by recipe family
+    logger.debug(f"Related fillings: {len(related_fillings)} entries for week {packing.week_commencing} and prefix {recipe_code_prefix}")
+
+    # Fetch related productions for the same week and recipe family
     related_productions = Production.query.join(Joining, Production.production_code == Joining.production).filter(
         Production.week_commencing == packing.week_commencing,
-        #Production.production_date == packing.packing_date,
         Joining.fg_code.ilike(f"{recipe_code_prefix}%")
     ).all()
+    logger.debug(f"Related productions: {len(related_productions)} entries for week {packing.week_commencing} and prefix {recipe_code_prefix}")
+
     total_production_kg = sum(production.total_kg for production in related_productions if production.total_kg is not None)
+    logger.debug(f"Total production KG: {total_production_kg}")
 
     return render_template('packing/edit.html',
                          packing=packing,
