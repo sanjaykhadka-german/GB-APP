@@ -1,7 +1,7 @@
 from database import db
 
 class RecipeMaster(db.Model):
-    __tablename__ = 'recipe_master'  # Fixed: double underscores
+    __tablename__ = 'recipe_master'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     recipe_code = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255))

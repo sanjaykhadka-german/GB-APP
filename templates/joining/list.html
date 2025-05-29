@@ -41,22 +41,22 @@
             <table class="table table-bordered" id="joiningListTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>FG Code</th>
-                        <th>Description</th>
-                        <th>FW</th>
-                        <th>Make To Order</th>
-                        <th>Min Level</th>
-                        <th>Max Level</th>
-                        <th>kg/unit</th>
-                        <th>Loss</th>
-                        <th>Filling Code</th>
-                        <th>Filling Description</th>
-                        <th>Production</th>
-                        <th>Product Description</th> <!-- New column -->
-                        <th>Units_per_box</th>
-                        <th>Allergens</th>
-                        <th>Actions</th>
+                        <th class="col-id">ID</th>
+                        <th class="col-fg-code">FG Code</th>
+                        <th class="col-description">Description</th>
+                        <th class="col-fw">FW</th>
+                        <th class="col-make-to-order">Make To Order</th>
+                        <th class="col-min-level">Min Level</th>
+                        <th class="col-max-level">Max Level</th>
+                        <th class="col-kg-unit">kg/unit</th>
+                        <th class="col-loss">Loss</th>
+                        <th class="col-filling-code">Filling Code</th>
+                        <th class="col-filling-description">Filling Description</th>
+                        <th class="col-production">Production</th>
+                        <th class="col-product-description">Product Description</th>
+                        <th class="col-units-per-bag">Units_per_box</th>
+                        <th class="col-allergens">Allergens</th>
+                        <th class="col-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,9 +75,9 @@
                         <td>{{ joining.filling_code or '' }}</td>
                         <td>{{ joining.filling_description or '' }}</td>
                         <td>{{ joining.production or '' }}</td>
-                        <td>{{ joining.product_description or '' }}</td> <!-- New column -->
+                        <td>{{ joining.product_description or '' }}</td>
                         <td>{{ joining.units_per_bag if joining.units_per_bag is not none else '' }}</td>
-                        <td>{{ joining.allergens | map(attribute='name') | join(', ') or 'None' }}</td> <!-- New column -->
+                        <td>{{ joining.allergens | map(attribute='name') | join(', ') or 'None' }}</td>
                         <td>
                             <a href="{{ url_for('joining.joining_edit', id=joining.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('joining.joining_delete', id=joining.id) }}" method="post" style="display:inline-block;">
@@ -120,7 +120,12 @@
         margin-bottom: 15px;
     }
     .table-container {
-        overflow-x: auto;
+        width: 100%;
+    }
+    .table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
     }
     .no-results {
         text-align: center;
@@ -139,6 +144,52 @@
     }
     .hidden {
         display: none;
+    }
+    #list {
+        margin-top: 0;
+    }
+    #list h2 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    /* Column width adjustments */
+    .col-id {
+        width: 4%;
+    }
+    .col-fg-code {
+        width: 8%;
+    }
+    .col-description {
+        width: 12%;
+    }
+    .col-product-description {
+        width: 12%;
+    }
+    .col-allergens {
+        width: 10%;
+    }
+    .col-fw, .col-make-to-order {
+        width: 4%;
+    }
+    .col-min-level, .col-max-level, .col-kg-unit, .col-loss {
+        width: 6%;
+    }
+    .col-filling-code, .col-filling-description, .col-production {
+        width: 10%;
+    }
+    .col-units-per-bag {
+        width: 8%;
+    }
+    .col-actions {
+        width: 8%;
+    }
+    /* Allow text wrapping for long content */
+    th, td {
+        white-space: normal;
+        word-wrap: break-word;
+
+        padding: 8px;
+        text-align: left;
     }
 </style>
 
@@ -235,9 +286,9 @@
                                     <td>${joining.filling_code || ''}</td>
                                     <td>${joining.filling_description || ''}</td>
                                     <td>${joining.production || ''}</td>
-                                    <td>${joining.product_description || ''}</td> <!-- New column -->
+                                    <td>${joining.product_description || ''}</td>
                                     <td>${joining.units_per_bag !== null && joining.units_per_bag !== undefined ? joining.units_per_bag : ''}</td>
-                                    <td>${allergens}</td> <!-- New column -->
+                                    <td>${allergens}</td>
                                     <td>
                                         <a href="/joining_edit/${joining.id}" class="btn btn-warning btn-sm">Edit</a>
                                         <form action="/joining_delete/${joining.id}" method="post" style="display:inline-block;">

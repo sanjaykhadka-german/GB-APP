@@ -447,5 +447,6 @@ nav ul li.active a {
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 #list {
-    margin-top: var(--search-height, 110px); /* Adjust this value to match the height of your search section */
+    margin-top: var(--search-height, 110px); 
 }
+

@@ -59,7 +59,7 @@
                     <tfoot>
                         <tr>
                             <td colspan="6" class="text-end"><strong>Total KG:</strong></td>
-                            <td>{{ total_production_kg }}</td>
+                            <td>{{ total_production_kg | round(2) }}</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -67,7 +67,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- Packing List Table with Bulk Edit -->
     <h3 class="mt-5">Packing List</h3>
@@ -109,7 +108,7 @@
                     <td>{{ packing.requirement_unit }}</td>
                     <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="avg_weight_per_unit">{{ packing.avg_weight_per_unit }}</div></td>
                     <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="soh_requirement_units_week">{{ packing.soh_requirement_units_week }}</div></td>
-                <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="weekly_average">{{ packing.weekly_average }}</div></td>
+                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="weekly_average">{{ packing.weekly_average }}</div></td>
                     <td>
                         <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                         <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
@@ -117,8 +116,8 @@
                         </form>
                     </td>
                 </tr>
-                {% set total_requirement_kg.value = total_requirement_kg.value + (packing.requirement_kg | default(0,true)) %}
-                {% set total_requirement_unit.value = total_requirement_unit.value + (packing.requirement_unit | default(0,true)) %}
+                {% set total_requirement_kg.value = total_requirement_kg.value + (packing.requirement_kg | default(0, true)) %}
+                {% set total_requirement_unit.value = total_requirement_unit.value + (packing.requirement_unit | default(0, true)) %}
                 {% else %}
                 <tr>
                     <td colspan="13">No related packing entries found.</td>
@@ -128,7 +127,7 @@
             <tfoot>
                 <tr>
                     <td colspan="7" class="text-end"><strong>Total:</strong></td>
-                    <td>{{ total_requirement_kg.value | round(2)  }}</td>
+                    <td>{{ total_requirement_kg.value | round(2) }}</td>
                     <td>{{ total_requirement_unit.value }}</td>
                     <td colspan="4"></td>
                 </tr>
@@ -197,189 +196,186 @@
                         <input type="hidden" name="packing_id" value="{{ packing.id }}">
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this filling entry?');">Delete</button>
                     </form>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="6">No related filling entries found.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-    <tfoot>
-        <tr>
-            <td colspan="4" class="text-end"><strong>Total:</strong></td>
-            <td>{{ related_fillings | sum(attribute='kilo_per_size') | round(2) }}</td>
-            <td></td>
-        </tr>
-    </tfoot>
-</table>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6">No related filling entries found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="4" class="text-end"><strong>Total Kilo per Size:</strong></td>
+                <td>{{ total_kilo_per_size | round(2) }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
 
-<!-- JavaScript for Bulk Edit -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Select All Checkbox
-    const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('input[name="packing_ids"]');
+    <!-- JavaScript for Bulk Edit -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Select All Checkbox
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('input[name="packing_ids"]');
 
-    selectAll.addEventListener('change', function() {
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAll.checked;
-        });
-    });
-
-    // Submit Bulk Edit
-    document.getElementById('submitBulkEdit').addEventListener('click', function() {
-        const selectedIds = Array.from(checkboxes)
-            .filter(checkbox => checkbox.checked)
-            .map(checkbox => checkbox.value);
-
-        if (selectedIds.length === 0) {
-            alert('Please select at least one packing entry.');
-            return;
-        }
-
-        const data = {
-            ids: selectedIds,
-            special_order_kg: document.getElementById('bulk_special_order_kg').value,
-            avg_weight_per_unit: document.getElementById('bulk_avg_weight_per_unit').value,
-            soh_requirement_units_week: document.getElementById('bulk_soh_requirement_units_week').value,
-            weekly_average: document.getElementById('bulk_weekly_average').value
-        };
-
-        fetch('{{ url_for("packing.bulk_edit") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Packing entries updated successfully!');
-                window.location.reload();
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Error: ' + error.message);
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
         });
 
-        // Close the modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEditModal'));
-        modal.hide();
-    });
+        // Submit Bulk Edit
+        document.getElementById('submitBulkEdit').addEventListener('click', function() {
+            const selectedIds = Array.from(checkboxes)
+                .filter(checkbox => checkbox.checked)
+                .map(checkbox => checkbox.value);
 
-    // Initialize editable table
-    initEditableTable();
-
-    function initEditableTable() {
-        var tables = document.getElementsByClassName("editabletable");
-        for (var i = 0; i < tables.length; i++) {
-            makeTableEditable(tables[i]);
-        }
-    }
-
-    function makeTableEditable(table) {
-        var rows = table.rows;
-        for (var r = 0; r < rows.length; r++) {
-            var cols = rows[r].cells;
-            for (var c = 0; c < cols.length; c++) {
-                var cell = cols[c];
-                var div = cell.querySelector('div[contenteditable]');
-                if (div) {
-                    var listener = makeEditListener(table, r, c);
-                    div.addEventListener("input", listener, false);
-                }
-            }
-        }
-    }
-
-    function makeEditListener(table, row, col) {
-        return function(event) {
-            var cell = getCellElement(table, row, col);
-            var text = cell.innerHTML.replace(/<br>$/, '');
-            var items = split(text);
-            var packingId = cell.getAttribute('data-id');
-            var field = cell.getAttribute('data-field');
-
-            if (items.length === 1) {
-                // Single value: send update to server
-                updateCell(packingId, field, items[0]);
+            if (selectedIds.length === 0) {
+                alert('Please select at least one packing entry.');
                 return;
             }
 
-            // Multiple values: populate subsequent cells
-            var r = row;
-            var c = col;
-            for (var i = 0; i < items.length && r < table.rows.length; i++) {
-                var currentCell = getCellElement(table, r, c);
-                var currentField = currentCell.getAttribute('data-field');
-                var currentPackingId = currentCell.getAttribute('data-id');
-                currentCell.innerHTML = items[i]; // Update cell content
-                updateCell(currentPackingId, currentField, items[i]); // Send update to server
+            const data = {
+                ids: selectedIds,
+                special_order_kg: document.getElementById('bulk_special_order_kg').value,
+                avg_weight_per_unit: document.getElementById('bulk_avg_weight_per_unit').value,
+                soh_requirement_units_week: document.getElementById('bulk_soh_requirement_units_week').value,
+                weekly_average: document.getElementById('bulk_weekly_average').value
+            };
 
-                c++;
-                if (c === table.rows[r].cells.length) {
-                    r++;
-                    c = 0;
+            fetch('{{ url_for("packing.bulk_edit") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Packing entries updated successfully!');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
                 }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+
+            // Close the modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEditModal'));
+            modal.hide();
+        });
+
+        // Initialize editable table
+        initEditableTable();
+
+        function initEditableTable() {
+            var tables = document.getElementsByClassName("editabletable");
+            for (var i = 0; i < tables.length; i++) {
+                makeTableEditable(tables[i]);
             }
-            cell.focus();
-            window.location.reload(); // Refresh page to reflect recalculated fields
-        };
-    }
-
-    function getCellElement(table, row, col) {
-        return table.rows[row].cells[col].firstChild;
-    }
-
-    function split(str) {
-        return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
-    }
-
-    function updateCell(packingId, field, value) {
-        // Ensure value is numeric and valid
-        if (value === '' || isNaN(value)) {
-            value = 0; // Default to 0 for empty or invalid input
-        } else {
-            value = parseFloat(value);
         }
 
-        fetch('{{ url_for("packing.update_cell") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                id: packingId,
-                field: field,
-                value: value
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.reload(); // Refresh page to update calculated fields
-            } else {
-                alert('Error updating cell: ' + data.message);
-                window.location.reload();
+        function makeTableEditable(table) {
+            var rows = table.rows;
+            for (var r = 0; r < rows.length; r++) {
+                var cols = rows[r].cells;
+                for (var c = 0; c < cols.length; c++) {
+                    var cell = cols[c];
+                    var div = cell.querySelector('div[contenteditable]');
+                    if (div) {
+                        var listener = makeEditListener(table, r, c);
+                        div.addEventListener("input", listener, false);
+                    }
+                }
             }
-        })
-        .catch(error => {
-            alert('Error updating cell: ' + error.message);
-            window.location.reload();
-        });
-    }
-});
-</script>
+        }
 
-<style>
-.fixed-production-list {
-    background-color: #fff;
-    padding: 15px;
-    border-bottom: 1px solid #dee2e6;
-}
-</style>
+        function makeEditListener(table, row, col) {
+            return function(event) {
+                var cell = getCellElement(table, row, col);
+                var text = cell.innerHTML.replace(/<br>$/, '');
+                var items = split(text);
+                var packingId = cell.getAttribute('data-id');
+                var field = cell.getAttribute('data-field');
+
+                if (items.length === 1) {
+                    updateCell(packingId, field, items[0]);
+                    return;
+                }
+
+                var r = row;
+                var c = col;
+                for (var i = 0; i < items.length && r < table.rows.length; i++) {
+                    var currentCell = getCellElement(table, r, c);
+                    var currentField = currentCell.getAttribute('data-field');
+                    var currentPackingId = currentCell.getAttribute('data-id');
+                    currentCell.innerHTML = items[i];
+                    updateCell(currentPackingId, currentField, items[i]);
+
+                    c++;
+                    if (c === table.rows[r].cells.length) {
+                        r++;
+                        c = 0;
+                    }
+                }
+                cell.focus();
+                window.location.reload();
+            };
+        }
+
+        function getCellElement(table, row, col) {
+            return table.rows[row].cells[col].firstChild;
+        }
+
+        function split(str) {
+            return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
+        }
+
+        function updateCell(packingId, field, value) {
+            if (value === '' || isNaN(value)) {
+                value = 0;
+            } else {
+                value = parseFloat(value);
+            }
+
+            fetch('{{ url_for("packing.update_cell") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id: packingId,
+                    field: field,
+                    value: value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error updating cell: ' + data.message);
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error updating cell: ' + error.message);
+                window.location.reload();
+            });
+        }
+    });
+    </script>
+
+    <style>
+    .fixed-production-list {
+        background-color: #fff;
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    </style>
 {% endblock %}

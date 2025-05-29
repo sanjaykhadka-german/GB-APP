@@ -29,18 +29,18 @@ def soh_upload():
     if request.method == 'POST':
         if 'file' not in request.files:
             flash("No file uploaded!", "danger")
-            return redirect(request.url)
+            return render_template('soh/upload.html', current_page="soh")
         
         file = request.files['file']
         sheet_name = request.form.get('sheet_name', '').strip() or 'SOH'
 
         if file.filename == '':
             flash("No file selected!", "danger")
-            return redirect(request.url)
+            return render_template('soh/upload.html', current_page="soh")
         
         if not file or not allowed_file(file.filename):
             flash("Invalid file type! Only CSV, XLSX, or XLS files are allowed.", "danger")
-            return redirect(request.url)
+            return render_template('soh/upload.html', current_page="soh")
 
         temp_path = None
         try:
@@ -56,7 +56,7 @@ def soh_upload():
                     print("Available sheets:", excel_file.sheet_names)
                     if sheet_name not in excel_file.sheet_names:
                         flash(f"Sheet '{sheet_name}' not found in the Excel file. Available sheets: {', '.join(excel_file.sheet_names)}", "danger")
-                        return redirect(request.url)
+                        return render_template('soh/upload.html', current_page="soh")
                     df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
             df.columns = df.columns.str.strip()
@@ -69,7 +69,7 @@ def soh_upload():
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 flash(f"Missing required columns in file! Missing: {', '.join(missing_columns)}. Expected: {', '.join(required_columns)}", "danger")
-                return redirect(request.url)
+                return render_template('soh/upload.html', current_page="soh")
 
             numeric_columns = ['Soh_dispatch_Box', 'Soh_dispatch_Unit', 'Soh_packing_Box', 'Soh_packing_Unit', 'Soh_total_Box', 'Soh_total_Unit']
             for col in numeric_columns:
@@ -101,9 +101,22 @@ def soh_upload():
                 week_commencing = None
                 if pd.notnull(row['Week Commencing']):
                     try:
-                        week_commencing = pd.to_datetime(row['Week Commencing']).date()
+                        week_commencing_val = row['Week Commencing']
+                        if isinstance(week_commencing_val, pd.Timestamp):
+                            week_commencing_str = week_commencing_val.date()
+                        else:
+                            week_commencing_str = str(week_commencing_val).strip()
+                            try:
+                            # Try DD-MM-YYYY format first
+                                week_commencing = datetime.strptime(week_commencing_str, '%d-%m-%Y').date()
+                            except ValueError:
+                                week_commencing = pd.to_datetime(week_commencing_str).date()
+
                     except (ValueError, TypeError) as e:
                         print(f"Error converting Week Commencing '{row['Week Commencing']}' to date: {e}")
+
+                        flash(f"Invalid Week Commencing date format: {row['Week Commencing']}. Expected format: DD-MM-YYYY or YYYY-MM-DD.", "danger")
+                        continue
 
                 fg = Joining.query.filter_by(fg_code=fg_code).first()
                 units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
@@ -166,7 +179,7 @@ def soh_upload():
                         success, message = update_packing_entry(
                             fg_code=fg_code,
                             description=description,
-                            packing_date=date.today(), # packng_date is set to today 
+                            packing_date=week_commencing, # date.today(), # packng_date is set to today 
                             special_order_kg=0.0,
                             avg_weight_per_unit=avg_weight_per_unit,
                             soh_requirement_units_week=0,
@@ -184,17 +197,12 @@ def soh_upload():
 
             flash("SOH data uploaded and updated successfully!", "success")
 
-            saved_soh = SOH.query.filter_by(fg_code='2006.1').first()
-            if saved_soh:
-                print(f"Saved SOH: FG Code: {saved_soh.fg_code}, Dispatch Boxes: {saved_soh.soh_dispatch_boxes}, "
-                      f"Dispatch Units: {saved_soh.soh_dispatch_units}, Packing Boxes: {saved_soh.soh_packing_boxes}, "
-                      f"Packing Units: {saved_soh.soh_packing_units}, Total Boxes: {saved_soh.soh_total_boxes}, "
-                      f"Total Units: {saved_soh.soh_total_units}")
+            return redirect(url_for('soh.soh_list'))
 
         except Exception as e:
             db.session.rollback()
             flash(f"Error processing file: {str(e)}", "danger")
-            return redirect(request.url)
+            return render_template('soh/upload.html', current_page="soh")
         
         finally:
             if temp_path and os.path.exists(temp_path):
@@ -227,10 +235,11 @@ def soh_list():
         if search_week_commencing:
             try:
                 week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-                sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
+                sohs_query = sohs_query.filter((SOH.week_commencing == week_commencing_date) | (SOH.week_commencing.is_(None)))
             except ValueError as e:
                 flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
-                return redirect(request.url)
+                #return redirect(request.url)
+                return jsonify({"error": "Invalid date format"}), 400
             
         #Apply sorting
         if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
@@ -240,6 +249,13 @@ def soh_list():
                 sohs_query = sohs_query.order_by(asc(getattr(SOH, sort_by)))
 
         sohs = sohs_query.all()
+
+        for soh in sohs:
+            if soh.week_commencing:
+                soh.week_commencing = soh.week_commencing.strftime('%d-%m-%Y')
+            if soh.edit_date:
+                soh.edit_date = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S')
+            
     except Exception as e:
         flash(f"Error fetching SOH list: {str(e)}", "danger")
         sohs = []
@@ -351,7 +367,10 @@ def soh_edit(id):
             week_commencing_date = None
             if week_commencing:
                 try:
-                    week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                    try:
+                        week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
+                    except ValueError:
+                        week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
                 except ValueError as e:
                     flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
                     return redirect(request.url)
@@ -401,6 +420,10 @@ def soh_edit(id):
             db.session.rollback()
             flash(f"Error updating SOH entry: {str(e)}", "danger")
             return redirect(request.url)
+        
+    soh.week_commencing = soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else ''
+
+    soh.edit_date = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ''
 
     return render_template('soh/edit.html', soh=soh, current_page="soh")
 
@@ -461,10 +484,10 @@ def get_search_sohs():
         if search_week_commencing:
             try:
                 week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-                sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
+                sohs_query = sohs_query.filter((SOH.week_commencing == week_commencing_date) | (SOH.week_commencing.is_(None)))
             except ValueError as e:
                 flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
-                return jsonify({"error": "Invalid date format"}), 400
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
         
         # Apply sorting
         if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
@@ -474,11 +497,13 @@ def get_search_sohs():
                 sohs_query = sohs_query.order_by(asc(getattr(SOH, sort_by)))
 
         sohs = sohs_query.all()
+        print(f"Filtered SOH count: {len(sohs)}")
+        print(f"Sample SOH data: {[{'id': soh.id, 'week_commencing': str(soh.week_commencing), 'fg_code': soh.fg_code} for soh in sohs[:2]]}")
 
         sohs_data = [
             {
                 "id": soh.id,
-                "week_commencing": soh.week_commencing.strftime('%Y-%m-%d') if soh.week_commencing else "",  # Second field
+                "week_commencing": soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else "",  # Second field
                 "fg_code": soh.fg_code or "",
                 "description": soh.description or "",
                 "soh_dispatch_boxes": soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not None else "",
@@ -487,14 +512,14 @@ def get_search_sohs():
                 "soh_packing_units": soh.soh_packing_units if soh.soh_packing_units is not None else "",
                 "soh_total_boxes": soh.soh_total_boxes if soh.soh_total_boxes is not None else "",
                 "soh_total_units": soh.soh_total_units if soh.soh_total_units is not None else "",
-                "edit_date": soh.edit_date.strftime('%Y-%m-%d %H:%M:%S') if soh.edit_date else ""
+                "edit_date": soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ""
             }
             for soh in sohs
         ]
 
         return jsonify(sohs_data)
     except Exception as e:
-        print("Error fetching search SOHs:", e)
+        print("Error fetching search SOHs: {str(e)}")
         return jsonify({"error": "Failed to fetch SOH entries"}), 500
     
     
@@ -520,7 +545,7 @@ def soh_bulk_edit():
         week_commencing_date = None
         if week_commencing:
             try:
-                week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
             except ValueError:
                 return jsonify({"success": False, "error": "Invalid Week Commencing date format"}), 400
 
@@ -591,4 +616,86 @@ def soh_bulk_edit():
     except Exception as e:
         db.session.rollback()
         print(f"Error in bulk edit: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    
+
+@soh_bp.route('/soh_inline_edit', methods=['POST'])
+def soh_inline_edit():
+    from app import db
+    from models.soh import SOH
+    from models.joining import Joining
+
+    try:
+        data = request.get_json()
+        soh_id = data.get('id')
+        if not soh_id:
+            return jsonify({"success": False, "error": "No SOH ID provided"}), 400
+
+        soh = SOH.query.get_or_404(soh_id)
+        field = data.get('field')
+        value = data.get(field)
+
+        if not field:
+            return jsonify({"success": False, "error": "No field provided"}), 400
+
+        # Validate and update the field
+        if field == 'week_commencing':
+            try:
+                if value:
+                    # Try parsing the date in both formats
+                    try:
+                        value = datetime.strptime(value, '%d-%m-%Y').date()
+                    except ValueError:
+                        # If the first format fails, try the second format      
+                        value = datetime.strptime(value, '%Y-%m-%D').date()
+                    else:
+                        value = None
+                soh.week_commencing = value
+            except ValueError:
+                return jsonify({"success": False, "error": "Invalid date format. Use DD-MM-YYY or YYYY-MM-DD."}), 400
+        elif field in ['soh_dispatch_boxes', 'soh_dispatch_units', 'soh_packing_boxes', 'soh_packing_units']:
+            try:
+                value = float(value) if value else 0.0
+                setattr(soh, field, value)
+            except ValueError:
+                return jsonify({"success": False, "error": f"Invalid number for {field}."}), 400
+        else:
+            return jsonify({"success": False, "error": "Invalid field specified."}), 400
+
+        # Recalculate totals
+        fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
+        units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
+
+        soh.soh_total_boxes = (soh.soh_dispatch_boxes or 0.0) + (soh.soh_packing_boxes or 0.0)
+        soh.soh_total_units = (
+            ((soh.soh_dispatch_boxes or 0.0) * units_per_bag) +
+            ((soh.soh_packing_boxes or 0.0) * units_per_bag) +
+            (soh.soh_dispatch_units or 0.0) +
+            (soh.soh_packing_units or 0.0)
+        )
+
+        soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
+
+        # Update Packing entry if necessary
+        if soh.soh_total_boxes > 0 or soh.soh_total_units > 0:
+            avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+            success, message = update_packing_entry(
+                fg_code=soh.fg_code,
+                description=soh.description,
+                packing_date=date.today(),
+                special_order_kg=0.0,
+                avg_weight_per_unit=avg_weight_per_unit,
+                soh_requirement_units_week=0,
+                weekly_average=0.0,
+                week_commencing=soh.week_commencing
+            )
+            if not success:
+                print(f"Failed to update Packing for {soh.fg_code}: {message}")
+
+        db.session.commit()
+        return jsonify({"success": True})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in inline edit: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500

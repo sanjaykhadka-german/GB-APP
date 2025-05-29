@@ -1,7 +1,7 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-2"> <!-- Change mt-4 to mt-2 or remove mt-4 -->
     <!-- SOH Search Section -->
     <section id="search">
         <h2>SOH Search</h2>
@@ -47,7 +47,7 @@
         {% endwith %}
 
         <div id="resultSection" class="table-container">
-            <table class="table table-bordered" id="sohListTable">
+            <table class="table table-bordered editabletable" id="sohListTable">
                 <thead>
                     <tr>
                         <th><input type="checkbox" id="selectAll"></th>
@@ -67,19 +67,19 @@
                 </thead>
                 <tbody>
                     {% for soh in sohs %}
-                    <tr>
+                    <tr data-id="{{ soh.id }}">
                         <td><input type="checkbox" class="soh-checkbox" value="{{ soh.id }}"></td>
                         <td>{{ soh.id or '' }}</td>
-                        <td>{{ soh.week_commencing | format_date if soh.week_commencing else '' }}</td>
+                        <td contenteditable="true" class="editable" data-field="week_commencing">{{ soh.week_commencing}}</td>
                         <td>{{ soh.fg_code or '' }}</td>
                         <td>{{ soh.description or '' }}</td>
-                        <td>{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
-                        <td>{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
-                        <td>{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
-                        <td>{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
+                        <td contenteditable="true" class="editable" data-field="soh_dispatch_boxes">{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
+                        <td contenteditable="true" class="editable" data-field="soh_dispatch_units">{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
+                        <td contenteditable="true" class="editable" data-field="soh_packing_boxes">{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
+                        <td contenteditable="true" class="editable" data-field="soh_packing_units">{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
                         <td>{{ soh.soh_total_boxes if soh.soh_total_boxes is not none else '' }}</td>
                         <td>{{ soh.soh_total_units if soh.soh_total_units is not none else '' }}</td>
-                        <td>{{ soh.edit_date.strftime('%Y-%m-%d %H:%M:%S') if soh.edit_date else '' }}</td>
+                        <td>{{ soh.edit_date }}</td>
                         <td>
                             <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
@@ -130,13 +130,9 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">Save Changes</button>
-
                 </div>
-
             </div>
-
         </div>
-
     </div>
 </div>
 
@@ -173,122 +169,228 @@
         opacity: 1;
     }
 
+    .editable {
+        cursor: text;
+        background-color: #f9f9f9;
+    }
+    .editable:focus {
+        background-color: #fff;
+        outline: 1px solid #007bff;
+    }
+    #list {
+        margin-top: 0;
+    }
+    
+    #list h2 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    
+
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-    $(document).ready(function() {
-        // Track the current sort order
-        let sortBy = '{{ sort_by | default("id") }}';
-        let sortDirection = '{{ sort_direction | default("asc") }}';
+$(document).ready(function() {
+    // Existing initialization code
+    let sortBy = '{{ sort_by | default("id") }}';
+    let sortDirection = '{{ sort_direction | default("asc") }}';
 
-        // Initialize sort indicators
-        if (sortBy) {
-            $(`.sortable[data-column="${sortBy}"]`).addClass(`sort-${sortDirection}`);
-        }
-
-
-        // Autocomplete for FG Code
-        $("#search_fg_code").keyup(function() {
-            var fgCode = $(this).val().trim();
-            if (fgCode.length > 0) {
-                $.ajax({
-                    url: "{{ url_for('soh.autocomplete_soh') }}",
-                    type: "GET",
-                    data: { query: fgCode },
-                    success: function(response) {
-                        var suggestionsHtml = "<ul>";
-                        response.forEach(function(soh) {
-                            suggestionsHtml += `<li data-fg-code="${soh.fg_code}" data-description="${soh.description}">${soh.fg_code} - ${soh.description}</li>`;
-                        });
-                        suggestionsHtml += "</ul>";
-                        $("#fg_code_suggestions").html(suggestionsHtml);
-                    },
-                    error: function() {
-                        $("#fg_code_suggestions").empty();
-                    }
-                });
-            } else {
-                $("#fg_code_suggestions").empty();
-            }
-        });
-
-        // Handle suggestion click
-        $(document).on("click", "#fg_code_suggestions li", function() {
-            $("#search_fg_code").val($(this).data("fg-code"));
-            $("#search_description").val($(this).data("description"));
-            $("#fg_code_suggestions").empty();
-            fetchSOHs(); // Trigger search after selecting suggestion
-        });
-
-        // Hide suggestions when clicking outside
-        $(document).click(function(event) {
-            if (!$(event.target).closest("#search_fg_code, #fg_code_suggestions").length) {
-                $("#fg_code_suggestions").empty();
-            }
-        });
-
-        // Enable/disable Bulk Edit button based on checkbox selection
-
-        $(document).on('change', '.soh-checkbox, #selectAll', function() {
-            var checkedBoxes = $('.soh-checkbox:checked').length;
-            $('#bulkEditButton').prop('disabled', checkedBoxes === 0);
-            if (this.id === 'selectAll') {
-                $('.soh-checkbox').prop('checked', $(this).prop('checked'));
-            }
-
-        });
-
-
-
-        // Clear checkboxes after modal close
-        $('#bulkEditModal').on('hidden.bs.modal', function() {
-            $('#bulkEditForm')[0].reset();
-            $('.soh-checkbox').prop('checked', false);
-            $('#selectAll').prop('checked', false);
-            $('#bulkEditButton').prop('disabled', true);
-        });
-
-        // Handle column sort click
-        $('.sortable').click(function() {
-            var column = $(this).data('column');
-            // Toggle direction if same column, otherwise default to asc
-            if (sortBy === column) {
-                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortBy = column;
-                sortDirection = 'asc';
-            }
-
-            // Update sort indicators
-            $('.sortable').removeClass('sort-asc sort-desc');
-            $(this).addClass(`sort-${sortDirection}`);
-            fetchSOHs();
-        });
-
-    });
-
-    // Function to add a new SOH entry
-    function addSOH(fgCode) {
-        window.location.href = `{{ url_for('soh.soh_create') }}?fg_code=${fgCode}`;
+    if (sortBy) {
+        $(`.sortable[data-column="${sortBy}"]`).addClass(`sort-${sortDirection}`);
     }
 
-    // Fetch SOH list based on search criteria
+    // Autocomplete for FG Code
+    function formatDateToDDMMYYYY(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0'); 
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+    }
+
+
+    $("#search_fg_code").keyup(function() {
+        var fgCode = $(this).val().trim();
+        if (fgCode.length > 0) {
+            $.ajax({
+                url: "{{ url_for('soh.autocomplete_soh') }}",
+                type: "GET",
+                data: { query: fgCode },
+                success: function(response) {
+                    var suggestionsHtml = "<ul>";
+                    response.forEach(function(soh) {
+                        suggestionsHtml += `<li data-fg-code="${soh.fg_code}" data-description="${soh.description}">${soh.fg_code} - ${soh.description}</li>`;
+                    });
+                    suggestionsHtml += "</ul>";
+                    $("#fg_code_suggestions").html(suggestionsHtml);
+                },
+                error: function() {
+                    $("#fg_code_suggestions").empty();
+                }
+            });
+        } else {
+            $("#fg_code_suggestions").empty();
+        }
+    });
+
+    $(document).on("click", "#fg_code_suggestions li", function() {
+        $("#search_fg_code").val($(this).data("fg-code"));
+        $("#search_description").val($(this).data("description"));
+        $("#fg_code_suggestions").empty();
+        fetchSOHs();
+    });
+
+    $(document).click(function(event) {
+        if (!$(event.target).closest("#search_fg_code, #fg_code_suggestions").length) {
+            $("#fg_code_suggestions").empty();
+        }
+    });
+
+    $(document).on('change', '.soh-checkbox, #selectAll', function() {
+        var checkedBoxes = $('.soh-checkbox:checked').length;
+        $('#bulkEditButton').prop('disabled', checkedBoxes === 0);
+        if (this.id === 'selectAll') {
+            $('.soh-checkbox').prop('checked', $(this).prop('checked'));
+        }
+    });
+
+    $('#bulkEditModal').on('hidden.bs.modal', function() {
+        $('#bulkEditForm')[0].reset();
+        $('.soh-checkbox').prop('checked', false);
+        $('#selectAll').prop('checked', false);
+        $('#bulkEditButton').prop('disabled', true);
+    });
+
+    $('.sortable').click(function() {
+        var column = $(this).data('column');
+        if (sortBy === column) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortBy = column;
+            sortDirection = 'asc';
+        }
+        $('.sortable').removeClass('sort-asc sort-desc');
+        $(this).addClass(`sort-${sortDirection}`);
+        fetchSOHs();
+    });
+
+    // New: Initialize editable table
+    function initEditableTable() {
+        var table = document.getElementById("sohListTable");
+        if (table) {
+            makeTableEditable(table);
+        }
+    }
+
+    function makeTableEditable(table) {
+        $(table).find('td.editable').each(function() {
+            var cell = $(this);
+            var listener = makeEditListener(cell);
+            cell.on('input', listener);
+            // Ensure only valid input for numeric fields
+            if (cell.data('field').includes('soh_')) {
+                cell.on('keypress', function(e) {
+                    var charCode = e.which ? e.which : e.keyCode;
+                    // Allow numbers, decimal point, backspace, and enter
+                    if (charCode != 46 && charCode != 8 && charCode != 13 && (charCode < 48 || charCode > 57)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+        });
+    }
+
+    function makeEditListener(cell) {
+        return function(event) {
+            var text = cell.text().trim();
+            var row = cell.closest('tr');
+            var sohId = row.data('id');
+            var field = cell.data('field');
+
+            // Validate input
+            if (field === 'week_commencing') {
+                // Ensure valid date format (YYYY-MM-DD)
+                if (text && !/^\d{2}-\d{2}-\d{4}$/.test(text)) {
+                    alert('Please enter a valid date in DD-MM-YYYY format.');
+                    cell.text(cell.data('original') || '');
+                    return;
+                }
+
+                if (text) {
+                    const parts = text.split('-');
+                    text = `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert to YYYY-MM-DD for backend
+                }
+            } else if (field.includes('soh_')) {
+                // Ensure numeric fields are valid numbers
+                if (text && isNaN(parseFloat(text))) {
+                    alert('Please enter a valid number.');
+                    cell.text(cell.data('original') || '');
+                    return;
+                }
+            }
+
+            // Store original value for potential rollback
+            if (!cell.data('original')) {
+                cell.data('original', cell.text().trim());
+            }
+
+            // Prepare data for update
+            var updateData = {
+                id: sohId,
+                [field]: text
+            };
+
+            // Send AJAX request to update the single field
+            $.ajax({
+                url: "{{ url_for('soh.soh_inline_edit') }}", // New endpoint
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(updateData),
+                success: function(response) {
+                    if (response.success) {
+                        cell.data('original', cell.text().trim()); // Update original value on success
+                        fetchSOHs(); // Refresh table to reflect recalculated totals
+                        alert('SOH entry updated successfully!');
+                    } else {
+                        alert('Error updating SOH entry: ' + response.error);
+                        cell.text(cell.data('original')); // Revert on error
+                    }
+                },
+                error: function() {
+                    alert('Error updating SOH entry.');
+                    cell.text(cell.data('original')); // Revert on error
+                }
+            });
+        };
+    }
+
+    // Modified fetchSOHs to reapply editable listeners after refresh
     function fetchSOHs() {
         var fgCode = $("#search_fg_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
+
+        // validate week_commencing date format
+        if (weekCommencing && !/^\d{4}-\d{2}-\d{2}$/.test(weekCommencing)) {
+            alert('Please enter a valid date in YYYY-MM-DD format.');
+            return;
+        }
+
         var sortBy = $('.sortable.sort-asc, .sortable.sort-desc').data('column') || 'id';
         var sortDirection = $('.sortable.sort-asc').length > 0 ? 'asc' : $('.sortable.sort-desc').length > 0 ? 'desc' : '{{ sort_direction | default("asc") }}';
 
         $.ajax({
             url: "{{ url_for('soh.get_search_sohs') }}",
             type: "GET",
-            data: { fg_code: fgCode, description: description,
-                week_commencing : weekCommencing,
+            data: {
+                fg_code: fgCode,
+                description: description,
+                week_commencing: weekCommencing,
                 sort_by: sortBy,
                 sort_direction: sortDirection
-             },
+            },
             success: function(response) {
                 var tableBody = $("#sohListTable tbody");
                 tableBody.empty();
@@ -305,24 +407,22 @@
 
                 if (response.length > 0) {
                     response.forEach(function(soh) {
-                        // Only include rows with a valid id
                         if (soh.id !== null && soh.id !== undefined) {
                             tableBody.append(`
-                                <tr>
+                                <tr data-id="${soh.id}">
                                     <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                     <td>${soh.id || ''}</td>
-                                    <td>${soh.week_commencing ? soh.week_commencing | format_date : ''}</td>
+                                    <td contenteditable="true" class="editable" data-field="week_commencing">${soh.week_commencing}</td>
                                     <td>${soh.fg_code || ''}</td>
                                     <td>${soh.description || ''}</td>
-                                    <td>${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
-                                    <td>${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
-                                    <td>${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
-                                    <td>${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
+                                    <td contenteditable="true" class="editable" data-field="soh_dispatch_boxes">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
+                                    <td contenteditable="true" class="editable" data-field="soh_dispatch_units">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
+                                    <td contenteditable="true" class="editable" data-field="soh_packing_boxes">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
+                                    <td contenteditable="true" class="editable" data-field="soh_packing_units">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
                                     <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
                                     <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
-                                    <td>${soh.edit_date || ''}</td>
+                                    <td>${soh.edit_date}</td>
                                     <td>
-                                        <a href="/soh_edit/${soh.id}" class="btn btn-warning btn-sm">Edit</a>
                                         <form action="/soh_delete/${soh.id}" method="post" style="display:inline-block;">
                                             <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
                                         </form>
@@ -331,6 +431,7 @@
                             `);
                         }
                     });
+                    initEditableTable(); // Reapply editable listeners after table refresh
                 } else {
                     tableBody.append(`
                         <tr>
@@ -358,7 +459,9 @@
         });
     }
 
-// Open Bulk Edit Modal
+    function addSOH(fgCode) {
+        window.location.href = `{{ url_for('soh.soh_create') }}?fg_code=${fgCode}`;
+    }
 
     function openBulkEditModal() {
         if ($('.soh-checkbox:checked').length > 0) {
@@ -366,41 +469,35 @@
         }
     }
 
-
-    // Submit Bulk Edit
-
     function submitBulkEdit() {
         var selectedIds = $('.soh-checkbox:checked').map(function() {
             return $(this).val();
         }).get();
 
+        var week_commencing = $('#bulk_week_commencing').val().trim();
 
         var formData = {
             ids: selectedIds,
-            week_commencing: $('#bulk_week_commencing').val().trim(),
+            week_commencing: weekCommencing,
             soh_dispatch_boxes: $('#bulk_soh_dispatch_boxes').val().trim(),
             soh_dispatch_units: $('#bulk_soh_dispatch_units').val().trim(),
             soh_packing_boxes: $('#bulk_soh_packing_boxes').val().trim(),
             soh_packing_units: $('#bulk_soh_packing_units').val().trim()
         };
 
-
         $.ajax({
             url: "{{ url_for('soh.soh_bulk_edit') }}",
             type: "POST",
             contentType: "application/json",
             data: JSON.stringify(formData),
-
             success: function(response) {
                 if (response.success) {
                     $('#bulkEditModal').modal('hide');
-                    fetchSOHs(); // Refresh the table
+                    fetchSOHs();
                     alert('SOH entries updated successfully!');
-
                 } else {
                     alert('Error updating SOH entries: ' + response.error);
                 }
-
             },
             error: function() {
                 alert('Error updating SOH entries.');
@@ -408,5 +505,8 @@
         });
     }
 
+    // Initialize editable table on page load
+    initEditableTable();
+});
 </script>
 {% endblock %}

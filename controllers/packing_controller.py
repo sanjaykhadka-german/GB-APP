@@ -330,7 +330,8 @@ def packing_edit(id):
             if joining:
                 filling = Filling.query.filter_by(
                     filling_date=packing.packing_date,
-                    fill_code=joining.filling_code
+                    fill_code=joining.filling_code,
+                    week_commencing=week_commencing 
                 ).first()
 
                 if filling:
@@ -389,6 +390,10 @@ def packing_edit(id):
     ).all()
     logger.debug(f"Related fillings: {len(related_fillings)} entries for week {packing.week_commencing} and prefix {recipe_code_prefix}")
 
+    # Calculate total kilo per size for related fillings
+    total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in related_fillings)
+    logger.debug(f"Total kilo per size: {total_kilo_per_size} for week {packing.week_commencing} and prefix {recipe_code_prefix}")
+
     # Fetch related productions for the same week and recipe family
     related_productions = Production.query.join(Joining, Production.production_code == Joining.production).filter(
         Production.week_commencing == packing.week_commencing,
@@ -396,7 +401,9 @@ def packing_edit(id):
     ).all()
     logger.debug(f"Related productions: {len(related_productions)} entries for week {packing.week_commencing} and prefix {recipe_code_prefix}")
 
-    total_production_kg = sum(production.total_kg for production in related_productions if production.total_kg is not None)
+    # total_production_kg = sum(production.total_kg for production in related_productions if production.total_kg is not None)
+    total_production_kg = sum(production.total_kg or 0 for production in related_productions)
+
     logger.debug(f"Total production KG: {total_production_kg}")
 
     return render_template('packing/edit.html',
@@ -404,6 +411,7 @@ def packing_edit(id):
                          products=products,
                          related_packings=related_packings,
                          related_fillings=related_fillings,
+                         total_kilo_per_size=total_kilo_per_size,
                          related_productions=related_productions,
                          total_production_kg=total_production_kg,
                          current_page="packing")
