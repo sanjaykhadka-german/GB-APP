@@ -33,6 +33,7 @@ def soh_upload():
         
         file = request.files['file']
         sheet_name = request.form.get('sheet_name', '').strip() or 'SOH'
+        form_week_commencing = request.form.get('week_commencing', '').strip()
 
         if file.filename == '':
             flash("No file selected!", "danger")
@@ -53,17 +54,13 @@ def soh_upload():
                 df = pd.read_csv(temp_path)
             else:
                 with pd.ExcelFile(temp_path) as excel_file:
-                    print("Available sheets:", excel_file.sheet_names)
+                
                     if sheet_name not in excel_file.sheet_names:
                         flash(f"Sheet '{sheet_name}' not found in the Excel file. Available sheets: {', '.join(excel_file.sheet_names)}", "danger")
                         return render_template('soh/upload.html', current_page="soh")
                     df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
             df.columns = df.columns.str.strip()
-
-            print("DataFrame columns:", df.columns.tolist())
-            print("Full DataFrame content:\n", df.to_string())
-            print("DataFrame sample data:", df.head().to_dict())
 
             required_columns = ['Week Commencing', 'FG Code', 'Description', 'Soh_dispatch_Box', 'Soh_dispatch_Unit', 'Soh_packing_Box', 'Soh_packing_Unit', 'Soh_total_Box', 'Soh_total_Unit']
             missing_columns = [col for col in required_columns if col not in df.columns]
@@ -74,6 +71,15 @@ def soh_upload():
             numeric_columns = ['Soh_dispatch_Box', 'Soh_dispatch_Unit', 'Soh_packing_Box', 'Soh_packing_Unit', 'Soh_total_Box', 'Soh_total_Unit']
             for col in numeric_columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
+                # Parse form week_commencing if provided
+            form_week_commencing_date = None
+            if form_week_commencing:
+                try:
+                    form_week_commencing_date = datetime.strptime(form_week_commencing, '%d-%m-%Y').date()
+                except ValueError:
+                    flash(f"Invalid Week Commencing date format: {form_week_commencing}. Expected format: DD-MM-YYYY.", "danger")
+                    return render_template('soh/upload.html', current_page="soh")
 
             for _, row in df.iterrows():
                 print("Processing row:", row.to_dict())
@@ -86,7 +92,7 @@ def soh_upload():
                         if pd.notnull(value) and value != '':
                             return float(value)
                         return 0.0
-                    except (ValueError, TypeError) as e:
+                    except (ValueError, TypeError):
                         print(f"Error converting value '{value}' to float: {e}")
                         return 0.0
 
@@ -97,25 +103,29 @@ def soh_upload():
                 soh_total_boxes = safe_float(row['Soh_total_Box'])
                 soh_total_units = safe_float(row['Soh_total_Unit'])
 
-                # Handle week_commencing
-                week_commencing = None
-                if pd.notnull(row['Week Commencing']):
+                # Use form_week_commencing if provided, else parse from file
+                week_commencing = form_week_commencing_date
+                if not week_commencing and pd.notnull(row['Week Commencing']):
                     try:
                         week_commencing_val = row['Week Commencing']
                         if isinstance(week_commencing_val, pd.Timestamp):
-                            week_commencing_str = week_commencing_val.date()
+                            week_commencing = week_commencing_val.date()
                         else:
                             week_commencing_str = str(week_commencing_val).strip()
-                            try:
-                            # Try DD-MM-YYYY format first
-                                week_commencing = datetime.strptime(week_commencing_str, '%d-%m-%Y').date()
-                            except ValueError:
-                                week_commencing = pd.to_datetime(week_commencing_str).date()
+                            # try multiple date formats
+                            for fmt in ['%d-%m-%Y', '%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d']:
+                                try:
+                                    week_commencing = datetime.strptime(week_commencing_str, fmt).date()
+                                    break
+                                except ValueError:
+                                    continue
+                            else:
+                                flash(f"Invalid Week Commencing date format in file: {week_commencing_str}. Expected formats: DD-MM-YYYY, YYYY-MM-DD, DD/MM/YYYY, or YYYY/MM/DD.", "danger")
+                                continue
 
                     except (ValueError, TypeError) as e:
-                        print(f"Error converting Week Commencing '{row['Week Commencing']}' to date: {e}")
+                        flash(f"Error converting Week Commencing '{row['Week Commencing']}' to date: {str(e)}","danager")
 
-                        flash(f"Invalid Week Commencing date format: {row['Week Commencing']}. Expected format: DD-MM-YYYY or YYYY-MM-DD.", "danger")
                         continue
 
                 fg = Joining.query.filter_by(fg_code=fg_code).first()
@@ -131,9 +141,9 @@ def soh_upload():
                     packing_units
                 )
 
-                print(f"FG Code: {fg_code}, Dispatch Boxes: {dispatch_boxes}, Dispatch Units: {dispatch_units}, "
-                      f"Packing Boxes: {packing_boxes}, Packing Units: {packing_units}, "
-                      f"Total Boxes: {soh_total_boxes_calc}, Total Units: {soh_total_units_calc}")
+                # print(f"FG Code: {fg_code}, Dispatch Boxes: {dispatch_boxes}, Dispatch Units: {dispatch_units}, "
+                #       f"Packing Boxes: {packing_boxes}, Packing Units: {packing_units}, "
+                #       f"Total Boxes: {soh_total_boxes_calc}, Total Units: {soh_total_units_calc}")
 
                 with db.session.no_autoflush:
                     soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
@@ -179,7 +189,7 @@ def soh_upload():
                         success, message = update_packing_entry(
                             fg_code=fg_code,
                             description=description,
-                            packing_date=week_commencing, # date.today(), # packng_date is set to today 
+                            packing_date=week_commencing, 
                             special_order_kg=0.0,
                             avg_weight_per_unit=avg_weight_per_unit,
                             soh_requirement_units_week=0,
@@ -187,12 +197,6 @@ def soh_upload():
                             week_commencing=week_commencing
                         )
                         if success:
-                            # update the production entry
-                            # update_production_entry(
-                            #     packing.packing_date, joining.filling_code, joining)
-                            print(f"Updated Packing for {fg_code}: {message}")
-                        else:
-                            print(f"Failed to update Packing for {fg_code}: {message}")
                             flash(message, "warning")
 
             flash("SOH data uploaded and updated successfully!", "success")
@@ -211,7 +215,7 @@ def soh_upload():
                 except PermissionError as e:
                     print(f"Warning: Could not delete temporary file {temp_path}: {e}")
 
-        return redirect(url_for('soh.soh_list'))
+        #return redirect(url_for('soh.soh_list'))
 
     return render_template('soh/upload.html', current_page="soh")
 
@@ -235,7 +239,7 @@ def soh_list():
         if search_week_commencing:
             try:
                 week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-                sohs_query = sohs_query.filter((SOH.week_commencing == week_commencing_date) | (SOH.week_commencing.is_(None)))
+                sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
             except ValueError as e:
                 flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
                 #return redirect(request.url)
@@ -251,10 +255,8 @@ def soh_list():
         sohs = sohs_query.all()
 
         for soh in sohs:
-            if soh.week_commencing:
-                soh.week_commencing = soh.week_commencing.strftime('%d-%m-%Y')
-            if soh.edit_date:
-                soh.edit_date = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S')
+            soh.week_commencing_str = soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else ''
+            soh.edit_date_str = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ''
             
     except Exception as e:
         flash(f"Error fetching SOH list: {str(e)}", "danger")
@@ -368,9 +370,9 @@ def soh_edit(id):
             if week_commencing:
                 try:
                     try:
-                        week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
-                    except ValueError:
                         week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                    except ValueError:
+                        week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
                 except ValueError as e:
                     flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
                     return redirect(request.url)
@@ -387,7 +389,7 @@ def soh_edit(id):
             )
 
             soh.fg_code = fg_code
-            soh.week_commencing = week_commencing_date  # Second column
+            soh.week_commencing = week_commencing_date
             soh.description = description
             soh.soh_dispatch_boxes = soh_dispatch_boxes
             soh.soh_dispatch_units = soh_dispatch_units
@@ -420,10 +422,9 @@ def soh_edit(id):
             db.session.rollback()
             flash(f"Error updating SOH entry: {str(e)}", "danger")
             return redirect(request.url)
-        
-    soh.week_commencing = soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else ''
 
-    soh.edit_date = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ''
+    # Format edit_date for display, keep week_commencing as datetime.date
+    soh.edit_date_str = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ''
 
     return render_template('soh/edit.html', soh=soh, current_page="soh")
 

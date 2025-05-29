@@ -6,6 +6,7 @@
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
             <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ soh.week_commencing | format_date if soh.week_commencing else '' }}">
+            
         </div>
         <div class="form-group">
             <label for="fg_code">FG Code</label>
@@ -32,7 +33,8 @@
             <input type="number" step="0.01" class="form-control" id="soh_packing_units" name="soh_packing_units" value="{{ soh.soh_packing_units }}">
         </div>
         <div class="form-group">
-            <label for="date_time">Edit Date</label>
+            <label for="edit_date">Edit Date</label>
+            <input type="text" class="form-control" id="edit_date" name="edit_date" value="{{ soh.edit_date_str }}" readonly>
         </div>
         <button type="submit" class="btn btn-primary">Update SOH</button>
         <a href="{{ url_for('soh.soh_list') }}" class="btn btn-secondary">Cancel</a>

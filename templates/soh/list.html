@@ -1,7 +1,7 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-2"> <!-- Change mt-4 to mt-2 or remove mt-4 -->
+<div class="container mt-2"> 
     <!-- SOH Search Section -->
     <section id="search">
         <h2>SOH Search</h2>
@@ -47,21 +47,21 @@
         {% endwith %}
 
         <div id="resultSection" class="table-container">
-            <table class="table table-bordered editabletable" id="sohListTable">
+            <table class="table table-bordered" id="sohListTable">
                 <thead>
                     <tr>
                         <th><input type="checkbox" id="selectAll"></th>
                         <th>ID</th>
-                        <th class="sortable" data-column="week_commencing">Week Commencing <span class="sort-icon"> </span> </th>
-                        <th class="sortable" data-column="fg_code">FG Code <span class="sort-icon"> </span> </th>
-                        <th class="sortable" data-column="description">Description <span class="sort-icon"> </span> </th>
+                        <th class="sortable" data-column="week_commencing">Week Commencing <span class="sort-icon"></span></th>
+                        <th class="sortable" data-column="fg_code">FG Code <span class="sort-icon"></span></th>
+                        <th class="sortable" data-column="description">Description <span class="sort-icon"></span></th>
                         <th>Dispatch Boxes</th>
                         <th>Dispatch Units</th>
                         <th>Packing Boxes</th>
                         <th>Packing Units</th>
                         <th>Total Boxes</th>
                         <th>Total Units</th>
-                        <th class="sortable" data-column="edit_date">Edit Date <span class="sort-icon"> </span> </th>
+                        <th class="sortable" data-column="edit_date">Edit Date <span class="sort-icon"></span></th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -70,16 +70,16 @@
                     <tr data-id="{{ soh.id }}">
                         <td><input type="checkbox" class="soh-checkbox" value="{{ soh.id }}"></td>
                         <td>{{ soh.id or '' }}</td>
-                        <td contenteditable="true" class="editable" data-field="week_commencing">{{ soh.week_commencing}}</td>
+                        <td class="editable date-column" data-field="week_commencing" data-original="{{ soh.week_commencing_str }}">{{ soh.week_commencing_str }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
                         <td>{{ soh.description or '' }}</td>
-                        <td contenteditable="true" class="editable" data-field="soh_dispatch_boxes">{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
-                        <td contenteditable="true" class="editable" data-field="soh_dispatch_units">{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
-                        <td contenteditable="true" class="editable" data-field="soh_packing_boxes">{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
-                        <td contenteditable="true" class="editable" data-field="soh_packing_units">{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
+                        <td class="editable" data-field="soh_dispatch_boxes" data-original="{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}">{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
+                        <td class="editable" data-field="soh_dispatch_units" data-original="{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}">{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
+                        <td class="editable" data-field="soh_packing_boxes" data-original="{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}">{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
+                        <td class="editable" data-field="soh_packing_units" data-original="{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}">{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
                         <td>{{ soh.soh_total_boxes if soh.soh_total_boxes is not none else '' }}</td>
                         <td>{{ soh.soh_total_units if soh.soh_total_units is not none else '' }}</td>
-                        <td>{{ soh.edit_date }}</td>
+                        <td>{{ soh.edit_date_str }}</td>
                         <td>
                             <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
@@ -94,7 +94,6 @@
     </section>
 
     <!-- Bulk Edit Modal -->
-
     <div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -104,7 +103,6 @@
                 </div>
                 <div class="modal-body">
                     <form id="bulkEditForm">
-
                         <div class="form-group">
                             <label for="bulk_week_commencing">Week Commencing:</label>
                             <input type="date" class="form-control" id="bulk_week_commencing" name="week_commencing">
@@ -148,7 +146,7 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
-     .sortable {
+    .sortable {
         cursor: pointer;
         position: relative;
     }
@@ -169,24 +167,47 @@
         opacity: 1;
     }
 
+    /* New styles for double-click editing */
     .editable {
-        cursor: text;
-        background-color: #f9f9f9;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
     }
-    .editable:focus {
-        background-color: #fff;
-        outline: 1px solid #007bff;
+
+    .editable:hover {
+        background-color: #e9ecef; /* Bootstrap bg-light */
     }
+
+    .editing {
+        background-color: #e7f3ff; /* Light blue for editing state */
+    }
+
+    td input[type="text"],
+    td input[type="date"],
+    td input[type="number"] {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ced4da; /* Bootstrap border color */
+        border-radius: 0.25rem;
+        box-sizing: border-box;
+        font-size: inherit;
+        font-family: inherit;
+    }
+
+    td input:focus {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+        border-color: #007bff; /* Bootstrap primary */
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25); /* Bootstrap focus ring */
+    }
+
     #list {
         margin-top: 0;
     }
-    
+
     #list h2 {
         margin-top: 10px;
         margin-bottom: 10px;
     }
-    
-
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -205,11 +226,20 @@ $(document).ready(function() {
         if (!dateString) return '';
         const date = new Date(dateString);
         const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0'); 
+        const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
         return `${day}-${month}-${year}`;
     }
 
+    function formatDateToYYYYMMDD(dateString) {
+        if (!dateString) return '';
+        // Handle DD-MM-YYYY format
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert to YYYY-MM-DD
+        }
+        return dateString; // Return as-is if not in expected format
+    }
 
     $("#search_fg_code").keyup(function() {
         var fgCode = $(this).val().trim();
@@ -276,94 +306,123 @@ $(document).ready(function() {
         fetchSOHs();
     });
 
-    // New: Initialize editable table
+    // New: Initialize double-click editable table
     function initEditableTable() {
-        var table = document.getElementById("sohListTable");
-        if (table) {
-            makeTableEditable(table);
-        }
-    }
+        const table = document.getElementById('sohListTable');
+        if (!table) return;
 
-    function makeTableEditable(table) {
-        $(table).find('td.editable').each(function() {
-            var cell = $(this);
-            var listener = makeEditListener(cell);
-            cell.on('input', listener);
-            // Ensure only valid input for numeric fields
-            if (cell.data('field').includes('soh_')) {
-                cell.on('keypress', function(e) {
-                    var charCode = e.which ? e.which : e.keyCode;
-                    // Allow numbers, decimal point, backspace, and enter
-                    if (charCode != 46 && charCode != 8 && charCode != 13 && (charCode < 48 || charCode > 57)) {
-                        e.preventDefault();
+        // Use event delegation on tbody for double-click
+        $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
+            const cell = $(this);
+            // Prevent editing if already editing
+            if (cell.find('input').length) return;
+
+            const originalText = cell.text().trim();
+            const isDateColumn = cell.hasClass('date-column');
+            const field = cell.data('field');
+
+            cell.empty().addClass('editing');
+
+            const input = $('<input>').css({
+                width: '100%',
+                padding: '0.5rem',
+                border: '1px solid #ced4da',
+                borderRadius: '0.25rem',
+                boxSizing: 'border-box',
+                fontSize: 'inherit',
+                fontFamily: 'inherit'
+            });
+
+            if (isDateColumn) {
+                input.attr('type', 'date');
+                // Convert DD-MM-YYYY to YYYY-MM-DD for input
+                if (originalText) {
+                    const parts = originalText.split('-');
+                    if (parts.length === 3) {
+                        input.val(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    }
+                }
+            } else {
+                input.attr('type', 'number').attr('step', 'any');
+                input.val(originalText);
+            }
+
+            cell.append(input);
+            input.focus();
+            if (!isDateColumn) {
+                input.select();
+            }
+
+            // Save changes
+            function saveChanges() {
+                let newValue = input.val().trim();
+                if (isDateColumn && newValue) {
+                    // Convert YYYY-MM-DD back to DD-MM-YYYY for display
+                    const parts = newValue.split('-');
+                    if (parts.length === 3) {
+                        newValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    }
+                }
+                cell.text(newValue).removeClass('editing');
+
+                // Validate input
+                if (isDateColumn && newValue && !/^\d{2}-\d{2}-\d{4}$/.test(newValue)) {
+                    alert('Please enter a valid date in DD-MM-YYYY format.');
+                    cell.text(originalText);
+                    return;
+                } else if (!isDateColumn && newValue && isNaN(parseFloat(newValue))) {
+                    alert('Please enter a valid number.');
+                    cell.text(originalText);
+                    return;
+                }
+
+                // Prepare data for update
+                const sohId = cell.closest('tr').data('id');
+                const updateData = {
+                    id: sohId,
+                    [field]: isDateColumn ? formatDateToYYYYMMDD(newValue) : newValue
+                };
+
+                $.ajax({
+                    url: "{{ url_for('soh.soh_inline_edit') }}",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(updateData),
+                    success: function(response) {
+                        if (response.success) {
+                            cell.data('original', newValue);
+                            fetchSOHs(); // Refresh table to update totals
+                            alert('SOH entry updated successfully!');
+                        } else {
+                            alert('Error updating SOH entry: ' + response.error);
+                            cell.text(originalText);
+                        }
+                    },
+                    error: function() {
+                        alert('Error updating SOH entry.');
+                        cell.text(originalText);
                     }
                 });
             }
-        });
-    }
 
-    function makeEditListener(cell) {
-        return function(event) {
-            var text = cell.text().trim();
-            var row = cell.closest('tr');
-            var sohId = row.data('id');
-            var field = cell.data('field');
-
-            // Validate input
-            if (field === 'week_commencing') {
-                // Ensure valid date format (YYYY-MM-DD)
-                if (text && !/^\d{2}-\d{2}-\d{4}$/.test(text)) {
-                    alert('Please enter a valid date in DD-MM-YYYY format.');
-                    cell.text(cell.data('original') || '');
-                    return;
-                }
-
-                if (text) {
-                    const parts = text.split('-');
-                    text = `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert to YYYY-MM-DD for backend
-                }
-            } else if (field.includes('soh_')) {
-                // Ensure numeric fields are valid numbers
-                if (text && isNaN(parseFloat(text))) {
-                    alert('Please enter a valid number.');
-                    cell.text(cell.data('original') || '');
-                    return;
-                }
+            // Revert changes
+            function revertChanges() {
+                cell.text(originalText).removeClass('editing');
             }
 
-            // Store original value for potential rollback
-            if (!cell.data('original')) {
-                cell.data('original', cell.text().trim());
-            }
+            input.on('blur', function() {
+                setTimeout(saveChanges, 100);
+            });
 
-            // Prepare data for update
-            var updateData = {
-                id: sohId,
-                [field]: text
-            };
-
-            // Send AJAX request to update the single field
-            $.ajax({
-                url: "{{ url_for('soh.soh_inline_edit') }}", // New endpoint
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify(updateData),
-                success: function(response) {
-                    if (response.success) {
-                        cell.data('original', cell.text().trim()); // Update original value on success
-                        fetchSOHs(); // Refresh table to reflect recalculated totals
-                        alert('SOH entry updated successfully!');
-                    } else {
-                        alert('Error updating SOH entry: ' + response.error);
-                        cell.text(cell.data('original')); // Revert on error
-                    }
-                },
-                error: function() {
-                    alert('Error updating SOH entry.');
-                    cell.text(cell.data('original')); // Revert on error
+            input.on('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveChanges();
+                } else if (e.key === 'Escape') {
+                    revertChanges();
                 }
             });
-        };
+        });
     }
 
     // Modified fetchSOHs to reapply editable listeners after refresh
@@ -372,7 +431,7 @@ $(document).ready(function() {
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
 
-        // validate week_commencing date format
+        // Validate week_commencing date format
         if (weekCommencing && !/^\d{4}-\d{2}-\d{2}$/.test(weekCommencing)) {
             alert('Please enter a valid date in YYYY-MM-DD format.');
             return;
@@ -412,13 +471,13 @@ $(document).ready(function() {
                                 <tr data-id="${soh.id}">
                                     <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                     <td>${soh.id || ''}</td>
-                                    <td contenteditable="true" class="editable" data-field="week_commencing">${soh.week_commencing}</td>
+                                    <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing}</td>
                                     <td>${soh.fg_code || ''}</td>
                                     <td>${soh.description || ''}</td>
-                                    <td contenteditable="true" class="editable" data-field="soh_dispatch_boxes">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
-                                    <td contenteditable="true" class="editable" data-field="soh_dispatch_units">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
-                                    <td contenteditable="true" class="editable" data-field="soh_packing_boxes">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
-                                    <td contenteditable="true" class="editable" data-field="soh_packing_units">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
+                                    <td class="editable" data-field="soh_dispatch_boxes" data-original="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
+                                    <td class="editable" data-field="soh_dispatch_units" data-original="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
+                                    <td class="editable" data-field="soh_packing_boxes" data-original="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
+                                    <td class="editable" data-field="soh_packing_units" data-original="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
                                     <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
                                     <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
                                     <td>${soh.edit_date}</td>
@@ -474,7 +533,14 @@ $(document).ready(function() {
             return $(this).val();
         }).get();
 
-        var week_commencing = $('#bulk_week_commencing').val().trim();
+        var weekCommencing = $('#bulk_week_commencing').val().trim();
+        // Convert YYYY-MM-DD to DD-MM-YYYY for bulk edit
+        if (weekCommencing) {
+            const parts = weekCommencing.split('-');
+            if (parts.length === 3) {
+                weekCommencing = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+        }
 
         var formData = {
             ids: selectedIds,
