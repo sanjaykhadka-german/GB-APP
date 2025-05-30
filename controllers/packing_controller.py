@@ -42,7 +42,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
                 product_code=fg_code,
                 product_description=description,
                 packing_date=packing_date,
-                week_commencing=week_commencing,  # Use provided or calculated week_commencing
+                week_commencing=week_commencing,  
                 special_order_kg=special_order_kg,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=soh_requirement_units_week,
@@ -55,7 +55,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             packing.avg_weight_per_unit = avg_weight_per_unit
             packing.soh_requirement_units_week = soh_requirement_units_week
             packing.weekly_average = weekly_average
-            packing.week_commencing = week_commencing  # Update week_commencing
+            packing.week_commencing = week_commencing  
 
         soh_units = soh.soh_total_units if soh else 0
         avg_weight_per_unit = packing.avg_weight_per_unit if packing.avg_weight_per_unit is not None else 0

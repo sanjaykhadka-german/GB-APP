@@ -141,10 +141,6 @@ def soh_upload():
                     packing_units
                 )
 
-                # print(f"FG Code: {fg_code}, Dispatch Boxes: {dispatch_boxes}, Dispatch Units: {dispatch_units}, "
-                #       f"Packing Boxes: {packing_boxes}, Packing Units: {packing_units}, "
-                #       f"Total Boxes: {soh_total_boxes_calc}, Total Units: {soh_total_units_calc}")
-
                 with db.session.no_autoflush:
                     soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
                     if soh:
@@ -183,7 +179,7 @@ def soh_upload():
                     # Commit SOH entry before updating Packing
                     db.session.commit()
 
-                    # Update Packing if soh_total_boxes or soh_total_units > 0
+                    # Update Packing if soh_total_boxes or soh_total_units >= 0
                     if soh_total_boxes >= 0 or soh_total_units >= 0:
                         avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
                         success, message = update_packing_entry(
@@ -230,6 +226,7 @@ def soh_list():
     sort_by = request.args.get('sort_by', 'id').strip()
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
+    sohs = [] # Initialize sohs as an empty list
     try:
         sohs_query = SOH.query
         if search_fg_code:
@@ -242,9 +239,15 @@ def soh_list():
                 sohs_query = sohs_query.filter(SOH.week_commencing == week_commencing_date)
             except ValueError as e:
                 flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
-                #return redirect(request.url)
-                return jsonify({"error": "Invalid date format"}), 400
-            
+                return render_template('soh/list.html',
+                                       sohs=[], # Pass an empty list on error
+                                       search_fg_code=search_fg_code,
+                                       search_description=search_description,
+                                       search_week_commencing=search_week_commencing,
+                                       sort_by=sort_by,
+                                       sort_direction=sort_direction,
+                                       current_page="soh")
+                
         #Apply sorting
         if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
             if sort_direction == 'desc':
@@ -260,10 +263,10 @@ def soh_list():
             
     except Exception as e:
         flash(f"Error fetching SOH list: {str(e)}", "danger")
-        sohs = []
+        sohs = [] # Ensure it's an empty list if an exception occurs
 
     return render_template('soh/list.html',
-                           sohs=sohs,
+                           sohs=sohs, # This is the crucial part
                            search_fg_code=search_fg_code,
                            search_description=search_description,
                            search_week_commencing=search_week_commencing,
@@ -327,7 +330,7 @@ def soh_create():
                 success, message = update_packing_entry(
                     fg_code=fg_code,
                     description=description,
-                    packing_date=date.today(),
+                    packing_date= week_commencing or date.today(),
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
                     soh_requirement_units_week=0,
@@ -406,7 +409,7 @@ def soh_edit(id):
                 success, message = update_packing_entry(
                     fg_code=fg_code,
                     description=description,
-                    packing_date=date.today(),
+                    packing_date=week_commencing or date.today(),
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
                     soh_requirement_units_week=0,
@@ -601,7 +604,7 @@ def soh_bulk_edit():
                 success, message = update_packing_entry(
                     fg_code=soh.fg_code,
                     description=soh.description,
-                    packing_date=date.today(),
+                    packing_date=week_commencing or date.today(),
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
                     soh_requirement_units_week=0,
@@ -628,6 +631,7 @@ def soh_inline_edit():
 
     try:
         data = request.get_json()
+        print(f"Received data: {data}")  # Debug
         soh_id = data.get('id')
         if not soh_id:
             return jsonify({"success": False, "error": "No SOH ID provided"}), 400
@@ -639,29 +643,35 @@ def soh_inline_edit():
         if not field:
             return jsonify({"success": False, "error": "No field provided"}), 400
 
+        print(f"Processing field: {field}, value: {value}")  # Debug
+
         # Validate and update the field
         if field == 'week_commencing':
             try:
                 if value:
-                    # Try parsing the date in both formats
+                    # Try parsing DD-MM-YYYY first, then YYYY-MM-DD
                     try:
                         value = datetime.strptime(value, '%d-%m-%Y').date()
                     except ValueError:
-                        # If the first format fails, try the second format      
-                        value = datetime.strptime(value, '%Y-%m-%D').date()
-                    else:
-                        value = None
+                        try:
+                            value = datetime.strptime(value, '%Y-%m-%d').date()
+                        except ValueError:
+                            return jsonify({"success": False, "error": "Invalid date format. Use DD-MM-YYYY or YYYY-MM-DD."}), 400
+                else:
+                    value = None
                 soh.week_commencing = value
-            except ValueError:
-                return jsonify({"success": False, "error": "Invalid date format. Use DD-MM-YYY or YYYY-MM-DD."}), 400
+            except Exception as e:
+                print(f"Date parsing error: {str(e)}")  # Debug
+                return jsonify({"success": False, "error": f"Invalid date format: {str(e)}. Use DD-MM-YYYY or YYYY-MM-DD."}), 400
         elif field in ['soh_dispatch_boxes', 'soh_dispatch_units', 'soh_packing_boxes', 'soh_packing_units']:
             try:
                 value = float(value) if value else 0.0
                 setattr(soh, field, value)
-            except ValueError:
-                return jsonify({"success": False, "error": f"Invalid number for {field}."}), 400
+            except (ValueError, TypeError) as e:
+                print(f"Number conversion error for {field}: {str(e)}")  # Debug
+                return jsonify({"success": False, "error": f"Invalid number for {field}: {str(e)}."}), 400
         else:
-            return jsonify({"success": False, "error": "Invalid field specified."}), 400
+            return jsonify({"success": False, "error": f"Invalid field specified: {field}."}), 400
 
         # Recalculate totals
         fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
@@ -683,7 +693,7 @@ def soh_inline_edit():
             success, message = update_packing_entry(
                 fg_code=soh.fg_code,
                 description=soh.description,
-                packing_date=date.today(),
+                packing_date=soh.week_commencing or date.today(),
                 special_order_kg=0.0,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=0,
@@ -691,12 +701,13 @@ def soh_inline_edit():
                 week_commencing=soh.week_commencing
             )
             if not success:
-                print(f"Failed to update Packing for {soh.fg_code}: {message}")
+                print(f"Failed to update Packing for {soh.fg_code}: {message}")  # Debug
 
         db.session.commit()
+        print(f"SOH updated successfully: {soh.id}")  # Debug
         return jsonify({"success": True})
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error in inline edit: {str(e)}")
+        print(f"Error in inline edit: {str(e)}")  # Debug
         return jsonify({"success": False, "error": str(e)}), 500

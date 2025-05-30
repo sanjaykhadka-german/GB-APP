@@ -84,11 +84,11 @@
                             <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
                                 <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
             </table>
         </div>
     </section>
@@ -224,21 +224,25 @@ $(document).ready(function() {
     // Autocomplete for FG Code
     function formatDateToDDMMYYYY(dateString) {
         if (!dateString) return '';
-        const date = new Date(dateString);
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const year = date.getFullYear();
-        return `${day}-${month}-${year}`;
+        const parts = dateString.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+            // Handle YYYY-MM-DD
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else if (parts.length === 3) {
+            // Handle DD-MM-YYYY
+            return dateString;
+        }
+        return dateString;
     }
 
     function formatDateToYYYYMMDD(dateString) {
         if (!dateString) return '';
-        // Handle DD-MM-YYYY format
         const parts = dateString.split('-');
-        if (parts.length === 3) {
-            return `${parts[2]}-${parts[1]}-${parts[0]}`; // Convert to YYYY-MM-DD
+        if (parts.length === 3 && parts[0].length === 2) {
+            // Handle DD-MM-YYYY
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-        return dateString; // Return as-is if not in expected format
+        return dateString; // Already YYYY-MM-DD
     }
 
     $("#search_fg_code").keyup(function() {
@@ -306,7 +310,7 @@ $(document).ready(function() {
         fetchSOHs();
     });
 
-    // New: Initialize double-click editable table
+    // Initialize double-click editable table
     function initEditableTable() {
         const table = document.getElementById('sohListTable');
         if (!table) return;
@@ -320,6 +324,8 @@ $(document).ready(function() {
             const originalText = cell.text().trim();
             const isDateColumn = cell.hasClass('date-column');
             const field = cell.data('field');
+
+            console.log(`Editing field: ${field}, Original value: ${originalText}`); // Debug
 
             cell.empty().addClass('editing');
 
@@ -338,8 +344,10 @@ $(document).ready(function() {
                 // Convert DD-MM-YYYY to YYYY-MM-DD for input
                 if (originalText) {
                     const parts = originalText.split('-');
-                    if (parts.length === 3) {
+                    if (parts.length === 3 && parts[0].length === 2) {
                         input.val(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                    } else {
+                        input.val(originalText);
                     }
                 }
             } else {
@@ -356,17 +364,22 @@ $(document).ready(function() {
             // Save changes
             function saveChanges() {
                 let newValue = input.val().trim();
+                let displayValue = newValue;
+
                 if (isDateColumn && newValue) {
-                    // Convert YYYY-MM-DD back to DD-MM-YYYY for display
+                    // Convert YYYY-MM-DD to DD-MM-YYYY for display
                     const parts = newValue.split('-');
                     if (parts.length === 3) {
-                        newValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                        displayValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }
                 }
-                cell.text(newValue).removeClass('editing');
+
+                console.log(`Saving field: ${field}, New value: ${newValue}`); // Debug
+
+                cell.text(displayValue).removeClass('editing');
 
                 // Validate input
-                if (isDateColumn && newValue && !/^\d{2}-\d{2}-\d{4}$/.test(newValue)) {
+                if (isDateColumn && newValue && !/^\d{4}-\d{2}-\d{2}$/.test(newValue)) {
                     alert('Please enter a valid date in DD-MM-YYYY format.');
                     cell.text(originalText);
                     return;
@@ -380,8 +393,11 @@ $(document).ready(function() {
                 const sohId = cell.closest('tr').data('id');
                 const updateData = {
                     id: sohId,
-                    [field]: isDateColumn ? formatDateToYYYYMMDD(newValue) : newValue
+                    field: field,
+                    [field]: newValue // Send YYYY-MM-DD for dates
                 };
+
+                console.log('Sending update data:', updateData); // Debug
 
                 $.ajax({
                     url: "{{ url_for('soh.soh_inline_edit') }}",
@@ -389,16 +405,19 @@ $(document).ready(function() {
                     contentType: "application/json",
                     data: JSON.stringify(updateData),
                     success: function(response) {
+                        console.log('Server response:', response); // Debug
                         if (response.success) {
-                            cell.data('original', newValue);
+                            cell.data('original', displayValue);
                             fetchSOHs(); // Refresh table to update totals
-                            alert('SOH entry updated successfully!');
+                            // The `alert` here is often intrusive in inline editing, consider removing it or making it a temporary notification.
+                            // alert('SOH entry updated successfully!'); 
                         } else {
                             alert('Error updating SOH entry: ' + response.error);
                             cell.text(originalText);
                         }
                     },
-                    error: function() {
+                    error: function(xhr) {
+                        console.error('AJAX error:', xhr.responseText); // Debug
                         alert('Error updating SOH entry.');
                         cell.text(originalText);
                     }
@@ -424,6 +443,10 @@ $(document).ready(function() {
             });
         });
     }
+
+    // Define base URLs using Jinja2 once outside the loop
+    const baseEditUrl = "{{ url_for('soh.soh_edit', id=0) }}".replace('/0', ''); // Remove the dummy ID
+    const baseDeleteUrl = "{{ url_for('soh.soh_delete', id=0) }}".replace('/0', ''); // Remove the dummy ID
 
     // Modified fetchSOHs to reapply editable listeners after refresh
     function fetchSOHs() {
@@ -467,11 +490,15 @@ $(document).ready(function() {
                 if (response.length > 0) {
                     response.forEach(function(soh) {
                         if (soh.id !== null && soh.id !== undefined) {
+                            // Construct URLs by appending the ID to the base URL
+                            const editUrl = `${baseEditUrl}/${soh.id}`;
+                            const deleteUrl = `${baseDeleteUrl}/${soh.id}`;
+
                             tableBody.append(`
                                 <tr data-id="${soh.id}">
                                     <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                     <td>${soh.id || ''}</td>
-                                    <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing}</td>
+                                    <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing || ''}</td>
                                     <td>${soh.fg_code || ''}</td>
                                     <td>${soh.description || ''}</td>
                                     <td class="editable" data-field="soh_dispatch_boxes" data-original="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
@@ -482,7 +509,8 @@ $(document).ready(function() {
                                     <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
                                     <td>${soh.edit_date}</td>
                                     <td>
-                                        <form action="/soh_delete/${soh.id}" method="post" style="display:inline-block;">
+                                        <a href="${editUrl}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="${deleteUrl}" method="post" style="display:inline-block;">
                                             <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
                                         </form>
                                     </td>
