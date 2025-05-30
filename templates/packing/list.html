@@ -44,12 +44,13 @@
                 <label><input type="checkbox" checked data-col-index="12" onchange="toggleColumn(12)"> SOH Req Units/Week</label>
                 <label><input type="checkbox" data-col-index="13" onchange="toggleColumn(13)"> SOH KG</label>
                 <label><input type="checkbox" data-col-index="14" onchange="toggleColumn(14)"> SOH Units</label>
-                <label><input type="checkbox" data-col-index="15" onchange="toggleColumn(15)"> Avg Weight/Unit (Calc)</label>
+                <label><input type="checkbox" checked data-col-index="15" onchange="toggleColumn(15)"> Machinery</label>
             </div>
             <div class="toggle-row">
                 <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Total Stock KG</label>
                 <label><input type="checkbox" data-col-index="17" onchange="toggleColumn(17)"> Total Stock Units</label>
                 <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Weekly Average</label>
+                <label><input type="checkbox" checked data-col-index="19" onchange="toggleColumn(19)"> Priority</label>
             </div>
             <div class="toggle-actions">
                 <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
@@ -78,38 +79,39 @@
 
         <div id="resultSection" class="table-container">
             <table class="table table-bordered editabletable" id="packingListTable">
-            <thead>
-                <tr>
-                    <th data-col-index="1"><input type="checkbox" id="selectAll"></th>
-                    <th data-column="week_commencing" data-col-index="2">Week Commencing <span class="sort-arrow"></span></th>
-                    <th data-column="packing_date" data-col-index="3">Packing Date <span class="sort-arrow"></span></th>
-                    <th data-column="product_code" data-col-index="4">Product Code <span class="sort-arrow"></span></th>
-                    <th data-column="product_description" data-col-index="5">Product Description <span class="sort-arrow"></span></th>
-                    <th data-column="special_order_kg" data-col-index="6">Special Order KG <span class="sort-arrow"></span></th>
-                    <th data-column="special_order_unit" data-col-index="7">Special Order Unit <span class="sort-arrow"></span></th>
-                    <th data-column="requirement_kg" data-col-index="8">Requirement KG <span class="sort-arrow"></span></th>
-                    <th data-column="requirement_unit" data-col-index="9">Requirement Unit <span class="sort-arrow"></span></th>
-                    <th data-column="avg_weight_per_unit" data-col-index="10">AVG Weight per Unit <span class="sort-arrow"></span></th>
-                    <th data-col-index="11">SOH Req KG/Week</th>
-                    <th data-column="soh_requirement_units_week" data-col-index="12">SOH Req Units/Week <span class="sort-arrow"></span></th>
-                    <th data-col-index="13">SOH KG</th>
-                    <th data-col-index="14">SOH Units</th>
-                    <th data-column="avg_weight_per_unit_calc" data-col-index="15">Avg Weight/Unit (Calc) <span class="sort-arrow"></span></th>
-                    <th data-col-index="16">Total Stock KG</th>
-                    <th data-col-index="17">Total Stock Units</th>
-                    <th data-column="weekly_average" data-col-index="18">Weekly Average <span class="sort-arrow"></span></th>
-                    <th data-col-index="19">Actions</th>
-                </tr>
-            </thead>
+                <thead>
+                    <tr>
+                        <th data-col-index="1"><input type="checkbox" id="selectAll"></th>
+                        <th data-column="week_commencing" data-col-index="2">Week Commencing <span class="sort-arrow"></span></th>
+                        <th data-column="packing_date" data-col-index="3">Packing Date <span class="sort-arrow"></span></th>
+                        <th data-column="product_code" data-col-index="4">Product Code <span class="sort-arrow"></span></th>
+                        <th data-column="product_description" data-col-index="5">Product Description <span class="sort-arrow"></span></th>
+                        <th data-column="special_order_kg" data-col-index="6">Special Order KG <span class="sort-arrow"></span></th>
+                        <th data-column="special_order_unit" data-col-index="7">Special Order Unit <span class="sort-arrow"></span></th>
+                        <th data-column="requirement_kg" data-col-index="8">Requirement KG <span class="sort-arrow"></span></th>
+                        <th data-column="requirement_unit" data-col-index="9">Requirement Unit <span class="sort-arrow"></span></th>
+                        <th data-column="avg_weight_per_unit" data-col-index="10">AVG Weight per Unit <span class="sort-arrow"></span></th>
+                        <th data-col-index="11">SOH Req KG/Week</th>
+                        <th data-column="soh_requirement_units_week" data-col-index="12">SOH Req Units/Week <span class="sort-arrow"></span></th>
+                        <th data-col-index="13">SOH KG</th>
+                        <th data-col-index="14">SOH Units</th>
+                        <th data-column="machinery" data-col-index="15">Machinery <span class="sort-arrow"></span></th>
+                        <th data-col-index="16">Total Stock KG</th>
+                        <th data-col-index="17">Total Stock Units</th>
+                        <th data-column="weekly_average" data-col-index="18">Weekly Average <span class="sort-arrow"></span></th>
+                        <th data-column="priority" data-col-index="19">Priority <span class="sort-arrow"></span></th>
+                        <th data-col-index="20">Actions</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    <tr><td colspan="19" class="no-results">Loading...</td></tr>
+                    <tr><td colspan="20" class="no-results">Loading...</td></tr>
                 </tbody>
                 <tfoot>
                     <tr>
                         <td colspan="7" style="text-align: right; font-weight: bold;">Total:</td>
                         <td id="total_requirement_kg"></td>
                         <td id="total_requirement_unit"></td>
-                        <td colspan="10"></td>
+                        <td colspan="11"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -130,16 +132,19 @@
                                 <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
                             </div>
                             <div class="mb-3">
-                                <label for="bulk_avg_weight_per_unit" class="form-label">Avg Weight per Unit (KG)</label>
-                                <input type="number" step="0.01" class="form-control" id="bulk_avg_weight_per_unit" name="avg_weight_per_unit">
-                            </div>
-                            <div class="mb-3">
-                                <label for="bulk_soh_requirement_units_week" class="form-label">SOH Requirement Units/Week</label>
-                                <input type="number" class="form-control" id="bulk_soh_requirement_units_week" name="soh_requirement_units_week">
-                            </div>
-                            <div class="mb-3">
                                 <label for="bulk_weekly_average" class="form-label">Weekly Average</label>
                                 <input type="number" step="0.01" class="form-control" id="bulk_weekly_average" name="weekly_average">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_machinery" class="form-label">Machinery</label>
+                                <select class="form-control" id="bulk_machinery" name="machinery">
+                                    <option value="">Select Machinery</option>
+                                    <!-- Machinery options will be populated dynamically via JavaScript -->
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_priority" class="form-label">Priority</label>
+                                <input type="number" class="form-control" id="bulk_priority" name="priority">
                             </div>
                         </form>
                     </div>
@@ -300,8 +305,8 @@
         max-width: 200px; 
     }
     
-    #packingListTable th:nth-child(19),
-    #packingListTable td:nth-child(19) { 
+    #packingListTable th:nth-child(20),
+    #packingListTable td:nth-child(20) { 
         width: 120px; 
         max-width: 120px; 
         text-align: center;
@@ -396,9 +401,13 @@
 <script>
 let sortCriteria = [];
 // Track column visibility (true = visible, false = hidden)
-let columnVisibility = Array(19).fill(true); // Initialize all 19 columns as visible
+let columnVisibility = Array(20).fill(true); // Initialize all 20 columns as visible
+let machineryOptions = []; // Store machinery options for dropdowns
 
 $(document).ready(function() {
+    // Fetch machinery options for dropdowns
+    fetchMachineryOptions();
+
     // Autocomplete for Product Code
     $("#search_fg_code").keyup(function() {
         var fgCode = $(this).val().trim();
@@ -490,6 +499,31 @@ $(document).ready(function() {
     $('<style>.sort-arrow.multi-sort-order::before { content: var(--sort-order); }</style>').appendTo('head');
 });
 
+// Fetch machinery options for dropdowns
+function fetchMachineryOptions() {
+    $.ajax({
+        url: "{{ url_for('packing.get_machinery_options') }}", // Ensure this endpoint exists
+        type: "GET",
+        success: function(response) {
+            machineryOptions = response.data || [];
+            populateMachineryDropdown();
+        },
+        error: function(xhr, status, error) {
+            console.error("Error fetching machinery options:", status, error);
+        }
+    });
+}
+
+// Populate machinery dropdown in bulk edit modal
+function populateMachineryDropdown() {
+    const select = $("#bulk_machinery");
+    select.empty();
+    select.append('<option value="">Select Machinery</option>');
+    machineryOptions.forEach(function(machine) {
+        select.append(`<option value="${machine.id}">${machine.name}</option>`);
+    });
+}
+
 // Fetch packing entries based on search and sorting
 function fetchPackings() {
     let packingDate = $("#search_packing_date").val().trim();
@@ -501,7 +535,7 @@ function fetchPackings() {
 
     console.log("Fetching packings with data:", { packing_date: packingDate, week_commencing: weekCommencing, fg_code: fgCode, description: description, sort_by: sortBy, sort_order: sortOrder });
 
-    $('#packingListTable tbody').html('<tr><td colspan="19" class="no-results">Loading...</td></tr>');
+    $('#packingListTable tbody').html('<tr><td colspan="20" class="no-results">Loading...</td></tr>');
 
     $.ajax({
         url: "{{ url_for('packing.get_search_packings') }}",
@@ -524,7 +558,7 @@ function fetchPackings() {
             let totalRequirementUnit = 0;
 
             if (response.error) {
-                tableBody.append(`<tr><td colspan="19" class="no-results">Error: ${response.error}</td></tr>`);
+                tableBody.append(`<tr><td colspan="20" class="no-results">Error: ${response.error}</td></tr>`);
                 $("#total_requirement_kg").text('');
                 $("#total_requirement_unit").text('');
                 alert('Error fetching packing entries: ' + response.error);
@@ -535,57 +569,62 @@ function fetchPackings() {
 
             if (response.data && response.data.length > 0) {
                 response.data.forEach(function(packing) {
-                totalRequirementKg += parseFloat(packing.requirement_kg) || 0;
-                totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
+                    totalRequirementKg += parseFloat(packing.requirement_kg) || 0;
+                    totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
 
-                // Log the packing.id and generated URL for debugging
-                console.log("Packing ID:", packing.id);
-                const editUrl = "{{ url_for('packing.packing_edit', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '');
-                console.log("Generated Edit URL:", editUrl);
+                    console.log("Packing ID:", packing.id);
+                    const editUrl = "{{ url_for('packing.packing_edit', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '');
 
-                tableBody.append(`
-                    <tr>
-                        <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
-                        <td>${packing.week_commencing || ''}</td>
-                        <td>${packing.packing_date || ''}</td>
-                        <td>${packing.product_code || ''}</td>
-                        <td>${packing.product_description || ''}</td>
-                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
-                        <td>${packing.special_order_unit || ''}</td>
-                        <td>${packing.requirement_kg || ''}</td>
-                        <td>${packing.requirement_unit || ''}</td>
-                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="avg_weight_per_unit">${packing.avg_weight_per_unit || ''}</div></td>
-                        <td>${packing.soh_requirement_kg_week || ''}</td>
-                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="soh_requirement_units_week">${packing.soh_requirement_units_week || ''}</div></td>
-                        <td>${packing.soh_kg || ''}</td>
-                        <td>${packing.soh_units || ''}</td>
-                        <td>${packing.avg_weight_per_unit_calc || ''}</td>
-                        <td>${packing.total_stock_kg || ''}</td>
-                        <td>${packing.total_stock_units || ''}</td>
-                        <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
-                        <td>
-                            <a href="${editUrl}" class="btn btn-sm btn-secondary">Edit</a>
-                            <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
-                        </td>
-                    </tr>
-                `);
-});
+                    // Create machinery dropdown for inline editing
+                    let machineryHtml = `<select data-id="${packing.id}" data-field="machinery" onchange="updateCellSelect(this)">`;
+                    machineryHtml += '<option value="">Select</option>';
+                    machineryOptions.forEach(function(machine) {
+                        machineryHtml += `<option value="${machine.id}" ${packing.machinery == machine.id ? 'selected' : ''}>${machine.name}</option>`;
+                    });
+                    machineryHtml += '</select>';
+
+                    tableBody.append(`
+                        <tr>
+                            <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
+                            <td>${packing.week_commencing || ''}</td>
+                            <td>${packing.packing_date || ''}</td>
+                            <td>${packing.product_code || ''}</td>
+                            <td>${packing.product_description || ''}</td>
+                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
+                            <td>${packing.special_order_unit || ''}</td>
+                            <td>${packing.requirement_kg || ''}</td>
+                            <td>${packing.requirement_unit || ''}</td>
+                            <td>${packing.avg_weight_per_unit || ''}</td>
+                            <td>${packing.soh_requirement_kg_week || ''}</td>
+                            <td>${packing.soh_requirement_units_week || ''}</td>
+                            <td>${packing.soh_kg || ''}</td>
+                            <td>${packing.soh_units || ''}</td>
+                            <td>${machineryHtml}</td>
+                            <td>${packing.total_stock_kg || ''}</td>
+                            <td>${packing.total_stock_units || ''}</td>
+                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
+                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="priority">${packing.priority || ''}</div></td>
+                            <td>
+                                <a href="${editUrl}" class="btn btn-sm btn-secondary">Edit</a>
+                                <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                            </td>
+                        </tr>
+                    `);
+                });
             } else {
-                tableBody.append(`<tr><td colspan="19" class="no-results">No results found.</td></tr>`);
+                tableBody.append(`<tr><td colspan="20" class="no-results">No results found.</td></tr>`);
             }
 
             $("#total_requirement_kg").text(totalRequirementKg.toFixed(2));
             $("#total_requirement_unit").text(totalRequirementUnit);
             initEditableTable();
-            // Reapply column visibility after rendering
             applyColumnVisibility();
         },
         error: function(xhr, status, error) {
             console.error("Fetch packings error:", status, error, xhr.responseText);
-            $("#packingListTable tbody").html(`<tr><td colspan="19" class="no-results">Error loading data: ${xhr.responseText || error}</td></tr>`);
+            $("#packingListTable tbody").html(`<tr><td colspan="20" class="no-results">Error loading data: ${xhr.responseText || error}</td></tr>`);
             $("#total_requirement_kg").text('');
             $("#total_requirement_unit").text('');
-            // Reapply column visibility even on error
             applyColumnVisibility();
         }
     });
@@ -593,7 +632,7 @@ function fetchPackings() {
 
 // Apply column visibility based on the columnVisibility array
 function applyColumnVisibility() {
-    for (let i = 1; i <= 19; i++) {
+    for (let i = 1; i <= 20; i++) {
         if (!columnVisibility[i - 1]) {
             $(`#packingListTable th[data-col-index="${i}"], #packingListTable td:nth-child(${i})`).hide();
         } else {
@@ -667,9 +706,9 @@ function split(str) {
 
 function updateCell(packingId, field, value) {
     if (value === '' || isNaN(value)) {
-        value = 0;
+        value = field === 'priority' ? 0 : (field === 'machinery' ? '' : 0);
     } else {
-        value = parseFloat(value);
+        value = field === 'priority' ? parseInt(value) : parseFloat(value);
     }
 
     $.ajax({
@@ -698,6 +737,15 @@ function updateCell(packingId, field, value) {
     });
 }
 
+// Update cell for select dropdowns (machinery)
+function updateCellSelect(select) {
+    const packingId = select.getAttribute('data-id');
+    const field = select.getAttribute('data-field');
+    const value = select.value;
+
+    updateCell(packingId, field, value);
+}
+
 // Column toggle logic
 function toggleColumn(colIndex) {
     columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
@@ -705,42 +753,36 @@ function toggleColumn(colIndex) {
 }
 
 function showEssentialColumns() {
-    // Define essential columns
-    const essentialColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 19];
-    // Reset visibility array
-    columnVisibility = Array(19).fill(false);
+    const essentialColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 20];
+    columnVisibility = Array(20).fill(false);
     essentialColumns.forEach(idx => {
         columnVisibility[idx - 1] = true;
     });
     applyColumnVisibility();
-    // Sync checkboxes
     $('#column-toggle input[type="checkbox"]').each(function() {
         let idx = parseInt($(this).attr('data-col-index'));
-        $(this).prop('checked', [2, 3, 6, 7, 8, 9].includes(idx));
+        $(this).prop('checked', [2, 3, 6, 7].includes(idx));
     });
 }
 
-function showAllColumns() {
-    columnVisibility = Array(19).fill(true);
-    applyColumnVisibility();
-    // Sync checkboxes
-    $('#column-toggle input[type="checkbox"]').prop('checked', true);
-}
-
 function resetToDefault() {
-    // Default visible columns
-    const defaultVisible = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 18, 19];
-    columnVisibility = Array(19).fill(false);
+    const defaultVisible = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 18, 19, 20];
+    columnVisibility = Array(20).fill(false);
     defaultVisible.forEach(idx => {
         columnVisibility[idx - 1] = true;
     });
     applyColumnVisibility();
-    // Sync checkboxes
     $('#column-toggle input[type="checkbox"]').each(function() {
         let idx = parseInt($(this).attr('data-col-index'));
-        let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 18];
+        let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 15, 18, 19];
         $(this).prop('checked', defaultVisibleCols.includes(idx));
     });
+}
+
+function showAllColumns() {
+    columnVisibility = Array(20).fill(true);
+    applyColumnVisibility();
+    $('#column-toggle input[type="checkbox"]').prop('checked', true);
 }
 
 // Export to Excel
@@ -778,9 +820,9 @@ function submitBulkEdit() {
     let formData = {
         ids: selectedIds,
         special_order_kg: $("#bulk_special_order_kg").val(),
-        avg_weight_per_unit: $("#bulk_avg_weight_per_unit").val(),
-        soh_requirement_units_week: $("#bulk_soh_requirement_units_week").val(),
-        weekly_average: $("#bulk_weekly_average").val()
+        weekly_average: $("#bulk_weekly_average").val(),
+        machinery: $("#bulk_machinery").val(),
+        priority: $("#bulk_priority").val()
     };
 
     $.ajax({
@@ -823,6 +865,34 @@ function updateSortUI() {
                 arrow.css('--sort-order', `'${criterionIndex + 1}'`);
             }
         }
+    });
+}
+
+// Fetch machinery options for dropdowns
+function fetchMachineryOptions() {
+    $.ajax({
+        url: "{{ url_for('packing.get_machinery_options') }}",
+        type: "GET",
+        success: function(response) {
+            machineryOptions = response.data || [];
+            populateMachineryDropdown();
+        },
+        error: function(xhr, status, error) {
+            console.error("Error fetching machinery options:", status, error);
+            machineryOptions = [];
+            populateMachineryDropdown();
+            alert("Failed to load machinery options. Please try again later.");
+        }
+    });
+}
+
+// Populate machinery dropdown in bulk edit modal
+function populateMachineryDropdown() {
+    const select = $("#bulk_machinery");
+    select.empty();
+    select.append('<option value="">Select Machinery</option>');
+    machineryOptions.forEach(function(machine) {
+        select.append(`<option value="${machine.id}">${machine.name}</option>`);
     });
 }
 </script>

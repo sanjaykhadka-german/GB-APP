@@ -89,6 +89,8 @@
                     <th>Avg Weight per Unit (KG)</th>
                     <th>SOH Requirement Units/Week</th>
                     <th>Weekly Average</th>
+                    <th>Machinery</th>
+                    <th>Priority</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -106,9 +108,18 @@
                     <td>{{ packing.special_order_unit }}</td>
                     <td>{{ packing.requirement_kg }}</td>
                     <td>{{ packing.requirement_unit }}</td>
-                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="avg_weight_per_unit">{{ packing.avg_weight_per_unit }}</div></td>
-                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="soh_requirement_units_week">{{ packing.soh_requirement_units_week }}</div></td>
+                    <td>{{ packing.avg_weight_per_unit }}</td>
+                    <td>{{ packing.soh_requirement_units_week }}</td>
                     <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="weekly_average">{{ packing.weekly_average }}</div></td>
+                    <td>
+                        <select data-id="{{ packing.id }}" data-field="machinery" onchange="updateCellSelect(this)">
+                            <option value="">Select</option>
+                            {% for machine in machinery %}
+                                <option value="{{ machine.machineID }}" {% if packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="priority">{{ packing.priority }}</div></td>
                     <td>
                         <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                         <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
@@ -120,7 +131,7 @@
                 {% set total_requirement_unit.value = total_requirement_unit.value + (packing.requirement_unit | default(0, true)) %}
                 {% else %}
                 <tr>
-                    <td colspan="13">No related packing entries found.</td>
+                    <td colspan="15">No related packing entries found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -129,7 +140,7 @@
                     <td colspan="7" class="text-end"><strong>Total:</strong></td>
                     <td>{{ total_requirement_kg.value | round(2) }}</td>
                     <td>{{ total_requirement_unit.value }}</td>
-                    <td colspan="4"></td>
+                    <td colspan="6"></td>
                 </tr>
             </tfoot>
         </table>
@@ -149,16 +160,21 @@
                         <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
                     </div>
                     <div class="mb-3">
-                        <label for="bulk_avg_weight_per_unit" class="form-label">Avg Weight per Unit (KG)</label>
-                        <input type="number" step="0.01" class="form-control" id="bulk_avg_weight_per_unit" name="avg_weight_per_unit">
-                    </div>
-                    <div class="mb-3">
-                        <label for="bulk_soh_requirement_units_week" class="form-label">SOH Requirement Units/Week</label>
-                        <input type="number" class="form-control" id="bulk_soh_requirement_units_week" name="soh_requirement_units_week">
-                    </div>
-                    <div class="mb-3">
                         <label for="bulk_weekly_average" class="form-label">Weekly Average</label>
                         <input type="number" step="0.01" class="form-control" id="bulk_weekly_average" name="weekly_average">
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk_machinery" class="form-label">Machinery</label>
+                        <select class="form-control" id="bulk_machinery" name="machinery">
+                            <option value="">Select Machinery</option>
+                            {% for machine in machinery %}
+                                <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk_priority" class="form-label">Priority</label>
+                        <input type="number" class="form-control" id="bulk_priority" name="priority">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -240,9 +256,9 @@
             const data = {
                 ids: selectedIds,
                 special_order_kg: document.getElementById('bulk_special_order_kg').value,
-                avg_weight_per_unit: document.getElementById('bulk_avg_weight_per_unit').value,
-                soh_requirement_units_week: document.getElementById('bulk_soh_requirement_units_week').value,
-                weekly_average: document.getElementById('bulk_weekly_average').value
+                weekly_average: document.getElementById('bulk_weekly_average').value,
+                machinery: document.getElementById('bulk_machinery').value,
+                priority: document.getElementById('bulk_priority').value
             };
 
             fetch('{{ url_for("packing.bulk_edit") }}', {
@@ -262,7 +278,7 @@
                 }
             })
             .catch(error => {
-                alert('Error: ' + error.message);
+                alert('Error: ' + error);
             });
 
             // Close the modal
@@ -271,76 +287,32 @@
         });
 
         // Initialize editable table
-        initEditableTable();
+        initEditableFields();
 
-        function initEditableTable() {
-            var tables = document.getElementsByClassName("editabletable");
-            for (var i = 0; i < tables.length; i++) {
-                makeTableEditable(tables[i]);
-            }
-        }
+        function initEditableFields() {
+            // Handle contenteditable fields
+            document.querySelectorAll('div[contenteditable]').forEach(div => {
+                div.addEventListener('input', function() {
+                    const packingId = this.getAttribute('data-id');
+                    const field = this.getAttribute('data-field');
+                    const value = this.innerText.trim();
+                    updateCell(packingId, field, value);
+                });
+            });
 
-        function makeTableEditable(table) {
-            var rows = table.rows;
-            for (var r = 0; r < rows.length; r++) {
-                var cols = rows[r].cells;
-                for (var c = 0; c < cols.length; c++) {
-                    var cell = cols[c];
-                    var div = cell.querySelector('div[contenteditable]');
-                    if (div) {
-                        var listener = makeEditListener(table, r, c);
-                        div.addEventListener("input", listener, false);
-                    }
-                }
-            }
-        }
-
-        function makeEditListener(table, row, col) {
-            return function(event) {
-                var cell = getCellElement(table, row, col);
-                var text = cell.innerHTML.replace(/<br>$/, '');
-                var items = split(text);
-                var packingId = cell.getAttribute('data-id');
-                var field = cell.getAttribute('data-field');
-
-                if (items.length === 1) {
-                    updateCell(packingId, field, items[0]);
-                    return;
-                }
-
-                var r = row;
-                var c = col;
-                for (var i = 0; i < items.length && r < table.rows.length; i++) {
-                    var currentCell = getCellElement(table, r, c);
-                    var currentField = currentCell.getAttribute('data-field');
-                    var currentPackingId = currentCell.getAttribute('data-id');
-                    currentCell.innerHTML = items[i];
-                    updateCell(currentPackingId, currentField, items[i]);
-
-                    c++;
-                    if (c === table.rows[r].cells.length) {
-                        r++;
-                        c = 0;
-                    }
-                }
-                cell.focus();
-                window.location.reload();
-            };
-        }
-
-        function getCellElement(table, row, col) {
-            return table.rows[row].cells[col].firstChild;
-        }
-
-        function split(str) {
-            return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
+            // Handle select dropdowns
+            document.querySelectorAll('select[data-id]').forEach(select => {
+                select.addEventListener('change', function() {
+                    updateCellSelect(this);
+                });
+            });
         }
 
         function updateCell(packingId, field, value) {
             if (value === '' || isNaN(value)) {
-                value = 0;
+                value = field === 'priority' ? 0 : 0;
             } else {
-                value = parseFloat(value);
+                value = field === 'priority' ? parseInt(value) : parseFloat(value);
             }
 
             fetch('{{ url_for("packing.update_cell") }}', {
@@ -364,9 +336,17 @@
                 }
             })
             .catch(error => {
-                alert('Error updating cell: ' + error.message);
+                alert('Error updating cell: ' + error);
                 window.location.reload();
             });
+        }
+
+        function updateCellSelect(select) {
+            const packingId = select.getAttribute('data-id');
+            const field = select.getAttribute('data-field');
+            const value = select.value;
+
+            updateCell(packingId, field, value);
         }
     });
     </script>

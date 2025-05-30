@@ -207,6 +207,7 @@ def get_search_joinings():
                 "filling_code": joining.filling_code or "",
                 "filling_description": joining.filling_description or "",
                 "production": joining.production or "",
+                "product_description" : joining.product_description or "",
                 "units_per_bag": joining.units_per_bag if joining.units_per_bag is not None else "",
                 "allergens": [allergen.name for allergen in joining.allergens]
             }
