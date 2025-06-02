@@ -112,12 +112,18 @@
                     <td>{{ packing.soh_requirement_units_week }}</td>
                     <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="weekly_average">{{ packing.weekly_average }}</div></td>
                     <td>
-                        <select data-id="{{ packing.id }}" data-field="machinery" onchange="updateCellSelect(this)">
+                        <select name="machinery" data-id="{{ packing.id }}" data-field="machinery" onchange="updateCellSelect(this)">
                             <option value="">Select</option>
                             {% for machine in machinery %}
-                                <option value="{{ machine.machineID }}" {% if packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
+                                <option value="{{ machine.machineID }}" {% if packing.machinery is not none and packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
                             {% endfor %}
                         </select>
+                        <!-- Debug output -->
+                        <div style="font-size: 0.8em; color: #666; margin-top:5px;">
+                            Current Machinery: {{ machinery_name_map.get(packing.machinery, 'None' if packing.machinery is none else 'Invalid ID (' ~ packing.machinery|string ~ ')')}}
+                        </div>
+                        <!-- <div>Machinery options: {{ machinery_ids | join(', ') }}</div> -->
+                        <!--<div>Available names: {{ machinery_name_map.values() | join(', ') }}</div> -->
                     </td>
                     <td><div contenteditable="true" data-id="{{ packing.id }}" data-field="priority">{{ packing.priority }}</div></td>
                     <td>
@@ -309,11 +315,13 @@
         }
 
         function updateCell(packingId, field, value) {
-            if (value === '' || isNaN(value)) {
-                value = field === 'priority' ? 0 : 0;
-            } else {
-                value = field === 'priority' ? parseInt(value) : parseFloat(value);
+            // Only convert to number for specific fields
+            if (field === 'special_order_kg' || field === 'weekly_average') {
+                value = (value === '' || isNaN(value)) ? 0 : parseFloat(value);
+            } else if (field === 'priority') {
+                value = (value === '' || isNaN(value)) ? 0 : parseInt(value);
             }
+            // For 'machinery', keep the value as-is (string), let the server handle conversion
 
             fetch('{{ url_for("packing.update_cell") }}', {
                 method: 'POST',

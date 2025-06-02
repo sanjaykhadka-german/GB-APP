@@ -314,7 +314,12 @@ def packing_edit(id):
             packing.product_description = request.form['product_description']
             packing.special_order_kg = float(request.form['special_order_kg']) if request.form['special_order_kg'] else 0.0
             packing.weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
-            packing.machinery = int(request.form['machinery']) if request.form['machinery'] else None
+            #packing.machinery = int(request.form.get('machinery')) if request.form.get('machinery') and request.form['machinery'].strip() else None
+            machinery_value = request.form.get('machinery')
+            if machinery_value and machinery_value.strip():
+                packing.machinery = int(machinery_value)
+            else:
+                packing.machinery = None
             packing.priority = int(request.form['priority']) if request.form['priority'] else 0
             week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else None
 
@@ -322,6 +327,13 @@ def packing_edit(id):
                 def get_monday_of_week(dt):
                     return dt - timedelta(days=dt.weekday())
                 week_commencing = get_monday_of_week(packing.packing_date)
+            
+            # Validate machinery
+            if packing.machinery is not None:
+                machinery_exists = Machinery.query.filter_by(machineID=packing.machinery).first()
+                if not machinery_exists:
+                    flash(f'Invalid machinery ID {packing.machinery}. Please select a valid machinery.', 'danger')
+                    return redirect(url_for('packing.packing_edit', id=id))
 
             # Fetch avg_weight_per_unit from Joining
             joining = Joining.query.filter_by(fg_code=packing.product_code).first()
@@ -410,6 +422,14 @@ def packing_edit(id):
     # Fetch machinery, products, and related data
     products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
     machinery = Machinery.query.all()
+    
+    logger.debug(f"Machinery records: {[m.__dict__ for m in machinery]}")
+    logger.debug(f"Packing machinery: {packing.machinery}")
+
+    machinery_ids = [int(machine.machineID) for machine in machinery]
+    machinery_name_map = {str(machine.machineID): machine.machineryName for machine in machinery}
+    
+    
     recipe_code_prefix = packing.product_code.split('.')[0] if '.' in packing.product_code else packing.product_code
 
     related_packings = Packing.query.filter(
@@ -431,6 +451,8 @@ def packing_edit(id):
                          packing=packing,
                          products=products,
                          machinery=machinery,
+                         machinery_ids=machinery_ids,
+                         machinery_name_map=machinery_name_map,
                          related_packings=related_packings,
                          related_fillings=related_fillings,
                          total_kilo_per_size=total_kilo_per_size,
@@ -555,46 +577,99 @@ def get_search_packings():
 
 @packing.route('/bulk_edit', methods=['POST'])
 def bulk_edit():
+    data = request.get_json()
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify({'success': False, 'message': 'No packing entries selected.'})
+
+    special_order_kg = data.get('special_order_kg')
+    weekly_average = data.get('weekly_average')
+    machinery = data.get('machinery')
+    priority = data.get('priority')
+
     try:
-        data = request.get_json()
-        ids = data.get('ids', [])
-
-        if not ids:
-            return jsonify({"success": False, "message": "No packing entries selected"}), 400
-
         for packing_id in ids:
             packing = Packing.query.get(packing_id)
             if not packing:
                 continue
 
-            if 'special_order_kg' in data and data['special_order_kg']:
-                packing.special_order_kg = float(data['special_order_kg'])
-            if 'weekly_average' in data and data['weekly_average']:
-                packing.weekly_average = float(data['weekly_average'])
-            if 'machinery' in data and data['machinery']:
-                packing.machinery = int(data['machinery'])
-            if 'priority' in data and data['priority']:
-                packing.priority = int(data['priority'])
+            if special_order_kg is not None and special_order_kg != '':
+                packing.special_order_kg = float(special_order_kg)
+            if weekly_average is not None and weekly_average != '':
+                packing.weekly_average = float(weekly_average)
+            if machinery is not None and machinery != '':
+                packing.machinery = int(machinery)
+            else:
+                packing.machinery = None
+            if priority is not None and priority != '':
+                packing.priority = int(priority)
 
-            success, message = update_packing_entry(
-                fg_code=packing.product_code,
-                description=packing.product_description,
-                packing_date=packing.packing_date,
-                special_order_kg=packing.special_order_kg,
-                avg_weight_per_unit=None,  # Will be fetched from Joining
-                soh_requirement_units_week=None,  # Will be calculated
-                weekly_average=packing.weekly_average,
-                week_commencing=packing.week_commencing,
-                machinery=packing.machinery
-            )
-            if not success:
-                return jsonify({"success": False, "message": message}), 500
+            # Validate machinery
+            if packing.machinery is not None:
+                machinery_exists = Machinery.query.filter_by(machineID=packing.machinery).first()
+                if not machinery_exists:
+                    return jsonify({'success': False, 'message': f'Invalid machinery ID {packing.machinery} for packing ID {packing_id}.'})
 
-        return jsonify({"success": True, "message": "Packing entries updated successfully"})
+            # Fetch avg_weight_per_unit from Joining
+            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
+            if not joining:
+                continue
+            avg_weight_per_unit = joining.kg_per_unit or 0.0
+            packing.avg_weight_per_unit = avg_weight_per_unit
+
+            # Calculate soh_requirement_units_week
+            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
+            min_level = joining.min_level or 0.0
+            max_level = joining.max_level or 0.0
+            packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+
+            # Recalculate fields
+            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+            packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+            packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+            packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+            packing.soh_units = soh_units
+
+        db.session.commit()
+
+        # Update related filling and production entries
+        for packing_id in ids:
+            packing = Packing.query.get(packing_id)
+            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
+            if joining:
+                filling = Filling.query.filter_by(
+                    filling_date=packing.packing_date,
+                    fill_code=joining.filling_code,
+                    week_commencing=packing.week_commencing
+                ).first()
+
+                if filling:
+                    filling.kilo_per_size = (filling.kilo_per_size or 0.0) + (packing.requirement_kg or 0.0)
+                    if filling.kilo_per_size <= 0:
+                        db.session.delete(filling)
+                else:
+                    if (packing.requirement_kg or 0.0) > 0:
+                        filling = Filling(
+                            filling_date=packing.packing_date,
+                            fill_code=joining.filling_code,
+                            description=joining.filling_description,
+                            kilo_per_size=packing.requirement_kg,
+                            week_commencing=packing.week_commencing
+                        )
+                        db.session.add(filling)
+                db.session.commit()
+
+                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
+
+        return jsonify({'success': True, 'message': 'Packing entries updated successfully!'})
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error in bulk edit packing: {str(e)}")
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)})
 
 
 
@@ -776,44 +851,97 @@ def update_cell():
         field = data.get('field')
         value = data.get('value')
 
-        if not packing_id or not field:
-            return jsonify({"success": False, "message": "Missing packing ID or field"}), 400
+        packing = Packing.query.get_or_404(packing_id)
 
-        packing = Packing.query.get(packing_id)
-        if not packing:
-            return jsonify({"success": False, "message": "Packing entry not found"}), 404
+        original_requirement_kg = packing.requirement_kg or 0.0
 
-        if field == 'special_order_kg':
-            packing.special_order_kg = float(value) if value is not None else 0.0
-        elif field == 'weekly_average':
-            packing.weekly_average = float(value) if value is not None else 0.0
-        elif field == 'machinery':
-            packing.machinery = int(value) if value is not None else None
+        if field == 'special_order_kg' or field == 'weekly_average':
+            value = float(value) if value else 0.0
         elif field == 'priority':
-            packing.priority = int(value) if value is not None else 0
+            value = int(value) if value else 0
+        elif field == 'machinery':
+            # handle both string and integer inputs for machinery
+            if value is not None:
+                # Convert to String first to handle both types
+                value_str = str(value).strip()
+                if value_str:
+                    value
+                else:
+                    value = None
+            else:
+                value = None
+
+        setattr(packing, field, value)
+
+        # Recalculate dependent fields
+        joining = Joining.query.filter_by(fg_code=packing.product_code).first()
+        if not joining:
+            return jsonify({"success": False, "message": f"No Joining record found for {packing.product_code}."}), 400
+
+        avg_weight_per_unit = joining.kg_per_unit or 0.0
+        packing.avg_weight_per_unit = avg_weight_per_unit
+
+        # Fetch SOH data
+        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
+        soh_units = soh.soh_total_units if soh else 0
+
+        min_level = joining.min_level or 0.0
+        max_level = joining.max_level or 0.0
+        packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+
+        # Update calculated fields
+        special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
+        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+        packing.soh_units = soh_units
+
+        # Aggregate delta_kg for related packings
+        recipe_code_prefix = packing.product_code.split('.')[0]
+        related_packings = Packing.query.filter(
+            Packing.week_commencing == packing.week_commencing,
+            Packing.product_code.ilike(f"{recipe_code_prefix}%")
+        ).all()
+
+        total_new_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings)
+        original_total_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings if p.id != packing.id) + original_requirement_kg
+        delta_kg = total_new_requirement_kg - original_total_requirement_kg
+
+        db.session.commit()
+
+        # Update Filling and Production
+        filling = Filling.query.filter_by(
+            filling_date=packing.packing_date,
+            fill_code=joining.filling_code,
+            week_commencing=packing.week_commencing
+        ).first()
+
+        if filling:
+            filling.kilo_per_size = (filling.kilo_per_size or 0.0) + delta_kg
+            if filling.kilo_per_size <= 0:
+                db.session.delete(filling)
         else:
-            return jsonify({"success": False, "message": "Invalid field"}), 400
+            if delta_kg > 0:
+                filling = Filling(
+                    filling_date=packing.packing_date,
+                    fill_code=joining.filling_code,
+                    description=joining.filling_description,
+                    kilo_per_size=delta_kg,
+                    week_commencing=packing.week_commencing
+                )
+                db.session.add(filling)
 
-        success, message = update_packing_entry(
-            fg_code=packing.product_code,
-            description=packing.product_description,
-            packing_date=packing.packing_date,
-            special_order_kg=packing.special_order_kg,
-            avg_weight_per_unit=None,
-            soh_requirement_units_week=None,
-            weekly_average=packing.weekly_average,
-            week_commencing=packing.week_commencing,
-            machinery=packing.machinery
-        )
+        db.session.commit()
 
-        if not success:
-            db.session.rollback()
-            return jsonify({"success": False, "message": message}), 500
+        update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
 
         return jsonify({"success": True, "message": "Cell updated successfully"})
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating cell: {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
     
 @packing.route('/machinery_options', methods=['GET'])
