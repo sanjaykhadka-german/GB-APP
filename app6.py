@@ -1,24 +1,22 @@
-"""Add date_time column to SOH table
+import pandas as pd
+from sqlalchemy import create_engine
 
-Revision ID: <some_revision_id>
-Revises: <previous_revision_id>
-Create Date: <date>
-"""
+# Replace these with your actual database credentials
+DB_USER = "root"
+DB_PASSWORD = "german"
+DB_HOST = "localhost"
+DB_NAME = "gbdb"
 
-from alembic import op
-import sqlalchemy as sa
+# Create the connection string for MySQL (adjust for other databases as needed)
+conn_str = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
 
-# revision identifiers, used by Alembic.
-revision = '<some_revision_id>'
-down_revision = '<previous_revision_id>'
-branch_labels = None
-depends_on = None
+# Create SQLAlchemy engine
+engine = create_engine(conn_str)
 
-def upgrade():
-    # Add the date_time column to the soh table
-    op.add_column('soh', sa.Column('date_time', sa.DateTime(), nullable=True, server_default=sa.func.current_timestamp()))
+# Read the 'joining' table into a pandas DataFrame
+df = pd.read_sql_table('joining', engine)
 
-def downgrade():
-    # Remove the date_time column in case of rollback
-    op.drop_column('soh', 'date_time')
+# Save the DataFrame to an Excel file
+df.to_excel('joining_export.xlsx', index=False, engine='openpyxl')
 
+print("Successfully exported 'joining' table to joining_export.xlsx")

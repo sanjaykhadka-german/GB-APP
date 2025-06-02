@@ -314,7 +314,6 @@ def packing_edit(id):
             packing.product_description = request.form['product_description']
             packing.special_order_kg = float(request.form['special_order_kg']) if request.form['special_order_kg'] else 0.0
             packing.weekly_average = float(request.form['weekly_average']) if request.form['weekly_average'] else 0.0
-            #packing.machinery = int(request.form.get('machinery')) if request.form.get('machinery') and request.form['machinery'].strip() else None
             machinery_value = request.form.get('machinery')
             if machinery_value and machinery_value.strip():
                 packing.machinery = int(machinery_value)
@@ -362,50 +361,57 @@ def packing_edit(id):
             packing.soh_units = soh_units
             packing.week_commencing = week_commencing
 
-            # new_requirement_kg = packing.requirement_kg or 0.0
-            # delta_kg = new_requirement_kg - original_requirement_kg
+            db.session.commit()
 
-             # Aggregate delta_kg for all related packings
+            # Update Filling entries for all fill_codes in the recipe family
             recipe_code_prefix = packing.product_code.split('.')[0]
             related_packings = Packing.query.filter(
                 Packing.week_commencing == packing.week_commencing,
                 Packing.product_code.ilike(f"{recipe_code_prefix}%")
             ).all()
-            total_new_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings)
-            original_total_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings if p.id != id) + original_requirement_kg
-            delta_kg = total_new_requirement_kg - original_total_requirement_kg
 
-            db.session.commit()
+            # Group Packing entries by fill_code
+            fill_code_to_packing = {}
+            for p in related_packings:
+                j = Joining.query.filter_by(fg_code=p.product_code).first()
+                if j:
+                    fill_code = j.filling_code
+                    if fill_code not in fill_code_to_packing:
+                        fill_code_to_packing[fill_code] = []
+                    fill_code_to_packing[fill_code].append(p)
 
-            # Update Filling and Production (unchanged)
-            if joining:
+            # Update or create Filling entries
+            for fill_code, packings in fill_code_to_packing.items():
+                total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
                 filling = Filling.query.filter_by(
                     filling_date=packing.packing_date,
-                    fill_code=joining.filling_code,
+                    fill_code=fill_code,
                     week_commencing=packing.week_commencing
                 ).first()
 
+                j = Joining.query.filter_by(filling_code=fill_code).first()
+                if not j:
+                    logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+                    continue
+
                 if filling:
-                    filling.kilo_per_size = (filling.kilo_per_size or 0.0) + delta_kg
-                    # filling.description = joining.filling_description
-                    # filling.week_commencing = week_commencing
+                    filling.kilo_per_size = total_requirement_kg
                     if filling.kilo_per_size <= 0:
                         db.session.delete(filling)
                 else:
-                    if delta_kg > 0:
+                    if total_requirement_kg > 0:
                         filling = Filling(
                             filling_date=packing.packing_date,
-                            fill_code=joining.filling_code,
-                            description=joining.filling_description,
-                            kilo_per_size=delta_kg,
+                            fill_code=fill_code,
+                            description=j.filling_description,
+                            kilo_per_size=total_requirement_kg,
                             week_commencing=packing.week_commencing
                         )
                         db.session.add(filling)
                 db.session.commit()
 
-                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
-            else:
-                flash(f"No Joining record found for product code {packing.product_code}. Filling entry not updated.", 'warning')
+                # Update Production entry
+                update_production_entry(packing.packing_date, fill_code, j, packing.week_commencing)
 
             flash('Packing entry updated successfully!', 'success')
             return redirect(url_for('packing.packing_list'))
@@ -428,7 +434,6 @@ def packing_edit(id):
 
     machinery_ids = [int(machine.machineID) for machine in machinery]
     machinery_name_map = {str(machine.machineID): machine.machineryName for machine in machinery}
-    
     
     recipe_code_prefix = packing.product_code.split('.')[0] if '.' in packing.product_code else packing.product_code
 
@@ -637,40 +642,61 @@ def bulk_edit():
 
         db.session.commit()
 
-        # Update related filling and production entries
-        for packing_id in ids:
-            packing = Packing.query.get(packing_id)
-            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-            if joining:
+        # Update Filling entries for all fill_codes in the recipe family
+        recipe_code_prefixes = {Packing.query.get(packing_id).product_code.split('.')[0] for packing_id in ids}
+        for prefix in recipe_code_prefixes:
+            related_packings = Packing.query.filter(
+                Packing.week_commencing == Packing.query.get(ids[0]).week_commencing,
+                Packing.product_code.ilike(f"{prefix}%")
+            ).all()
+
+            # Group Packing entries by fill_code
+            fill_code_to_packing = {}
+            for p in related_packings:
+                j = Joining.query.filter_by(fg_code=p.product_code).first()
+                if j:
+                    fill_code = j.filling_code
+                    if fill_code not in fill_code_to_packing:
+                        fill_code_to_packing[fill_code] = []
+                    fill_code_to_packing[fill_code].append(p)
+
+            # Update or create Filling entries
+            for fill_code, packings in fill_code_to_packing.items():
+                total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
                 filling = Filling.query.filter_by(
-                    filling_date=packing.packing_date,
-                    fill_code=joining.filling_code,
-                    week_commencing=packing.week_commencing
+                    filling_date=packings[0].packing_date,
+                    fill_code=fill_code,
+                    week_commencing=packings[0].week_commencing
                 ).first()
 
+                j = Joining.query.filter_by(filling_code=fill_code).first()
+                if not j:
+                    logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+                    continue
+
                 if filling:
-                    filling.kilo_per_size = (filling.kilo_per_size or 0.0) + (packing.requirement_kg or 0.0)
+                    filling.kilo_per_size = total_requirement_kg
                     if filling.kilo_per_size <= 0:
                         db.session.delete(filling)
                 else:
-                    if (packing.requirement_kg or 0.0) > 0:
+                    if total_requirement_kg > 0:
                         filling = Filling(
-                            filling_date=packing.packing_date,
-                            fill_code=joining.filling_code,
-                            description=joining.filling_description,
-                            kilo_per_size=packing.requirement_kg,
-                            week_commencing=packing.week_commencing
+                            filling_date=packings[0].packing_date,
+                            fill_code=fill_code,
+                            description=j.filling_description,
+                            kilo_per_size=total_requirement_kg,
+                            week_commencing=packings[0].week_commencing
                         )
                         db.session.add(filling)
                 db.session.commit()
 
-                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
+                # Update Production entry
+                update_production_entry(packings[0].packing_date, fill_code, j, packings[0].week_commencing)
 
         return jsonify({'success': True, 'message': 'Packing entries updated successfully!'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
-
 
 
 @packing.route('/export', methods=['GET'])
@@ -860,12 +886,10 @@ def update_cell():
         elif field == 'priority':
             value = int(value) if value else 0
         elif field == 'machinery':
-            # handle both string and integer inputs for machinery
             if value is not None:
-                # Convert to String first to handle both types
                 value_str = str(value).strip()
                 if value_str:
-                    value
+                    value = int(value_str)
                 else:
                     value = None
             else:
@@ -900,44 +924,57 @@ def update_cell():
         packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
         packing.soh_units = soh_units
 
-        # Aggregate delta_kg for related packings
+        db.session.commit()
+
+        # Update Filling entries for all fill_codes in the recipe family
         recipe_code_prefix = packing.product_code.split('.')[0]
         related_packings = Packing.query.filter(
             Packing.week_commencing == packing.week_commencing,
             Packing.product_code.ilike(f"{recipe_code_prefix}%")
         ).all()
 
-        total_new_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings)
-        original_total_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings if p.id != packing.id) + original_requirement_kg
-        delta_kg = total_new_requirement_kg - original_total_requirement_kg
+        # Group Packing entries by fill_code
+        fill_code_to_packing = {}
+        for p in related_packings:
+            j = Joining.query.filter_by(fg_code=p.product_code).first()
+            if j:
+                fill_code = j.filling_code
+                if fill_code not in fill_code_to_packing:
+                    fill_code_to_packing[fill_code] = []
+                fill_code_to_packing[fill_code].append(p)
 
-        db.session.commit()
+        # Update or create Filling entries
+        for fill_code, packings in fill_code_to_packing.items():
+            total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
+            filling = Filling.query.filter_by(
+                filling_date=packing.packing_date,
+                fill_code=fill_code,
+                week_commencing=packing.week_commencing
+            ).first()
 
-        # Update Filling and Production
-        filling = Filling.query.filter_by(
-            filling_date=packing.packing_date,
-            fill_code=joining.filling_code,
-            week_commencing=packing.week_commencing
-        ).first()
+            j = Joining.query.filter_by(filling_code=fill_code).first()
+            if not j:
+                logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+                continue
 
-        if filling:
-            filling.kilo_per_size = (filling.kilo_per_size or 0.0) + delta_kg
-            if filling.kilo_per_size <= 0:
-                db.session.delete(filling)
-        else:
-            if delta_kg > 0:
-                filling = Filling(
-                    filling_date=packing.packing_date,
-                    fill_code=joining.filling_code,
-                    description=joining.filling_description,
-                    kilo_per_size=delta_kg,
-                    week_commencing=packing.week_commencing
-                )
-                db.session.add(filling)
+            if filling:
+                filling.kilo_per_size = total_requirement_kg
+                if filling.kilo_per_size <= 0:
+                    db.session.delete(filling)
+            else:
+                if total_requirement_kg > 0:
+                    filling = Filling(
+                        filling_date=packing.packing_date,
+                        fill_code=fill_code,
+                        description=j.filling_description,
+                        kilo_per_size=total_requirement_kg,
+                        week_commencing=packing.week_commencing
+                    )
+                    db.session.add(filling)
+            db.session.commit()
 
-        db.session.commit()
-
-        update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
+            # Update Production entry
+            update_production_entry(packing.packing_date, fill_code, j, packing.week_commencing)
 
         return jsonify({"success": True, "message": "Cell updated successfully"})
     except Exception as e:
