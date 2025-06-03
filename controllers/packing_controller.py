@@ -13,17 +13,16 @@ import pandas as pd
 import io
 import logging
 
-#set up logging
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 packing = Blueprint('packing', __name__, url_prefix='/packing')
 
-
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-                        soh_requirement_units_week=None, weekly_average=None, week_commencing=None, machinery=None):
+                         soh_requirement_units_week=None, weekly_average=None, week_commencing=None, machinery=None):
     try:
-        # convert packing_date to date object if its a string
+        # Convert packing_date to date object if it's a string
         if isinstance(packing_date, str):
             try:
                 packing_date = datetime.strptime(packing_date, '%d-%m-%Y').date()
@@ -48,10 +47,9 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             return False, f"No Joining entry found for fg_code {fg_code}"
         avg_weight_per_unit = avg_weight_per_unit or joining.kg_per_unit or 0.0  # Fetch from Joining
 
-        #use provided weekly_average or fetch from existing Packing entry
+        # Use provided weekly_average or fetch from existing Packing entry
         packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
         weekly_average = weekly_average if weekly_average is not None else (packing.weekly_average if packing else 0.0)
-
 
         # Calculate soh_requirement_units_week based on SOH and Joining
         soh_units = soh.soh_total_units if soh else 0
@@ -60,13 +58,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         soh_requirement_units_week = soh_requirement_units_week if soh_requirement_units_week is not None else (
             int(max_level - soh_units) if soh_units < min_level else 0
         )
-        # if soh_units < min_level:
-        #     soh_requirement_units_week = int(max_level - soh_units)
-        # else:
-        #     soh_requirement_units_week = 0
 
-        #packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
-        
         if not packing:
             packing = Packing(
                 product_code=fg_code,
@@ -102,7 +94,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
         db.session.commit()
 
-        # Update Filling and Production entries (unchanged)
+        # Update Filling and Production entries
         joining = Joining.query.filter_by(fg_code=fg_code).first()
         if joining:
             filling = Filling.query.filter_by(
@@ -272,7 +264,7 @@ def packing_create():
             db.session.add(new_packing)
             db.session.commit()
 
-            # Update Filling and Production (unchanged)
+            # Update Filling and Production
             if joining:
                 existing_filling = Filling.query.filter_by(
                     filling_date=packing_date,
@@ -322,7 +314,9 @@ def packing_edit(id):
     if request.method == 'POST':
         try:
             original_requirement_kg = packing.requirement_kg or 0.0
+            original_packing_date = packing.packing_date  # Store the original packing_date
 
+            # Update packing fields
             packing.packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
             packing.product_code = request.form['product_code']
             packing.product_description = request.form['product_description']
@@ -377,7 +371,7 @@ def packing_edit(id):
 
             db.session.commit()
 
-            # Update Filling entries for all fill_codes in the recipe family
+            # Update Filling and Production entries for all fill_codes in the recipe family
             recipe_code_prefix = packing.product_code.split('.')[0]
             related_packings = Packing.query.filter(
                 Packing.week_commencing == packing.week_commencing,
@@ -394,25 +388,30 @@ def packing_edit(id):
                         fill_code_to_packing[fill_code] = []
                     fill_code_to_packing[fill_code].append(p)
 
-            # Update or create Filling entries
+            # Update or consolidate Filling entries
             for fill_code, packings in fill_code_to_packing.items():
                 total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
-                filling = Filling.query.filter_by(
-                    filling_date=packing.packing_date,
-                    fill_code=fill_code,
-                    week_commencing=packing.week_commencing
-                ).first()
-
                 j = Joining.query.filter_by(filling_code=fill_code).first()
                 if not j:
                     logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
                     continue
 
-                if filling:
-                    filling.kilo_per_size = total_requirement_kg
-                    if filling.kilo_per_size <= 0:
-                        db.session.delete(filling)
+                # Find existing Filling entry using the *original* packing_date
+                existing_filling = Filling.query.filter_by(
+                    week_commencing=packing.week_commencing,
+                    fill_code=fill_code,
+                    filling_date=original_packing_date
+                ).first()
+
+                if existing_filling:
+                    # Update the existing filling entry with the new packing_date
+                    existing_filling.filling_date = packing.packing_date
+                    existing_filling.description = j.filling_description
+                    existing_filling.kilo_per_size = total_requirement_kg
+                    existing_filling.week_commencing = packing.week_commencing
+                    db.session.add(existing_filling)
                 else:
+                    # Create a new filling entry if none exists
                     if total_requirement_kg > 0:
                         filling = Filling(
                             filling_date=packing.packing_date,
@@ -422,10 +421,43 @@ def packing_edit(id):
                             week_commencing=packing.week_commencing
                         )
                         db.session.add(filling)
-                db.session.commit()
 
-                # Update Production entry
-                update_production_entry(packing.packing_date, fill_code, j, packing.week_commencing)
+            # Update or consolidate Production entry
+            production_code = joining.production if joining else None
+            if production_code:
+                # Calculate batches
+                batch_size = joining.batch_size or 100.0  # Replace with actual batch_size
+                batches = total_requirement_kg / batch_size if batch_size > 0 else 0
+
+                # Find existing Production entry using the *original* packing_date
+                existing_production = Production.query.filter_by(
+                    week_commencing=packing.week_commencing,
+                    production_code=production_code,
+                    production_date=original_packing_date
+                ).first()
+
+                if existing_production:
+                    # Update the existing production entry with the new packing_date
+                    existing_production.production_date = packing.packing_date
+                    existing_production.description = joining.production_description or f"{production_code} - WIP"
+                    existing_production.batches = batches
+                    existing_production.total_kg = total_requirement_kg
+                    existing_production.week_commencing = packing.week_commencing
+                    db.session.add(existing_production)
+                else:
+                    # Create a new production entry if none exists
+                    if total_requirement_kg > 0:
+                        production = Production(
+                            production_date=packing.packing_date,
+                            production_code=production_code,
+                            description=joining.production_description or f"{production_code} - WIP",
+                            batches=batches,
+                            total_kg=total_requirement_kg,
+                            week_commencing=packing.week_commencing
+                        )
+                        db.session.add(production)
+
+            db.session.commit()
 
             flash('Packing entry updated successfully!', 'success')
             return redirect(url_for('packing.packing_list'))
@@ -464,7 +496,7 @@ def packing_edit(id):
         Production.week_commencing == packing.week_commencing,
         Joining.fg_code.ilike(f"{recipe_code_prefix}%")
     ).all()
-    total_production_kg = sum(production.total_kg or 0 for production in related_productions)
+    total_production_kg = sum(production.total_kg or 0 for production in related_productions) if related_productions else 0
 
     return render_template('packing/edit.html',
                          packing=packing,
@@ -478,7 +510,6 @@ def packing_edit(id):
                          related_productions=related_productions,
                          total_production_kg=total_production_kg,
                          current_page="packing")
-
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
@@ -498,7 +529,7 @@ def packing_delete(id):
                 else:
                     db.session.commit()
                 # Update corresponding Production entry
-                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)  # Pass week_commencing
+                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
 
         db.session.delete(packing)
         db.session.commit()
@@ -581,7 +612,6 @@ def get_search_packings():
                 'soh_requirement_units_week': p.soh_requirement_units_week,
                 'soh_kg': p.soh_kg,
                 'soh_units': p.soh_units,
-                #'avg_weight_per_unit_calc': p.avg_weight_per_unit_calc,
                 'machinery': p.machinery,
                 'total_stock_kg': p.total_stock_kg,
                 'total_stock_units': p.total_stock_units,
@@ -591,8 +621,6 @@ def get_search_packings():
         return jsonify({'data': data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-    
 
 @packing.route('/bulk_edit', methods=['POST'])
 def bulk_edit():
@@ -711,7 +739,6 @@ def bulk_edit():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
-
 
 @packing.route('/export', methods=['GET'])
 def export_packings():
@@ -862,10 +889,10 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
 
         if production:
             # Update existing Production entry
-            production.description = product_description #description 
+            production.description = product_description
             production.total_kg = total_kg
             production.batches = batches
-            production.week_commencing = week_commencing  # Set week_commencing
+            production.week_commencing = week_commencing
         else:
             # Create new Production entry
             production = Production(
@@ -874,7 +901,7 @@ def update_production_entry(filling_date, fill_code, joining, week_commencing=No
                 description=product_description,
                 batches=batches,
                 total_kg=total_kg,
-                week_commencing=week_commencing  # Set week_commencing
+                week_commencing=week_commencing
             )
             db.session.add(production)
 

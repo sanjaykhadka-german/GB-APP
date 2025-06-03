@@ -19,7 +19,6 @@ class Packing(db.Model):
     soh_requirement_units_week = db.Column(db.Integer, default=0)
     soh_kg = db.Column(db.Float, default=0.0)
     soh_units = db.Column(db.Float, default=0.0)
-    #avg_weight_per_unit_calc = db.Column(db.Float, default=0.0)
     total_stock_kg = db.Column(db.Float, default=0.0)
     total_stock_units = db.Column(db.Integer, default=0)
     weekly_average = db.Column(db.Float, default=0.0)

@@ -78,7 +78,7 @@
         {% endwith %}
 
         <div id="resultSection" class="table-container">
-            <table class="table table-bordered editabletable" id="packingListTable">
+            <table class="table table-bordered" id="packingListTable">
                 <thead>
                     <tr>
                         <th data-col-index="1"><input type="checkbox" id="selectAll"></th>
@@ -395,6 +395,39 @@
         color: #666;
         font-weight: bold;
     }
+
+    /* New styles for double-click editing */
+    .editable {
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+    }
+
+    .editable:hover {
+        background-color: #e9ecef; /* Bootstrap bg-light */
+    }
+
+    .editing {
+        background-color: #e7f3ff; /* Light blue for editing state */
+    }
+
+    td input[type="text"],
+    td input[type="date"],
+    td input[type="number"] {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ced4da; /* Bootstrap border color */
+        border-radius: 0.25rem;
+        box-sizing: border-box;
+        font-size: inherit;
+        font-family: inherit;
+    }
+
+    td input:focus {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+        border-color: #007bff; /* Bootstrap primary */
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25); /* Bootstrap focus ring */
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -502,7 +535,7 @@ $(document).ready(function() {
 // Fetch machinery options for dropdowns
 function fetchMachineryOptions() {
     $.ajax({
-        url: "{{ url_for('packing.get_machinery_options') }}", // Ensure this endpoint exists
+        url: "{{ url_for('packing.get_machinery_options') }}",
         type: "GET",
         success: function(response) {
             machineryOptions = response.data || [];
@@ -510,6 +543,7 @@ function fetchMachineryOptions() {
         },
         error: function(xhr, status, error) {
             console.error("Error fetching machinery options:", status, error);
+            alert("Failed to load machinery options. Please try again later.");
         }
     });
 }
@@ -522,6 +556,26 @@ function populateMachineryDropdown() {
     machineryOptions.forEach(function(machine) {
         select.append(`<option value="${machine.id}">${machine.name}</option>`);
     });
+}
+
+// Utility function to convert YYYY-MM-DD to DD-MM-YYYY
+function formatDateToDDMMYYYY(dateString) {
+    if (!dateString) return '';
+    const parts = dateString.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateString;
+}
+
+// Utility function to convert DD-MM-YYYY to YYYY-MM-DD
+function formatDateToYYYYMMDD(dateString) {
+    if (!dateString) return '';
+    const parts = dateString.split('-');
+    if (parts.length === 3 && parts[0].length === 2) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateString;
 }
 
 // Fetch packing entries based on search and sorting
@@ -584,13 +638,13 @@ function fetchPackings() {
                     machineryHtml += '</select>';
 
                     tableBody.append(`
-                        <tr>
+                        <tr data-id="${packing.id || ''}">
                             <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
                             <td>${packing.week_commencing || ''}</td>
-                            <td>${packing.packing_date || ''}</td>
+                            <td>${formatDateToDDMMYYYY(packing.packing_date) || ''}</td> <!-- Removed editable class and data-field -->
                             <td>${packing.product_code || ''}</td>
                             <td>${packing.product_description || ''}</td>
-                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="special_order_kg">${packing.special_order_kg || ''}</div></td>
+                            <td class="editable" data-field="special_order_kg" data-original="${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}">${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}</td>
                             <td>${packing.special_order_unit || ''}</td>
                             <td>${packing.requirement_kg || ''}</td>
                             <td>${packing.requirement_unit || ''}</td>
@@ -602,8 +656,8 @@ function fetchPackings() {
                             <td>${machineryHtml}</td>
                             <td>${packing.total_stock_kg || ''}</td>
                             <td>${packing.total_stock_units || ''}</td>
-                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="weekly_average">${packing.weekly_average || ''}</div></td>
-                            <td><div contenteditable="true" data-id="${packing.id || ''}" data-field="priority">${packing.priority || ''}</div></td>
+                            <td class="editable" data-field="weekly_average" data-original="${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}">${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}</td>
+                            <td class="editable" data-field="priority" data-original="${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}">${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}</td>
                             <td>
                                 <a href="${editUrl}" class="btn btn-sm btn-secondary">Edit</a>
                                 <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
@@ -641,99 +695,100 @@ function applyColumnVisibility() {
     }
 }
 
-// Editable table functionality
+// Initialize double-click editable table
 function initEditableTable() {
-    var tables = document.getElementsByClassName("editabletable");
-    for (var i = 0; i < tables.length; i++) {
-        makeTableEditable(tables[i]);
-    }
-}
+    const table = document.getElementById('packingListTable');
+    if (!table) return;
 
-function makeTableEditable(table) {
-    var rows = table.rows;
-    for (var r = 0; r < rows.length; r++) {
-        var cols = rows[r].cells;
-        for (var c = 0; c < cols.length; c++) {
-            var cell = cols[c];
-            var div = cell.querySelector('div[contenteditable]');
-            if (div) {
-                var listener = makeEditListener(table, r, c);
-                div.addEventListener("input", listener, false);
+    $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
+        const cell = $(this);
+        if (cell.find('input').length) return;
+
+        const originalText = cell.text().trim();
+        const field = cell.data('field');
+
+        console.log(`Editing field: ${field}, Original value: ${originalText}`);
+
+        cell.empty().addClass('editing');
+
+        const input = $('<input>').css({
+            width: '100%',
+            padding: '0.5rem',
+            border: '1px solid #ced4da',
+            borderRadius: '0.25rem',
+            boxSizing: 'border-box',
+            fontSize: 'inherit',
+            fontFamily: 'inherit'
+        }).attr('type', 'number').attr('step', 'any');
+
+        input.val(originalText);
+
+        cell.append(input);
+        input.focus();
+        input.select();
+
+        function saveChanges() {
+            let newValue = input.val().trim();
+            let displayValue = newValue;
+
+            console.log(`Saving field: ${field}, New value: ${newValue}`);
+
+            cell.text(displayValue).removeClass('editing');
+
+            if (newValue && isNaN(parseFloat(newValue))) {
+                alert('Please enter a valid number.');
+                cell.text(originalText);
+                return;
             }
+
+            const packingId = cell.closest('tr').data('id');
+            const updateData = {
+                id: packingId,
+                field: field,
+                value: newValue
+            };
+
+            console.log('Sending update data:', updateData);
+
+            $.ajax({
+                url: "{{ url_for('packing.update_cell') }}",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(updateData),
+                success: function(response) {
+                    console.log('Server response:', response);
+                    if (response.success) {
+                        cell.data('original', displayValue);
+                        fetchPackings();
+                    } else {
+                        alert('Error updating packing entry: ' + response.message);
+                        cell.text(originalText);
+                    }
+                },
+                error: function(xhr) {
+                    console.error('AJAX error:', xhr.responseText);
+                    alert('Error updating packing entry.');
+                    cell.text(originalText);
+                }
+            });
         }
-    }
-}
 
-function makeEditListener(table, row, col) {
-    return function(event) {
-        var cell = getCellElement(table, row, col);
-        var text = cell.innerHTML.replace(/<br>$/, '');
-        var items = split(text);
-        var packingId = cell.getAttribute('data-id');
-        var field = cell.getAttribute('data-field');
-
-        if (items.length === 1) {
-            updateCell(packingId, field, items[0]);
-            return;
+        function revertChanges() {
+            cell.text(originalText).removeClass('editing');
         }
 
-        var r = row;
-        var c = col;
-        for (var i = 0; i < items.length && r < table.rows.length; i++) {
-            var currentCell = getCellElement(table, r, c);
-            var currentField = currentCell.getAttribute('data-field');
-            var currentPackingId = currentCell.getAttribute('data-id');
-            currentCell.innerHTML = items[i];
-            updateCell(currentPackingId, currentField, items[i]);
-            c++;
-            if (c === table.rows[r].cells.length) {
-                r++;
-                c = 0;
+        input.on('blur', function() {
+            setTimeout(saveChanges, 100);
+        });
+
+        input.on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveChanges();
+            } else if (e.key === 'Escape') {
+                revertChanges();
             }
-        }
-        cell.focus();
-        fetchPackings();
-    };
-}
-
-function getCellElement(table, row, col) {
-    return table.rows[row].cells[col].firstChild;
-}
-
-function split(str) {
-    return str.split(/,|\s|<br>/).filter(item => item.trim() !== '');
-}
-
-function updateCell(packingId, field, value) {
-    if (value === '' || isNaN(value)) {
-        value = field === 'priority' ? 0 : (field === 'machinery' ? '' : 0);
-    } else {
-        value = field === 'priority' ? parseInt(value) : parseFloat(value);
-    }
-
-    $.ajax({
-        url: "{{ url_for('packing.update_cell') }}",
-        type: "POST",
-        contentType: "application/json",
-        data: JSON.stringify({
-            id: packingId,
-            field: field,
-            value: value
-        }),
-        success: function(response) {
-            console.log("Update cell response:", response);
-            if (response.success) {
-                fetchPackings();
-            } else {
-                alert("Error updating cell: " + response.message);
-                fetchPackings();
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error("Update cell error:", status, error, xhr.responseText);
-            alert("Error updating cell.");
-            fetchPackings();
-        }
+        });
     });
 }
 
@@ -868,31 +923,43 @@ function updateSortUI() {
     });
 }
 
-// Fetch machinery options for dropdowns
-function fetchMachineryOptions() {
+// Update cell for select dropdowns (machinery)
+function updateCell(packingId, field, value) {
+    if (value === '' || value == null) {
+        value = field === 'priority' ? 0 : (field === 'machinery' ? null : 0);
+    } else if (field === 'packing_date') {
+        // Ensure date is in YYYY-MM-DD format
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            alert("Invalid date format. Please use YYYY-MM-DD.");
+            return;
+        }
+    } else {
+        value = field === 'priority' || field === 'machinery' ? parseInt(value) : parseFloat(value);
+    }
+
     $.ajax({
-        url: "{{ url_for('packing.get_machinery_options') }}",
-        type: "GET",
+        url: "{{ url_for('packing.update_cell') }}",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+            id: packingId,
+            field: field,
+            value: value
+        }),
         success: function(response) {
-            machineryOptions = response.data || [];
-            populateMachineryDropdown();
+            console.log("Update cell response:", response);
+            if (response.success) {
+                fetchPackings();
+            } else {
+                alert("Error updating cell: " + response.message);
+                fetchPackings();
+            }
         },
         error: function(xhr, status, error) {
-            console.error("Error fetching machinery options:", status, error);
-            machineryOptions = [];
-            populateMachineryDropdown();
-            alert("Failed to load machinery options. Please try again later.");
+            console.error("Update cell error:", status, error, xhr.responseText);
+            alert("Error updating cell.");
+            fetchPackings();
         }
-    });
-}
-
-// Populate machinery dropdown in bulk edit modal
-function populateMachineryDropdown() {
-    const select = $("#bulk_machinery");
-    select.empty();
-    select.append('<option value="">Select Machinery</option>');
-    machineryOptions.forEach(function(machine) {
-        select.append(`<option value="${machine.id}">${machine.name}</option>`);
     });
 }
 </script>
