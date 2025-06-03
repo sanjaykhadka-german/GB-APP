@@ -189,22 +189,22 @@ def usage():
         
         for production in productions:
             recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-            print(f"Processing production: {production.production_code}")
-            print(f"Recipes found: {len(recipes)}")
+            #print(f"Processing production: {production.production_code}")
+            #print(f"Recipes found: {len(recipes)}")
             
             if not recipes:
                 print(f"No recipes found for production code: {production.production_code}")
                 continue
             
             for recipe in recipes:
-                print(f"Processing recipe: {recipe.raw_material}")
+                #print(f"Processing recipe: {recipe.raw_material}")
                 try:
                     # Calculate usage
                     if production.total_kg is None or recipe.percentage is None:
-                        print(f"Invalid data: total_kg={production.total_kg}, percentage={recipe.percentage}")
+                        #print(f"Invalid data: total_kg={production.total_kg}, percentage={recipe.percentage}")
                         continue
                     usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
-                    print(f"Calculated usage_kg: {usage_kg}")
+                    #print(f"Calculated usage_kg: {usage_kg}")
                     
                     # Check if usage record already exists
                     existing_record = UsageReport.query.filter_by(
@@ -217,7 +217,7 @@ def usage():
                         # Update existing record
                         existing_record.usage_kg = round(usage_kg, 2)
                         existing_record.percentage = float(recipe.percentage)
-                        print(f"Updated usage record for {recipe.raw_material}")
+                        #print(f"Updated usage record for {recipe.raw_material}")
                     else:
                         # Create new usage record
                         usage_record = UsageReport(
@@ -229,10 +229,10 @@ def usage():
                             percentage=float(recipe.percentage)
                         )
                         db.session.add(usage_record)
-                        print(f"Added new usage record for {recipe.raw_material}")
+                        #print(f"Added new usage record for {recipe.raw_material}")
                 
                 except Exception as e:
-                    print(f"Error processing recipe {recipe.raw_material}: {str(e)}")
+                    #print(f"Error processing recipe {recipe.raw_material}: {str(e)}")
                     continue
         
         # Commit changes to the database

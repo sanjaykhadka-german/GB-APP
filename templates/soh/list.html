@@ -221,30 +221,27 @@ $(document).ready(function() {
         $(`.sortable[data-column="${sortBy}"]`).addClass(`sort-${sortDirection}`);
     }
 
-    // Autocomplete for FG Code
+    // Utility function to convert YYYY-MM-DD to DD-MM-YYYY
     function formatDateToDDMMYYYY(dateString) {
         if (!dateString) return '';
         const parts = dateString.split('-');
         if (parts.length === 3 && parts[0].length === 4) {
-            // Handle YYYY-MM-DD
             return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        } else if (parts.length === 3) {
-            // Handle DD-MM-YYYY
-            return dateString;
         }
         return dateString;
     }
 
+    // Utility function to convert DD-MM-YYYY to YYYY-MM-DD
     function formatDateToYYYYMMDD(dateString) {
         if (!dateString) return '';
         const parts = dateString.split('-');
         if (parts.length === 3 && parts[0].length === 2) {
-            // Handle DD-MM-YYYY
             return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-        return dateString; // Already YYYY-MM-DD
+        return dateString;
     }
 
+    // Autocomplete for FG Code
     $("#search_fg_code").keyup(function() {
         var fgCode = $(this).val().trim();
         if (fgCode.length > 0) {
@@ -315,17 +312,15 @@ $(document).ready(function() {
         const table = document.getElementById('sohListTable');
         if (!table) return;
 
-        // Use event delegation on tbody for double-click
         $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
             const cell = $(this);
-            // Prevent editing if already editing
             if (cell.find('input').length) return;
 
             const originalText = cell.text().trim();
             const isDateColumn = cell.hasClass('date-column');
             const field = cell.data('field');
 
-            console.log(`Editing field: ${field}, Original value: ${originalText}`); // Debug
+            console.log(`Editing field: ${field}, Original value: ${originalText}`);
 
             cell.empty().addClass('editing');
 
@@ -341,14 +336,8 @@ $(document).ready(function() {
 
             if (isDateColumn) {
                 input.attr('type', 'date');
-                // Convert DD-MM-YYYY to YYYY-MM-DD for input
                 if (originalText) {
-                    const parts = originalText.split('-');
-                    if (parts.length === 3 && parts[0].length === 2) {
-                        input.val(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                    } else {
-                        input.val(originalText);
-                    }
+                    input.val(formatDateToYYYYMMDD(originalText));
                 }
             } else {
                 input.attr('type', 'number').attr('step', 'any');
@@ -361,24 +350,18 @@ $(document).ready(function() {
                 input.select();
             }
 
-            // Save changes
             function saveChanges() {
                 let newValue = input.val().trim();
                 let displayValue = newValue;
 
                 if (isDateColumn && newValue) {
-                    // Convert YYYY-MM-DD to DD-MM-YYYY for display
-                    const parts = newValue.split('-');
-                    if (parts.length === 3) {
-                        displayValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                    }
+                    displayValue = formatDateToDDMMYYYY(newValue);
                 }
 
-                console.log(`Saving field: ${field}, New value: ${newValue}`); // Debug
+                console.log(`Saving field: ${field}, New value: ${newValue}`);
 
                 cell.text(displayValue).removeClass('editing');
 
-                // Validate input
                 if (isDateColumn && newValue && !/^\d{4}-\d{2}-\d{2}$/.test(newValue)) {
                     alert('Please enter a valid date in DD-MM-YYYY format.');
                     cell.text(originalText);
@@ -389,15 +372,14 @@ $(document).ready(function() {
                     return;
                 }
 
-                // Prepare data for update
                 const sohId = cell.closest('tr').data('id');
                 const updateData = {
                     id: sohId,
                     field: field,
-                    [field]: newValue // Send YYYY-MM-DD for dates
+                    [field]: newValue // Send YYYY-MM-DD for date fields
                 };
 
-                console.log('Sending update data:', updateData); // Debug
+                console.log('Sending update data:', updateData);
 
                 $.ajax({
                     url: "{{ url_for('soh.soh_inline_edit') }}",
@@ -405,26 +387,23 @@ $(document).ready(function() {
                     contentType: "application/json",
                     data: JSON.stringify(updateData),
                     success: function(response) {
-                        console.log('Server response:', response); // Debug
+                        console.log('Server response:', response);
                         if (response.success) {
                             cell.data('original', displayValue);
-                            fetchSOHs(); // Refresh table to update totals
-                            // The `alert` here is often intrusive in inline editing, consider removing it or making it a temporary notification.
-                            // alert('SOH entry updated successfully!'); 
+                            fetchSOHs();
                         } else {
                             alert('Error updating SOH entry: ' + response.error);
                             cell.text(originalText);
                         }
                     },
                     error: function(xhr) {
-                        console.error('AJAX error:', xhr.responseText); // Debug
+                        console.error('AJAX error:', xhr.responseText);
                         alert('Error updating SOH entry.');
                         cell.text(originalText);
                     }
                 });
             }
 
-            // Revert changes
             function revertChanges() {
                 cell.text(originalText).removeClass('editing');
             }
@@ -444,17 +423,15 @@ $(document).ready(function() {
         });
     }
 
-    // Define base URLs using Jinja2 once outside the loop
-    const baseEditUrl = "{{ url_for('soh.soh_edit', id=0) }}".replace('/0', ''); // Remove the dummy ID
-    const baseDeleteUrl = "{{ url_for('soh.soh_delete', id=0) }}".replace('/0', ''); // Remove the dummy ID
+    const baseEditUrl = "{{ url_for('soh.soh_edit', id=0) }}".replace('/0', '');
+    const baseDeleteUrl = "{{ url_for('soh.soh_delete', id=0) }}".replace('/0', '');
 
-    // Modified fetchSOHs to reapply editable listeners after refresh
     function fetchSOHs() {
         var fgCode = $("#search_fg_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
 
-        // Validate week_commencing date format
+        // validate date format
         if (weekCommencing && !/^\d{4}-\d{2}-\d{2}$/.test(weekCommencing)) {
             alert('Please enter a valid date in YYYY-MM-DD format.');
             return;
@@ -478,68 +455,60 @@ $(document).ready(function() {
                 tableBody.empty();
                 $("#resultSection").removeClass("hidden");
 
-                if (response.error) {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="13" class="no-results">Error fetching SOH entries: ${response.error}</td>
-                        </tr>
-                    `);
-                    return;
-                }
-
-                if (response.length > 0) {
-                    response.forEach(function(soh) {
-                        if (soh.id !== null && soh.id !== undefined) {
-                            // Construct URLs by appending the ID to the base URL
-                            const editUrl = `${baseEditUrl}/${soh.id}`;
-                            const deleteUrl = `${baseDeleteUrl}/${soh.id}`;
-
-                            tableBody.append(`
-                                <tr data-id="${soh.id}">
-                                    <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
-                                    <td>${soh.id || ''}</td>
-                                    <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing || ''}</td>
-                                    <td>${soh.fg_code || ''}</td>
-                                    <td>${soh.description || ''}</td>
-                                    <td class="editable" data-field="soh_dispatch_boxes" data-original="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
-                                    <td class="editable" data-field="soh_dispatch_units" data-original="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
-                                    <td class="editable" data-field="soh_packing_boxes" data-original="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
-                                    <td class="editable" data-field="soh_packing_units" data-original="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
-                                    <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
-                                    <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
-                                    <td>${soh.edit_date}</td>
-                                    <td>
-                                        <a href="${editUrl}" class="btn btn-warning btn-sm">Edit</a>
-                                        <form action="${deleteUrl}" method="post" style="display:inline-block;">
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            `);
-                        }
-                    });
-                    initEditableTable(); // Reapply editable listeners after table refresh
-                } else {
+                if (response.length === 0) {
                     tableBody.append(`
                         <tr>
                             <td colspan="13">
                                 <div class="no-results">
-                                    <p>No SOH entries found for FG Code: ${fgCode}</p>
+                                    <p>No SOH entries found for FG Code: ${fgCode || 'Any'}, Week Commencing:${weekCommencing || 'Any'}</p>
                                     <button class="add-soh-btn" onclick="addSOH('${fgCode}')">
-                                        Add SOH Entry for FG Code ${fgCode}
+                                        Add SOH Entry for FG Code ${fgCode || 'New'}
                                     </button>
                                 </div>
                             </td>
                         </tr>
                     `);
+                    return;
                 }
+
+                response.forEach(function(soh) {
+                    if (soh.id !== null && soh.id !== undefined) {
+                        const editUrl = `${baseEditUrl}/${soh.id}`;
+                        const deleteUrl = `${baseDeleteUrl}/${soh.id}`;
+
+                        tableBody.append(`
+                            <tr data-id="${soh.id}">
+                                <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
+                                <td>${soh.id || ''}</td>
+                                <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing || ''}</td>
+                                <td>${soh.fg_code || ''}</td>
+                                <td>${soh.description || ''}</td>
+                                <td class="editable" data-field="soh_dispatch_boxes" data-original="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
+                                <td class="editable" data-field="soh_dispatch_units" data-original="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
+                                <td class="editable" data-field="soh_packing_boxes" data-original="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
+                                <td class="editable" data-field="soh_packing_units" data-original="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
+                                <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
+                                <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
+                                <td>${soh.edit_date}</td>
+                                <td>
+                                    <a href="${editUrl}" class="btn btn-warning btn-sm">Edit</a>
+                                    <form action="${deleteUrl}" method="post" style="display:inline-block;">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                });
+                initEditableTable();
             },
-            error: function() {
+            error: function(xhr) {
+                console.error('AJAX error:', xhr.responseText);
                 var tableBody = $("#sohListTable tbody");
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="13" class="no-results">Error fetching SOH entries.</td>
+                        <td colspan="13" class="no-results">Error fetching SOH entries:${xhr.responseText}</td>
                     </tr>
                 `);
             }
@@ -562,12 +531,8 @@ $(document).ready(function() {
         }).get();
 
         var weekCommencing = $('#bulk_week_commencing').val().trim();
-        // Convert YYYY-MM-DD to DD-MM-YYYY for bulk edit
         if (weekCommencing) {
-            const parts = weekCommencing.split('-');
-            if (parts.length === 3) {
-                weekCommencing = `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
+            weekCommencing = formatDateToDDMMYYYY(weekCommencing);
         }
 
         var formData = {
@@ -599,7 +564,12 @@ $(document).ready(function() {
         });
     }
 
-    // Initialize editable table on page load
+    // Bind search button click event
+    $('#searchForm button[type="button"]').click(function() {
+       console.log('Search button clicked'); 
+        fetchSOHs();
+    });
+
     initEditableTable();
 });
 </script>

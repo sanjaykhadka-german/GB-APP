@@ -436,6 +436,7 @@ def soh_edit(id):
 def soh_delete(id):
     from app import db
     from models.soh import SOH
+    from datetime import datetime
 
     try:
         soh = SOH.query.get_or_404(id)
@@ -471,6 +472,7 @@ def autocomplete_soh():
 def get_search_sohs():
     from app import db
     from models.soh import SOH
+    from datetime import datetime
 
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
@@ -488,10 +490,10 @@ def get_search_sohs():
         if search_week_commencing:
             try:
                 week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-                sohs_query = sohs_query.filter((SOH.week_commencing == week_commencing_date) | (SOH.week_commencing.is_(None)))
-            except ValueError as e:
-                flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
-                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+                sohs_query = sohs_query.filter((SOH.week_commencing == week_commencing_date))
+            except ValueError:
+                #If date is invalid, return empty result instead of error
+                return jsonify([])
         
         # Apply sorting
         if sort_by in ['week_commencing', 'fg_code', 'description', 'edit_date']:
@@ -507,7 +509,7 @@ def get_search_sohs():
         sohs_data = [
             {
                 "id": soh.id,
-                "week_commencing": soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else "",  # Second field
+                "week_commencing": soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else "", #Display date in DD-MM-YYYY format
                 "fg_code": soh.fg_code or "",
                 "description": soh.description or "",
                 "soh_dispatch_boxes": soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not None else "",
@@ -523,8 +525,8 @@ def get_search_sohs():
 
         return jsonify(sohs_data)
     except Exception as e:
-        print("Error fetching search SOHs: {str(e)}")
-        return jsonify({"error": "Failed to fetch SOH entries"}), 500
+        print(f"Error fetching search SOHs: {str(e)}")
+        return jsonify([]), 200 
     
     
 @soh_bp.route('/soh_bulk_edit', methods=['POST'])
@@ -532,6 +534,7 @@ def soh_bulk_edit():
     from app import db
     from models.soh import SOH
     from models.joining import Joining
+    from datetime import datetime
 
     try:
         data = request.get_json()
@@ -549,9 +552,9 @@ def soh_bulk_edit():
         week_commencing_date = None
         if week_commencing:
             try:
-                week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
+                week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
             except ValueError:
-                return jsonify({"success": False, "error": "Invalid Week Commencing date format"}), 400
+                return jsonify({"success": False, "error": "Invalid Week Commencing date format. Use YYYY-MM-DD"}), 400
 
         # Convert numeric fields, allowing empty strings to skip updates
         def safe_float(value, default=None):
@@ -604,7 +607,7 @@ def soh_bulk_edit():
                 success, message = update_packing_entry(
                     fg_code=soh.fg_code,
                     description=soh.description,
-                    packing_date=week_commencing or date.today(),
+                    packing_date=soh.week_commencing or date.today(),
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
                     soh_requirement_units_week=0,
@@ -628,10 +631,11 @@ def soh_inline_edit():
     from app import db
     from models.soh import SOH
     from models.joining import Joining
+    from datetime import datetime
 
     try:
         data = request.get_json()
-        print(f"Received data: {data}")  # Debug
+        print(f"Received data: {data}")
         soh_id = data.get('id')
         if not soh_id:
             return jsonify({"success": False, "error": "No SOH ID provided"}), 400
@@ -643,37 +647,28 @@ def soh_inline_edit():
         if not field:
             return jsonify({"success": False, "error": "No field provided"}), 400
 
-        print(f"Processing field: {field}, value: {value}")  # Debug
+        print(f"Processing field: {field}, value: {value}")
 
-        # Validate and update the field
         if field == 'week_commencing':
             try:
                 if value:
-                    # Try parsing DD-MM-YYYY first, then YYYY-MM-DD
-                    try:
-                        value = datetime.strptime(value, '%d-%m-%Y').date()
-                    except ValueError:
-                        try:
-                            value = datetime.strptime(value, '%Y-%m-%d').date()
-                        except ValueError:
-                            return jsonify({"success": False, "error": "Invalid date format. Use DD-MM-YYYY or YYYY-MM-DD."}), 400
+                    value = datetime.strptime(value, '%Y-%m-%d').date()
                 else:
                     value = None
                 soh.week_commencing = value
-            except Exception as e:
-                print(f"Date parsing error: {str(e)}")  # Debug
-                return jsonify({"success": False, "error": f"Invalid date format: {str(e)}. Use DD-MM-YYYY or YYYY-MM-DD."}), 400
+            except ValueError as e:
+                print(f"Date parsing error: {str(e)}")
+                return jsonify({"success": False, "error": f"Invalid date format: {str(e)}. Use YYYY-MM-DD."}), 400
         elif field in ['soh_dispatch_boxes', 'soh_dispatch_units', 'soh_packing_boxes', 'soh_packing_units']:
             try:
                 value = float(value) if value else 0.0
                 setattr(soh, field, value)
             except (ValueError, TypeError) as e:
-                print(f"Number conversion error for {field}: {str(e)}")  # Debug
+                print(f"Number conversion error for {field}: {str(e)}")
                 return jsonify({"success": False, "error": f"Invalid number for {field}: {str(e)}."}), 400
         else:
             return jsonify({"success": False, "error": f"Invalid field specified: {field}."}), 400
 
-        # Recalculate totals
         fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
         units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
 
@@ -687,7 +682,6 @@ def soh_inline_edit():
 
         soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
 
-        # Update Packing entry if necessary
         if soh.soh_total_boxes > 0 or soh.soh_total_units > 0:
             avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
             success, message = update_packing_entry(
@@ -701,13 +695,13 @@ def soh_inline_edit():
                 week_commencing=soh.week_commencing
             )
             if not success:
-                print(f"Failed to update Packing for {soh.fg_code}: {message}")  # Debug
+                print(f"Failed to update Packing for {soh.fg_code}: {message}")
 
         db.session.commit()
-        print(f"SOH updated successfully: {soh.id}")  # Debug
+        print(f"SOH updated successfully: {soh.id}")
         return jsonify({"success": True})
 
     except Exception as e:
         db.session.rollback()
-        print(f"Error in inline edit: {str(e)}")  # Debug
+        print(f"Error in inline edit: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
