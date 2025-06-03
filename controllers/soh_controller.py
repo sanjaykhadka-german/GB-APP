@@ -372,15 +372,19 @@ def soh_edit(id):
             week_commencing_date = None
             if week_commencing:
                 try:
+                    # Try parsing YYYY-MM-DD ( from <input type="date"> )
+                    week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+                except ValueError:
                     try:
-                        week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
-                    except ValueError:
                         week_commencing_date = datetime.strptime(week_commencing, '%d-%m-%Y').date()
-                except ValueError as e:
-                    flash(f"Invalid Week Commencing date format: {str(e)}", "danger")
-                    return redirect(request.url)
+                    except ValueError:
+                        flash(f"Invalid Week Commencing date format: {str(e)}", "Please use YYYY-MM-DD or DD-MM-YYYY.", "danger")
+                        return redirect(request.url)
 
             fg = Joining.query.filter_by(fg_code=fg_code).first()
+            if not fg:
+                flash(f"FG Code '{fg_code}' not found in Joining table.", "danger")
+                return redirect(request.url)    
             units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
 
             soh_total_boxes = soh_dispatch_boxes + soh_packing_boxes
@@ -406,14 +410,17 @@ def soh_edit(id):
 
             if soh_total_boxes > 0 or soh_total_units > 0:
                 avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+                # Ensure packing_date is a date object
+                packing_date = week_commencing_date if week_commencing_date else date.today()
                 success, message = update_packing_entry(
                     fg_code=fg_code,
                     description=description,
-                    packing_date=week_commencing or date.today(),
+                    packing_date=packing_date,
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=0,
-                    weekly_average=0.0
+                    soh_requirement_units_week=None, # Recalculation based on min_level and max_level
+                    weekly_average=None, # Existing weekly average or default
+                    week_commencing=week_commencing_date
                 )
                 if not success:
                     flash(message, "warning")
@@ -426,8 +433,9 @@ def soh_edit(id):
             flash(f"Error updating SOH entry: {str(e)}", "danger")
             return redirect(request.url)
 
-    # Format edit_date for display, keep week_commencing as datetime.date
+    # Format edit_date and week_commencing for display
     soh.edit_date_str = soh.edit_date.strftime('%d-%m-%Y %H:%M:%S') if soh.edit_date else ''
+    soh.week_commencing_str = soh.week_commencing.strftime('%d-%m-%Y') if soh.week_commencing else ''
 
     return render_template('soh/edit.html', soh=soh, current_page="soh")
 
@@ -631,7 +639,7 @@ def soh_inline_edit():
     from app import db
     from models.soh import SOH
     from models.joining import Joining
-    from datetime import datetime
+    from datetime import datetime, date
 
     try:
         data = request.get_json()
@@ -684,18 +692,24 @@ def soh_inline_edit():
 
         if soh.soh_total_boxes > 0 or soh.soh_total_units > 0:
             avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+
+            # Ensure packing_date is a date object
+            packing_date = soh.week_commencing if isinstance(soh.week_commencing, date) else (
+                datetime.strptime(soh.week_commencing, '%Y-%m-%d').date() if soh.week_commencing else date.today()
+            )
             success, message = update_packing_entry(
                 fg_code=soh.fg_code,
                 description=soh.description,
-                packing_date=soh.week_commencing or date.today(),
+                packing_date=packing_date,
                 special_order_kg=0.0,
                 avg_weight_per_unit=avg_weight_per_unit,
-                soh_requirement_units_week=0,
-                weekly_average=0.0,
+                soh_requirement_units_week=None, # recalculation based on min_level and max_level
+                weekly_average=None, # exisiting weekly average or default
                 week_commencing=soh.week_commencing
             )
             if not success:
                 print(f"Failed to update Packing for {soh.fg_code}: {message}")
+                flash(message, "warning")
 
         db.session.commit()
         print(f"SOH updated successfully: {soh.id}")

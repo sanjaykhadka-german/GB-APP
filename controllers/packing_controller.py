@@ -21,8 +21,14 @@ packing = Blueprint('packing', __name__, url_prefix='/packing')
 
 
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-                        soh_requirement_units_week=0, weekly_average=0.0, week_commencing=None, machinery=None):
+                        soh_requirement_units_week=None, weekly_average=None, week_commencing=None, machinery=None):
     try:
+        # convert packing_date to date object if its a string
+        if isinstance(packing_date, str):
+            try:
+                packing_date = datetime.strptime(packing_date, '%d-%m-%Y').date()
+            except ValueError:
+                return False, "Invalid packing_date format. Please use 'DD-MM-YYYY'."
         packing_date = packing_date or date.today()
 
         # Use provided week_commencing, or calculate it if not provided
@@ -40,18 +46,26 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         joining = Joining.query.filter_by(fg_code=fg_code).first()
         if not joining:
             return False, f"No Joining entry found for fg_code {fg_code}"
-        avg_weight_per_unit = joining.kg_per_unit or 0.0  # Fetch from Joining
+        avg_weight_per_unit = avg_weight_per_unit or joining.kg_per_unit or 0.0  # Fetch from Joining
+
+        #use provided weekly_average or fetch from existing Packing entry
+        packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
+        weekly_average = weekly_average if weekly_average is not None else (packing.weekly_average if packing else 0.0)
+
 
         # Calculate soh_requirement_units_week based on SOH and Joining
         soh_units = soh.soh_total_units if soh else 0
         min_level = joining.min_level or 0.0
         max_level = joining.max_level or 0.0
-        if soh_units < min_level:
-            soh_requirement_units_week = int(max_level - soh_units)
-        else:
-            soh_requirement_units_week = 0
+        soh_requirement_units_week = soh_requirement_units_week if soh_requirement_units_week is not None else (
+            int(max_level - soh_units) if soh_units < min_level else 0
+        )
+        # if soh_units < min_level:
+        #     soh_requirement_units_week = int(max_level - soh_units)
+        # else:
+        #     soh_requirement_units_week = 0
 
-        packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
+        #packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
         
         if not packing:
             packing = Packing(
