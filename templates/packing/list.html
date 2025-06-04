@@ -659,7 +659,7 @@ function fetchPackings() {
                             <td class="editable" data-field="weekly_average" data-original="${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}">${packing.weekly_average !== null && packing.weekly_average !== undefined ? packing.weekly_average : ''}</td>
                             <td class="editable" data-field="priority" data-original="${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}">${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}</td>
                             <td>
-                                <a href="${editUrl}" class="btn btn-sm btn-secondary">Edit</a>
+                                <a href="${editUrl}" class="btn btn-sm btn-secondary" target="_blank" rel="noopener noreferrer">Edit</a>
                                 <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
                             </td>
                         </tr>

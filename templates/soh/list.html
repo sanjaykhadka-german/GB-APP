@@ -1,8 +1,7 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-2"> 
-    <!-- SOH Search Section -->
+<div class="container mt-2">
     <section id="search">
         <h2>SOH Search</h2>
         <form id="searchForm" onsubmit="return false;">
@@ -26,7 +25,6 @@
         </form>
     </section>
 
-    <!-- SOH List Section -->
     <section id="list">
         <h2>SOH List</h2>
         <div class="d-flex gap-2 mb-3">
@@ -70,30 +68,32 @@
                     <tr data-id="{{ soh.id }}">
                         <td><input type="checkbox" class="soh-checkbox" value="{{ soh.id }}"></td>
                         <td>{{ soh.id or '' }}</td>
-                        <td class="editable date-column" data-field="week_commencing" data-original="{{ soh.week_commencing_str }}">{{ soh.week_commencing_str }}</td>
+                        <td class="editable date-column" tabindex="0" data-field="week_commencing" data-original-display="{{ soh.week_commencing_str }}" data-original-input="{{ soh.week_commencing_input_str }}">{{ soh.week_commencing_str }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
                         <td>{{ soh.description or '' }}</td>
-                        <td class="editable" data-field="soh_dispatch_boxes" data-original="{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}">{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
-                        <td class="editable" data-field="soh_dispatch_units" data-original="{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}">{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
-                        <td class="editable" data-field="soh_packing_boxes" data-original="{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}">{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
-                        <td class="editable" data-field="soh_packing_units" data-original="{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}">{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
+                        <td class="editable" tabindex="0" data-field="soh_dispatch_boxes" data-original-display="{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}" data-original-input="{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}">{{ soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not none else '' }}</td>
+                        <td class="editable" tabindex="0" data-field="soh_dispatch_units" data-original-display="{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}" data-original-input="{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}">{{ soh.soh_dispatch_units if soh.soh_dispatch_units is not none else '' }}</td>
+                        <td class="editable" tabindex="0" data-field="soh_packing_boxes" data-original-display="{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}" data-original-input="{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}">{{ soh.soh_packing_boxes if soh.soh_packing_boxes is not none else '' }}</td>
+                        <td class="editable" tabindex="0" data-field="soh_packing_units" data-original-display="{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}" data-original-input="{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}">{{ soh.soh_packing_units if soh.soh_packing_units is not none else '' }}</td>
                         <td>{{ soh.soh_total_boxes if soh.soh_total_boxes is not none else '' }}</td>
                         <td>{{ soh.soh_total_units if soh.soh_total_units is not none else '' }}</td>
                         <td>{{ soh.edit_date_str }}</td>
                         <td>
-                            <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                            <!-- <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm">Edit</a> -->
+
+                                <a href="{{ url_for('soh.soh_edit', id=soh.id) }}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
+
                             <form action="{{ url_for('soh.soh_delete', id=soh.id) }}" method="post" style="display:inline-block;">
                                 <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
-            </form>
-        </td>
-    </tr>
-    {% endfor %}
-</tbody>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
         </div>
     </section>
 
-    <!-- Bulk Edit Modal -->
     <div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -167,7 +167,7 @@
         opacity: 1;
     }
 
-    /* New styles for double-click editing */
+    /* New styles for double-click and tab editing */
     .editable {
         cursor: pointer;
         transition: background-color 0.2s ease-in-out;
@@ -177,8 +177,18 @@
         background-color: #e9ecef; /* Bootstrap bg-light */
     }
 
-    .editing {
-        background-color: #e7f3ff; /* Light blue for editing state */
+    .editable:focus { /* Style for when a cell is focused (via tab or click) but not yet editing */
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+        background-color: #e8f5e8; /* Light green for focused state */
+        border-color: #4CAF50;
+        box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+        transform: scale(1.02);
+    }
+
+    .editable.editing { /* Style for when a cell is actively being edited (input visible) */
+        background-color: #fff3cd !important;
+        border-color: #ffeaa7 !important;
     }
 
     td input[type="text"],
@@ -213,9 +223,12 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Existing initialization code
     let sortBy = '{{ sort_by | default("id") }}';
     let sortDirection = '{{ sort_direction | default("asc") }}';
+    let currentEditingCell = null;
+    let originalValueForCurrentEdit = null; // Value as it was in the input
+    let originalDisplayValue = null; // Value as it was displayed in the cell
+    let editableCells = []; // This will store all editable <td> elements
 
     if (sortBy) {
         $(`.sortable[data-column="${sortBy}"]`).addClass(`sort-${sortDirection}`);
@@ -223,22 +236,16 @@ $(document).ready(function() {
 
     // Utility function to convert YYYY-MM-DD to DD-MM-YYYY
     function formatDateToDDMMYYYY(dateString) {
-        if (!dateString) return '';
+        if (!dateString || dateString.length !== 10 || dateString.indexOf('-') === -1) return dateString;
         const parts = dateString.split('-');
-        if (parts.length === 3 && parts[0].length === 4) {
-            return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-        return dateString;
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
 
     // Utility function to convert DD-MM-YYYY to YYYY-MM-DD
     function formatDateToYYYYMMDD(dateString) {
-        if (!dateString) return '';
+        if (!dateString || dateString.length !== 10 || dateString.indexOf('-') === -1) return dateString;
         const parts = dateString.split('-');
-        if (parts.length === 3 && parts[0].length === 2) {
-            return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
-        return dateString;
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
 
     // Autocomplete for FG Code
@@ -307,79 +314,159 @@ $(document).ready(function() {
         fetchSOHs();
     });
 
-    // Initialize double-click editable table
-    function initEditableTable() {
-        const table = document.getElementById('sohListTable');
-        if (!table) return;
+    function getCellIndex(cell) {
+        return editableCells.indexOf(cell);
+    }
 
-        $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
-            const cell = $(this);
-            if (cell.find('input').length) return;
+    function moveToNextCell(currentCell) {
+        const currentIndex = getCellIndex(currentCell);
+        const nextIndex = (currentIndex + 1);
+        if (nextIndex < editableCells.length) {
+            editableCells[nextIndex].focus();
+        } else {
+            // Optional: wrap around to first cell, or focus another element
+            // editableCells[0].focus();
+        }
+    }
 
-            const originalText = cell.text().trim();
-            const isDateColumn = cell.hasClass('date-column');
-            const field = cell.data('field');
+    function moveToPreviousCell(currentCell) {
+        const currentIndex = getCellIndex(currentCell);
+        const prevIndex = (currentIndex - 1);
+        if (prevIndex >= 0) {
+            editableCells[prevIndex].focus();
+        } else {
+            // Optional: wrap around to last cell
+            // editableCells[editableCells.length - 1].focus();
+        }
+    }
 
-            console.log(`Editing field: ${field}, Original value: ${originalText}`);
+    // Function to put a cell into active editing mode (replace text with input)
+    function enterEditMode(cell, initialValue = '') {
+        if ($(cell).find('input').length || $(cell).hasClass('editing')) return; // Already editing
 
-            cell.empty().addClass('editing');
+        // If another cell is being edited, save it first
+        if (currentEditingCell && currentEditingCell !== cell) {
+            const activeInput = $(currentEditingCell).find('.edit-input');
+            if (activeInput.length) {
+                processCellEdit(currentEditingCell, activeInput.val(), true); // Save the old one
+            }
+        }
 
-            const input = $('<input>').css({
-                width: '100%',
-                padding: '0.5rem',
-                border: '1px solid #ced4da',
-                borderRadius: '0.25rem',
-                boxSizing: 'border-box',
-                fontSize: 'inherit',
-                fontFamily: 'inherit'
-            });
+        currentEditingCell = cell;
+        originalDisplayValue = $(cell).text().trim(); // Value currently displayed
+        const isDateColumn = $(cell).hasClass('date-column');
+        const field = $(cell).data('field');
 
+        // The value to pre-fill the input with (YYYY-MM-DD for date input)
+        originalValueForCurrentEdit = $(cell).data('original-input') !== undefined ? $(cell).data('original-input').toString() : originalDisplayValue;
+
+        $(cell).addClass('editing');
+        $(cell).empty();
+
+        const input = $('<input>').css({
+            width: '100%',
+            padding: '0.5rem',
+            border: '1px solid #ced4da',
+            borderRadius: '0.25rem',
+            boxSizing: 'border-box',
+            fontSize: 'inherit',
+            fontFamily: 'inherit'
+        });
+
+        if (isDateColumn) {
+            input.attr('type', 'date');
+            input.val(originalValueForCurrentEdit); // Set YYYY-MM-DD for date input
+        } else {
+            input.attr('type', 'number').attr('step', 'any');
+            input.val(originalValueForCurrentEdit);
+        }
+
+        $(cell).append(input);
+        input.focus();
+        if (!isDateColumn) {
+            input.select();
+        }
+
+        // Handle saving/reverting on blur
+        input.on('blur', function() {
+            // Use setTimeout to allow click/tab events on other elements to register first
+            setTimeout(() => {
+                // Check if the blur was caused by moving focus away from the input,
+                // and if the cell is still in editing mode.
+                if (!$(document.activeElement).is(input) && $(cell).hasClass('editing')) {
+                    processCellEdit(cell, input.val(), true); // Save changes
+                }
+            }, 50);
+        });
+
+        // Handle keyboard events (Enter, Esc, Tab)
+        input.on('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                processCellEdit(cell, this.value, true); // Save changes
+                moveToNextCell(cell); // Move to next cell
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                processCellEdit(cell, originalValueForCurrentEdit, false); // Revert changes
+                $(cell).focus(); // Keep focus on the cell
+            } else if (e.key === 'Tab') {
+                e.preventDefault(); // Prevent default tab behavior (moving focus immediately)
+                processCellEdit(cell, this.value, true); // Save changes
+                if (e.shiftKey) {
+                    moveToPreviousCell(cell);
+                } else {
+                    moveToNextCell(cell);
+                }
+            }
+        });
+    }
+
+    // Function to process and send edited cell data to the backend
+    function processCellEdit(cell, newValue, isSaveOperation) {
+        if (!cell || !$(cell).hasClass('editing')) {
+            return;
+        }
+
+        const sohId = $(cell).closest('tr').data('id');
+        const field = $(cell).data('field');
+        const isDateColumn = $(cell).hasClass('date-column');
+
+        // Determine the value to display and the value to send to the backend
+        let valueToSend = newValue.trim();
+        let valueToDisplay = newValue.trim();
+
+        if (isSaveOperation) {
             if (isDateColumn) {
-                input.attr('type', 'date');
-                if (originalText) {
-                    input.val(formatDateToYYYYMMDD(originalText));
+                // Validate date format for YYYY-MM-DD (as sent to backend)
+                if (valueToSend && !/^\d{4}-\d{2}-\d{2}$/.test(valueToSend)) {
+                    alert('Please enter a valid date in YYYY-MM-DD format.');
+                    valueToDisplay = originalDisplayValue; // Revert display if invalid
+                    valueToSend = $(cell).data('original-input'); // Revert input value for sending
+                } else {
+                    // Convert to DD-MM-YYYY for display in the table
+                    valueToDisplay = formatDateToDDMMYYYY(valueToSend);
                 }
             } else {
-                input.attr('type', 'number').attr('step', 'any');
-                input.val(originalText);
-            }
-
-            cell.append(input);
-            input.focus();
-            if (!isDateColumn) {
-                input.select();
-            }
-
-            function saveChanges() {
-                let newValue = input.val().trim();
-                let displayValue = newValue;
-
-                if (isDateColumn && newValue) {
-                    displayValue = formatDateToDDMMYYYY(newValue);
-                }
-
-                console.log(`Saving field: ${field}, New value: ${newValue}`);
-
-                cell.text(displayValue).removeClass('editing');
-
-                if (isDateColumn && newValue && !/^\d{4}-\d{2}-\d{2}$/.test(newValue)) {
-                    alert('Please enter a valid date in DD-MM-YYYY format.');
-                    cell.text(originalText);
-                    return;
-                } else if (!isDateColumn && newValue && isNaN(parseFloat(newValue))) {
+                // For numeric fields, handle empty string or non-numeric input
+                if (valueToSend === '') {
+                    valueToSend = ''; // Send empty string for backend to interpret as None or 0.0
+                    valueToDisplay = '';
+                } else if (isNaN(parseFloat(valueToSend))) {
                     alert('Please enter a valid number.');
-                    cell.text(originalText);
-                    return;
+                    valueToDisplay = originalDisplayValue; // Revert display if invalid
+                    valueToSend = $(cell).data('original-input'); // Revert input value for sending
                 }
+            }
 
-                const sohId = cell.closest('tr').data('id');
+            // Only send AJAX request if value actually changed from its original input value
+            if (valueToSend.toString() !== $(cell).data('original-input').toString()) {
                 const updateData = {
                     id: sohId,
                     field: field,
-                    [field]: newValue // Send YYYY-MM-DD for date fields
+                    [field]: valueToSend // Send the value in the format backend expects (YYYY-MM-DD or number/empty string)
                 };
 
-                console.log('Sending update data:', updateData);
+                console.log('Sending inline update data:', updateData);
 
                 $.ajax({
                     url: "{{ url_for('soh.soh_inline_edit') }}",
@@ -389,37 +476,78 @@ $(document).ready(function() {
                     success: function(response) {
                         console.log('Server response:', response);
                         if (response.success) {
-                            cell.data('original', displayValue);
+                            // Update data attributes with the new values after successful save
+                            $(cell).data('original-display', valueToDisplay);
+                            $(cell).data('original-input', valueToSend);
+                            // Re-fetch SOHs to update totals and ensure data consistency
                             fetchSOHs();
                         } else {
                             alert('Error updating SOH entry: ' + response.error);
-                            cell.text(originalText);
+                            // Revert display and data attributes if backend reports error
+                            $(cell).text(originalDisplayValue);
+                            $(cell).data('original-display', originalDisplayValue);
+                            $(cell).data('original-input', $(cell).data('original-input')); // Keep original input value
                         }
                     },
                     error: function(xhr) {
                         console.error('AJAX error:', xhr.responseText);
                         alert('Error updating SOH entry.');
-                        cell.text(originalText);
+                        // Revert display and data attributes on AJAX error
+                        $(cell).text(originalDisplayValue);
+                        $(cell).data('original-display', originalDisplayValue);
+                        $(cell).data('original-input', $(cell).data('original-input')); // Keep original input value
                     }
                 });
+            } else {
+                // If value didn't change, just update display without AJAX
+                $(cell).text(valueToDisplay);
             }
+        } else {
+            // Revert changes (Esc key pressed)
+            valueToDisplay = originalDisplayValue;
+        }
 
-            function revertChanges() {
-                cell.text(originalText).removeClass('editing');
+        $(cell).text(valueToDisplay);
+        $(cell).removeClass('editing');
+        currentEditingCell = null; // Clear the current editing cell
+    }
+
+    // Initialize double-click and tab editable table
+    function initEditableTable() {
+        editableCells = []; // Clear previous list
+        $('#sohListTable tbody td.editable').each(function() {
+            $(this).attr('tabindex', '0'); // Make cells focusable
+            editableCells.push(this);
+        });
+
+        // Event listener for double-click to enter edit mode
+        $(document).off('dblclick', '#sohListTable tbody td.editable').on('dblclick', '#sohListTable tbody td.editable', function() {
+            enterEditMode($(this));
+        });
+
+        // Event listener for keyboard input on focused cells (to enter edit mode)
+        $(document).off('keypress', '#sohListTable tbody td.editable').on('keypress', '#sohListTable tbody td.editable', function(e) {
+            // If already editing, let the input field handle it
+            if ($(this).find('input').length) return;
+
+            // Only enter edit mode if a printable character is pressed or Enter
+            if (e.key.length === 1 || e.key === 'Enter') {
+                e.preventDefault(); // Prevent character from being typed into the cell directly
+                enterEditMode($(this), e.key); // Pass the key as initial value
             }
+        });
 
-            input.on('blur', function() {
-                setTimeout(saveChanges, 100);
-            });
-
-            input.on('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveChanges();
-                } else if (e.key === 'Escape') {
-                    revertChanges();
+        // Event listener for focus on editable cells (for highlighting and potential direct typing)
+        $(document).off('focus', '#sohListTable tbody td.editable').on('focus', '#sohListTable tbody td.editable', function() {
+            // When a cell gains focus, ensure any previously edited cell is saved/reverted
+            if (currentEditingCell && currentEditingCell !== this) {
+                const activeInput = $(currentEditingCell).find('.edit-input');
+                if (activeInput.length) {
+                    processCellEdit(currentEditingCell, activeInput.val(), true); // Save the old one
                 }
-            });
+            }
+            // No need to call enterEditMode here, just focus and highlight
+            // The keypress/dblclick listeners will handle entering edit mode.
         });
     }
 
@@ -431,9 +559,9 @@ $(document).ready(function() {
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
 
-        // validate date format
+        // validate date format (YYYY-MM-DD from search input)
         if (weekCommencing && !/^\d{4}-\d{2}-\d{2}$/.test(weekCommencing)) {
-            alert('Please enter a valid date in YYYY-MM-DD format.');
+            alert('Please enter a valid date in YYYY-MM-DD format for search.');
             return;
         }
 
@@ -476,22 +604,31 @@ $(document).ready(function() {
                         const editUrl = `${baseEditUrl}/${soh.id}`;
                         const deleteUrl = `${baseDeleteUrl}/${soh.id}`;
 
+                        // Use soh.week_commencing_original for data-original-input as it's YYYY-MM-DD
+                        // Use soh.week_commencing for the displayed value as it's DD-MM-YYYY
+                        // For numeric fields, original-input and original-display can be the same.
+
                         tableBody.append(`
                             <tr data-id="${soh.id}">
                                 <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                 <td>${soh.id || ''}</td>
-                                <td class="editable date-column" data-field="week_commencing" data-original="${soh.week_commencing}">${soh.week_commencing || ''}</td>
+                                <td class="editable date-column" tabindex="0"
+                                    data-field="week_commencing"
+                                    data-original-display="${soh.week_commencing || ''}"
+                                    data-original-input="${soh.week_commencing_original || ''}">
+                                    ${soh.week_commencing || ''}
+                                </td>
                                 <td>${soh.fg_code || ''}</td>
                                 <td>${soh.description || ''}</td>
-                                <td class="editable" data-field="soh_dispatch_boxes" data-original="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
-                                <td class="editable" data-field="soh_dispatch_units" data-original="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
-                                <td class="editable" data-field="soh_packing_boxes" data-original="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
-                                <td class="editable" data-field="soh_packing_units" data-original="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
+                                <td class="editable" tabindex="0" data-field="soh_dispatch_boxes" data-original-display="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}" data-original-input="${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}">${soh.soh_dispatch_boxes !== null && soh.soh_dispatch_boxes !== undefined ? soh.soh_dispatch_boxes : ''}</td>
+                                <td class="editable" tabindex="0" data-field="soh_dispatch_units" data-original-display="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}" data-original-input="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
+                                <td class="editable" tabindex="0" data-field="soh_packing_boxes" data-original-display="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}" data-original-input="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
+                                <td class="editable" tabindex="0" data-field="soh_packing_units" data-original-display="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}" data-original-input="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
                                 <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
                                 <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
                                 <td>${soh.edit_date}</td>
                                 <td>
-                                    <a href="${editUrl}" class="btn btn-warning btn-sm">Edit</a>
+                                   <a href="${editUrl}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
                                     <form action="${deleteUrl}" method="post" style="display:inline-block;">
                                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this SOH entry?')">Delete</button>
                                     </form>
@@ -500,7 +637,7 @@ $(document).ready(function() {
                         `);
                     }
                 });
-                initEditableTable();
+                initEditableTable(); // Re-initialize editable table after content update
             },
             error: function(xhr) {
                 console.error('AJAX error:', xhr.responseText);
@@ -531,9 +668,8 @@ $(document).ready(function() {
         }).get();
 
         var weekCommencing = $('#bulk_week_commencing').val().trim();
-        if (weekCommencing) {
-            weekCommencing = formatDateToDDMMYYYY(weekCommencing);
-        }
+        // The bulk edit modal's date input is already YYYY-MM-DD, no need to convert here.
+        // If empty, it's fine.
 
         var formData = {
             ids: selectedIds,
@@ -566,11 +702,12 @@ $(document).ready(function() {
 
     // Bind search button click event
     $('#searchForm button[type="button"]').click(function() {
-       console.log('Search button clicked'); 
-        fetchSOHs();
+       console.log('Search button clicked');
+       fetchSOHs();
     });
 
-    initEditableTable();
+    // Initial call to fetch SOHs and initialize editable table on page load
+    fetchSOHs();
 });
 </script>
 {% endblock %}
