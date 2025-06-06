@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, send_file, url_
 from sqlalchemy.sql import text
 from decimal import Decimal
 import sqlalchemy.exc
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
@@ -12,41 +12,67 @@ from models import Production, RecipeMaster
 # Create a Blueprint for recipe routes
 recipe_bp = Blueprint('recipe', __name__, template_folder='templates')
 
+def get_monday_date(date_str):
+    """Convert any date to the previous Monday if it's not already a Monday.
+    Supports both YYYY-MM-DD and DD/MM/YYYY formats."""
+    try:
+        # Try YYYY-MM-DD format first
+        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        try:
+            # Try DD/MM/YYYY format
+            date = datetime.strptime(date_str, '%d/%m/%Y').date()
+        except ValueError:
+            raise ValueError("Date must be in YYYY-MM-DD or DD/MM/YYYY format")
+    
+    days_since_monday = date.weekday()  # Monday = 0, Sunday = 6
+    if days_since_monday != 0:  # If not Monday
+        # Calculate previous Monday
+        monday = date - timedelta(days=days_since_monday)
+        return monday
+    return date
+
 @recipe_bp.route('/recipe', methods=['GET', 'POST'])
 def recipe_page():
     from database import db
     from models import RecipeMaster
 
     if request.method == 'POST':
-        # Handle add or edit recipe form submission
-        recipe_id = request.form.get('recipe_id')  # For edit case
-        recipe_code = request.form.get('recipe_code')
-        description = request.form.get('description')
-        raw_material = request.form.get('raw_material')
-        kg_per_batch = request.form.get('kg_per_batch')
-
         try:
-            if not all([recipe_code, description, raw_material, kg_per_batch]):
-                flash("All fields are required.", 'error')
-                return render_template('recipe/recipe.html', 
-                                     search_recipe_code=request.args.get('recipe_code', ''),
-                                     search_description=request.args.get('description', ''),
-                                     recipes=RecipeMaster.query.all(), current_page='recipe')
+            data = request.get_json() if request.is_json else request.form
+            recipe_id = data.get('recipe_id')
+            recipe_code = data.get('recipe_code')
+            description = data.get('description')
+            raw_material = data.get('raw_material')
+            week_commencing = data.get('week_commencing')
+            kg_per_batch = data.get('kg_per_batch')
+
+            if not all([recipe_code, description, raw_material, week_commencing, kg_per_batch]):
+                return jsonify({'error': 'All fields are required.'}), 400
+
+            try:
+                # Ensure week_commencing is a Monday
+                week_commencing_date = get_monday_date(week_commencing)
+                if week_commencing_date != datetime.strptime(week_commencing, '%Y-%m-%d').date():
+                    print(f"Adjusted week_commencing from {week_commencing} to {week_commencing_date}")
+            except ValueError as e:
+                return jsonify({'error': f'Invalid date format: {str(e)}'}), 400
 
             kg_per_batch = Decimal(kg_per_batch)
 
             if recipe_id:  # Edit case
                 recipe = RecipeMaster.query.get_or_404(recipe_id)
-                old_kg = float(recipe.kg_per_batch)
                 recipe.recipe_code = recipe_code
                 recipe.description = description
                 recipe.raw_material = raw_material
+                recipe.week_commencing = week_commencing_date
                 recipe.kg_per_batch = kg_per_batch
             else:  # Add case
                 recipe = RecipeMaster(
                     recipe_code=recipe_code,
                     description=description,
                     raw_material=raw_material,
+                    week_commencing=week_commencing_date,
                     kg_per_batch=kg_per_batch,
                     percentage=Decimal(0)
                 )
@@ -54,55 +80,45 @@ def recipe_page():
 
             db.session.flush()
 
-            # Recalculate percentages for all recipes with the same description
-            recipes_to_update = RecipeMaster.query.filter(RecipeMaster.description == description).all()
+            # Recalculate percentages
+            recipes_to_update = RecipeMaster.query.filter(
+                RecipeMaster.description == description,
+                RecipeMaster.week_commencing == week_commencing_date
+            ).all()
+            
             total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
             for r in recipes_to_update:
                 r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
+            
             db.session.commit()
+            return jsonify({'message': 'Recipe saved successfully!'}), 200
 
-            flash("Recipe saved successfully!", 'success')
-            return redirect(url_for('recipe.recipe_page'))
-
-        except ValueError:
-            flash("Invalid input. Please check your data.", 'error')
+        except ValueError as e:
             db.session.rollback()
-            return render_template('recipe/recipe.html', 
-                                 search_recipe_code=request.args.get('recipe_code', ''),
-                                 search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all(),current_page='recipe')
-
-        except sqlalchemy.exc.IntegrityError as e:
-            db.session.rollback()
-            flash(f"Error: {str(e)}", 'error')
-            return render_template('recipe/recipe.html', 
-                                 search_recipe_code=request.args.get('recipe_code', ''),
-                                 search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all(), current_page='recipe')
-
+            return jsonify({'error': f'Invalid input: {str(e)}'}), 400
         except Exception as e:
             db.session.rollback()
-            flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('recipe/recipe.html', 
-                                 search_recipe_code=request.args.get('recipe_code', ''),
-                                 search_description=request.args.get('description', ''),
-                                 recipes=RecipeMaster.query.all(), current_page='recipe')
+            return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
-    # GET request: render the page or edit form
+    # GET request: render the page
     search_recipe_code = request.args.get('recipe_code', '')
     search_description = request.args.get('description', '')
     edit_id = request.args.get('edit_id')
+    
     if edit_id:
         recipe = RecipeMaster.query.get_or_404(edit_id)
         return render_template('recipe/recipe.html', 
                              search_recipe_code=search_recipe_code,
                              search_description=search_description,
                              recipes=RecipeMaster.query.all(),
-                             edit_recipe=recipe, current_page='recipe')
+                             edit_recipe=recipe,
+                             current_page='recipe')
+    
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
-                         recipes=RecipeMaster.query.all(), current_page='recipe')
+                         recipes=RecipeMaster.query.all(),
+                         current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
 def delete_recipe(id):

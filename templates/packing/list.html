@@ -15,8 +15,12 @@
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
             <div class="form-group">
-                <label for="search_packing_date">Packing Date:</label>
-                <input type="date" id="search_packing_date" name="packing_date" value="">
+                <label for="search_packing_date_start">Packing Date (From):</label>
+                <input type="date" id="search_packing_date_start" name="packing_date_start" value="{{ search_packing_date_start | default('') }}">
+            </div>
+            <div class="form-group">
+                <label for="search_packing_date_end">Packing Date (To):</label>
+                <input type="date" id="search_packing_date_end" name="packing_date_end" value="{{ search_packing_date_end | default('') }}">
             </div>
             <div class="form-group">
                 <label for="search_week_commencing">Week Commencing:</label>
@@ -108,8 +112,8 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="7" style="text-align: right; font-weight: bold;">Total:</td>
-                        <td id="total_requirement_kg"></td>
+                        <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
+                        <td id="total_requirement_kg" style="border-left: none;"></td>
                         <td id="total_requirement_unit"></td>
                         <td colspan="11"></td>
                     </tr>
@@ -428,6 +432,24 @@
         border-color: #007bff; /* Bootstrap primary */
         box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25); /* Bootstrap focus ring */
     }
+
+    /* Style for the total row */
+    #packingListTable tfoot tr td {
+        background-color: #f8f9fa;
+    }
+    
+    /* Ensure the total cells are always visible and aligned properly */
+    #packingListTable tfoot tr td[id^="total_"] {
+        display: table-cell !important;
+        text-align: left;
+        font-weight: bold;
+    }
+
+    /* Hide borders between Total: text and the first total value */
+    #packingListTable tfoot tr td[style*="border-right: none"],
+    #packingListTable tfoot tr td[style*="border-left: none"] {
+        border-color: transparent;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -520,8 +542,19 @@ $(document).ready(function() {
     });
 
     // Trigger search on input change
-    $("#search_packing_date, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
+    $("#search_packing_date_start, #search_packing_date_end, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
         fetchPackings();
+    });
+
+    // Add date range validation
+    $("#search_packing_date_start, #search_packing_date_end").change(function() {
+        var startDate = $("#search_packing_date_start").val();
+        var endDate = $("#search_packing_date_end").val();
+        
+        if (startDate && endDate && startDate > endDate) {
+            alert("End date must be after start date");
+            $(this).val('');
+        }
     });
 
     // Initial fetch
@@ -578,16 +611,51 @@ function formatDateToYYYYMMDD(dateString) {
     return dateString;
 }
 
+// Add this function after the existing utility functions
+function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
+    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+}
+
+// Add week commencing date validation
+$("#search_week_commencing").on('change', function() {
+    const selectedDate = $(this).val();
+    if (selectedDate) {
+        const mondayDate = getMonday(selectedDate);
+        if (selectedDate !== mondayDate) {
+            $(this).val(mondayDate);
+            alert("Week commencing date has been adjusted to Monday: " + mondayDate);
+        }
+    }
+});
+
 // Fetch packing entries based on search and sorting
 function fetchPackings() {
-    let packingDate = $("#search_packing_date").val().trim();
+    let packingDateStart = $("#search_packing_date_start").val().trim();
+    let packingDateEnd = $("#search_packing_date_end").val().trim();
     let weekCommencing = $("#search_week_commencing").val().trim();
     let fgCode = $("#search_fg_code").val().trim();
     let description = $("#search_description").val().trim();
     let sortBy = sortCriteria.map(criterion => criterion.column);
     let sortOrder = sortCriteria.map(criterion => criterion.direction);
 
-    console.log("Fetching packings with data:", { packing_date: packingDate, week_commencing: weekCommencing, fg_code: fgCode, description: description, sort_by: sortBy, sort_order: sortOrder });
+    // Validate date range
+    if (packingDateStart && packingDateEnd && packingDateStart > packingDateEnd) {
+        alert("End date must be after start date");
+        return;
+    }
+
+    console.log("Fetching packings with data:", { 
+        packing_date_start: packingDateStart, 
+        packing_date_end: packingDateEnd, 
+        week_commencing: weekCommencing, 
+        fg_code: fgCode, 
+        description: description, 
+        sort_by: sortBy, 
+        sort_order: sortOrder 
+    });
 
     $('#packingListTable tbody').html('<tr><td colspan="20" class="no-results">Loading...</td></tr>');
 
@@ -595,7 +663,8 @@ function fetchPackings() {
         url: "{{ url_for('packing.get_search_packings') }}",
         type: "GET",
         data: {
-            packing_date: packingDate,
+            packing_date_start: packingDateStart,
+            packing_date_end: packingDateEnd,
             week_commencing: weekCommencing,
             fg_code: fgCode,
             description: description,
@@ -686,13 +755,52 @@ function fetchPackings() {
 
 // Apply column visibility based on the columnVisibility array
 function applyColumnVisibility() {
+    // First, handle all columns except the total row
     for (let i = 1; i <= 20; i++) {
+        const selector = `#packingListTable th[data-col-index="${i}"], #packingListTable tbody td:nth-child(${i})`;
         if (!columnVisibility[i - 1]) {
-            $(`#packingListTable th[data-col-index="${i}"], #packingListTable td:nth-child(${i})`).hide();
+            $(selector).hide();
         } else {
-            $(`#packingListTable th[data-col-index="${i}"], #packingListTable td:nth-child(${i})`).show();
+            $(selector).show();
         }
     }
+
+    // Special handling for the footer to keep totals under Requirement KG and Unit
+    let visibleColsBeforeReq = 0;
+    for (let i = 0; i < 7; i++) {
+        if (columnVisibility[i]) {
+            visibleColsBeforeReq++;
+        }
+    }
+
+    // Always ensure the total cells are visible and properly aligned
+    $('#packingListTable tfoot tr td:first').attr('colspan', visibleColsBeforeReq);
+    $('#packingListTable tfoot tr td[id^="total_"]').show();
+
+    // Ensure the total row cells are properly aligned with their respective columns
+    const reqKgColVisible = columnVisibility[7]; // Index 7 is Requirement KG
+    const reqUnitColVisible = columnVisibility[8]; // Index 8 is Requirement Unit
+
+    if (reqKgColVisible) {
+        $('#total_requirement_kg').show();
+    } else {
+        $('#total_requirement_kg').hide();
+    }
+
+    if (reqUnitColVisible) {
+        $('#total_requirement_unit').show();
+    } else {
+        $('#total_requirement_unit').hide();
+    }
+
+    // Update the colspan of the remaining columns
+    let remainingColspan = 0;
+    for (let i = 9; i < 20; i++) {
+        if (columnVisibility[i]) {
+            remainingColspan++;
+        }
+    }
+    $('#packingListTable tfoot tr td:last').attr('colspan', remainingColspan);
 }
 
 // Initialize double-click editable table
@@ -804,7 +912,9 @@ function updateCellSelect(select) {
 // Column toggle logic
 function toggleColumn(colIndex) {
     columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
-    $(`#packingListTable th[data-col-index="${colIndex}"], #packingListTable td:nth-child(${colIndex})`).toggle();
+    applyColumnVisibility();
+    // Reapply filters after toggling columns
+    fetchPackings();
 }
 
 function showEssentialColumns() {
@@ -818,6 +928,8 @@ function showEssentialColumns() {
         let idx = parseInt($(this).attr('data-col-index'));
         $(this).prop('checked', [2, 3, 6, 7].includes(idx));
     });
+    // Reapply filters after showing essential columns
+    fetchPackings();
 }
 
 function resetToDefault() {
@@ -832,24 +944,31 @@ function resetToDefault() {
         let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 15, 18, 19];
         $(this).prop('checked', defaultVisibleCols.includes(idx));
     });
+    // Reapply filters after resetting to default
+    fetchPackings();
 }
 
 function showAllColumns() {
     columnVisibility = Array(20).fill(true);
     applyColumnVisibility();
     $('#column-toggle input[type="checkbox"]').prop('checked', true);
+    // Reapply filters after showing all columns
+    fetchPackings();
 }
 
 // Export to Excel
 function exportToExcel() {
-    let packingDate = $("#search_packing_date").val().trim();
+    let packingDateStart = $("#search_packing_date_start").val().trim();
+    let packingDateEnd = $("#search_packing_date_end").val().trim();
     let weekCommencing = $("#search_week_commencing").val().trim();
     let fgCode = $("#search_fg_code").val().trim();
     let description = $("#search_description").val().trim();
     let sortBy = sortCriteria.map(criterion => criterion.column);
     let sortOrder = sortCriteria.map(criterion => criterion.direction);
 
-    let url = "{{ url_for('packing.export_packings') }}?packing_date=" + encodeURIComponent(packingDate) +
+    let url = "{{ url_for('packing.export_packings') }}?" +
+              "packing_date_start=" + encodeURIComponent(packingDateStart) +
+              "&packing_date_end=" + encodeURIComponent(packingDateEnd) +
               "&week_commencing=" + encodeURIComponent(weekCommencing) +
               "&fg_code=" + encodeURIComponent(fgCode) +
               "&description=" + encodeURIComponent(description);

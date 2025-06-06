@@ -16,14 +16,17 @@
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
             </div>
             <div class="form-group">
+                <label for="search_filling_date_start">Filling Date (From):</label>
+                <input type="date" id="search_filling_date_start" name="filling_date_start" value="{{ search_filling_date_start | default('') }}">
+            </div>
+            <div class="form-group">
+                <label for="search_filling_date_end">Filling Date (To):</label>
+                <input type="date" id="search_filling_date_end" name="filling_date_end" value="{{ search_filling_date_end | default('') }}">
+            </div>
+            <div class="form-group">
                 <label for="search_week_commencing">Week Commencing:</label>
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
-            <div class="form-group">
-                <label for="search_filling_date">Filling Date:</label>
-                <input type="date" id="search_filling_date" name="filling_date" value="{{ search_filling_date | default('') }}">
-            </div>
-
             <button type="button" onclick="fetchFillings()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fill_code_suggestions" class="suggestion-list"></div>
@@ -182,6 +185,29 @@
                 $("#fill_code_suggestions").empty();
             }
         });
+
+        // Add date range validation
+        $("#search_filling_date_start, #search_filling_date_end").change(function() {
+            var startDate = $("#search_filling_date_start").val();
+            var endDate = $("#search_filling_date_end").val();
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert("End date must be after start date");
+                $(this).val('');
+            }
+        });
+
+        // Add week commencing date validation
+        $("#search_week_commencing").on('change', function() {
+            const selectedDate = $(this).val();
+            if (selectedDate) {
+                const mondayDate = getMonday(selectedDate);
+                if (selectedDate !== mondayDate) {
+                    $(this).val(mondayDate);
+                    alert("Week commencing date has been adjusted to Monday: " + mondayDate);
+                }
+            }
+        });
     });
 
     // Function to add a new filling entry
@@ -194,15 +220,25 @@
         var fillCode = $("#search_fill_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
-        var fillingDate = $("#search_filling_date").val().trim();
+        var fillingDateStart = $("#search_filling_date_start").val().trim();
+        var fillingDateEnd = $("#search_filling_date_end").val().trim();
+
+        // Validate date range
+        if (fillingDateStart && fillingDateEnd && fillingDateStart > fillingDateEnd) {
+            alert("End date must be after start date");
+            return;
+        }
 
         $.ajax({
             url: "{{ url_for('filling.get_search_fillings') }}",
             type: "GET",
-            data: { fill_code: fillCode, 
+            data: { 
+                fill_code: fillCode, 
                 description: description,
                 week_commencing: weekCommencing,
-                filling_date: fillingDate},
+                filling_date_start: fillingDateStart,
+                filling_date_end: fillingDateEnd
+            },
             success: function(response) {
                 var tableBody = $("#fillingListTable tbody");
                 tableBody.empty();
@@ -270,17 +306,27 @@
         var fillCode = $("#search_fill_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
-        var fillingDate = $("#search_filling_date").val().trim();
+        var fillingDateStart = $("#search_filling_date_start").val().trim();
+        var fillingDateEnd = $("#search_filling_date_end").val().trim();
 
         // Construct the URL with query parameters
         var url = "{{ url_for('filling.export_fillings_excel') }}?" +
                   "fill_code=" + encodeURIComponent(fillCode) +
                   "&description=" + encodeURIComponent(description) +
                   "&week_commencing=" + encodeURIComponent(weekCommencing) +
-                  "&filling_date=" + encodeURIComponent(fillingDate);
+                  "&filling_date_start=" + encodeURIComponent(fillingDateStart) +
+                  "&filling_date_end=" + encodeURIComponent(fillingDateEnd);
 
         // Trigger the download
         window.location.href = url;
+    }
+
+    // Add this function after the document ready block
+    function getMonday(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
+        return new Date(d.setDate(diff)).toISOString().split('T')[0];
     }
 </script>
 {% endblock %}

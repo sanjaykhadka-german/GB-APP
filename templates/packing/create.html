@@ -21,17 +21,16 @@
         </div>
         <div class="form-group">
             <label for="product_code">Product Code</label>
-            <select class="form-control" id="product_code" name="product_code" required>
+            <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription()">
                 <option value="">Select Product Code</option>
                 {% for product in products %}
-                    <option value="{{ product.fg_code }}">{{ product.fg_code }} - {{ product.description }}</option>
+                    <option value="{{ product.fg_code }}" data-description="{{ product.description }}">{{ product.fg_code }} - {{ product.description }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="form-group">
             <label for="product_description">Product Description</label>
-            <input type="text" class="form-control" id="product_description" name="product_description" required>
-        </div>
+            <input type="text" class="form-control" id="product_description" name="product_description" required readonly> </div>
         <div class="form-group">
             <label for="special_order_kg">Special Order KG</label>
             <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="0.0">
@@ -63,7 +62,18 @@
         const select = document.getElementById('product_code');
         const descriptionInput = document.getElementById('product_description');
         const selectedOption = select.options[select.selectedIndex];
-        descriptionInput.value = selectedOption ? selectedOption.getAttribute('data-description') : '';
+        
+        // Check if a valid option is selected (not the "Select Product Code" default)
+        if (selectedOption && selectedOption.value !== "") {
+            descriptionInput.value = selectedOption.getAttribute('data-description');
+        } else {
+            descriptionInput.value = ''; // Clear description if no product is selected
+        }
     }
+
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        updateDescription();
+    });
 </script>
 {% endblock %}

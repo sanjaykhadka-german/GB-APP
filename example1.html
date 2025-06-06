@@ -1,330 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tab Navigation with Direct Edit</title>
-    <style>
-        body {    
-            font-family: Arial, sans-serif;    
-            padding: 20px;    
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {    
-            color: #333;    
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        /* Instructions, Status, Stats specific styles removed as elements are removed */
-        table {    
-            border-collapse: collapse;    
-            margin: 20px auto;
-            width: 100%;
-            background: white;
-        }
-        th {    
-            border: 2px solid #999;    
-            padding: 12px;    
-            background-color: #f0f0f0;    
-            font-weight: bold;    
-            text-align: center;
-            color: #333;
-        }
-        td {    
-            border: 2px solid #ddd;    
-            padding: 12px;    
-            text-align: center;
-            transition: all 0.2s ease;
-            cursor: pointer;
-        }
-        .editable {
-            background-color: #fafafa;
-            position: relative;
-        }
-        .editable:hover {
-            background-color: #f0f8ff;
-        }
-        .editable:focus, 
-        .editable.editing:focus-within { 
-            outline: none;
-            background-color: #e8f5e8;
-            border-color: #4CAF50;
-            box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
-            transform: scale(1.02);
-        }
-        .editable.editing { 
-            background-color: #fff3cd !important; 
-            border-color: #ffeaa7 !important;
-        }
-        .edit-input {
-            border: none;
-            background: transparent;
-            text-align: center;
-            width: 100%;
-            height: 100%; 
-            font-size: inherit;
-            font-family: inherit;
-            padding: 0; 
-            margin: 0;
-            outline: none;
-            box-sizing: border-box; 
-        }
-        /* Status text specific styles removed as element is removed */
-        /* Stats specific styles removed as elements are removed */
-    </style>
+  <meta charset="UTF-8">
+  <title>Tabular Popup Example</title>
+  <style>
+    /* Popup overlay */
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .popup-overlay.active {
+      display: flex;
+    }
+    /* Popup box */
+    .popup-box {
+      background: #fff;
+      padding: 24px;
+      border-radius: 8px;
+      min-width: 350px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.2);
+      position: relative;
+    }
+    .popup-box h2 {
+      margin-top: 0;
+    }
+    .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .add-row-btn {
+      padding: 6px 12px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .add-row-btn:hover {
+      background: #0056b3;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Tab Navigation with Direct Edit</h1>
+  <button onclick="openPopup()">Open Tabular Popup</button>
 
-        <!-- Instructions, Status, and Stats divs have been removed as per user's provided HTML -->
-
-        <table id="editableTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Age</th>
-                    <th>City</th>
-                    <th>Department</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td class="editable" tabindex="0" data-original="John Smith" data-cell="A1">John Smith</td>
-                    <td class="editable" tabindex="0" data-original="28" data-cell="B1">28</td>
-                    <td class="editable" tabindex="0" data-original="New York" data-cell="C1">New York</td>
-                    <td class="editable" tabindex="0" data-original="Engineering" data-cell="D1">Engineering</td>
-                </tr>
-                <tr>
-                    <td class="editable" tabindex="0" data-original="Sarah Johnson" data-cell="A2">Sarah Johnson</td>
-                    <td class="editable" tabindex="0" data-original="34" data-cell="B2">34</td>
-                    <td class="editable" tabindex="0" data-original="Los Angeles" data-cell="C2">Los Angeles</td>
-                    <td class="editable" tabindex="0" data-original="Marketing" data-cell="D2">Marketing</td>
-                </tr>
-                <tr>
-                    <td class="editable" tabindex="0" data-original="Mike Davis" data-cell="A3">Mike Davis</td>
-                    <td class="editable" tabindex="0" data-original="31" data-cell="B3">31</td>
-                    <td class="editable" tabindex="0" data-original="Chicago" data-cell="C3">Chicago</td>
-                    <td class="editable" tabindex="0" data-original="Sales" data-cell="D3">Sales</td>
-                </tr>
-                <tr>
-                    <td class="editable" tabindex="0" data-original="Emily Wilson" data-cell="A4">Emily Wilson</td>
-                    <td class="editable" tabindex="0" data-original="29" data-cell="B4">29</td>
-                    <td class="editable" tabindex="0" data-original="Seattle" data-cell="C4">Seattle</td>
-                    <td class="editable" tabindex="0" data-original="Design" data-cell="D4">Design</td>
-                </tr>
-                <tr>
-                    <td class="editable" tabindex="0" data-original="Robert Brown" data-cell="A5">Robert Brown</td>
-                    <td class="editable" tabindex="0" data-original="42" data-cell="B5">42</td>
-                    <td class="editable" tabindex="0" data-original="Boston" data-cell="C5">Boston</td>
-                    <td class="editable" tabindex="0" data-original="Finance" data-cell="D5">Finance</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div style="text-align: center; margin-top: 20px; color: #666;">
-            <small>💡 Tip: Tab to navigate, type to edit, Enter/Tab to save & move, Esc to cancel.</small>
-        </div>
+  <div class="popup-overlay" id="popupOverlay">
+    <div class="popup-box">
+      <button class="close-btn" onclick="closePopup()">&times;</button>
+      <h2>Tabular Popup</h2>
+      <table id="popupTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Example 1</td>
+            <td>Value 1</td>
+          </tr>
+        </tbody>
+      </table>
+      <button class="add-row-btn" onclick="addRow()">Add Row</button>
     </div>
-	
-	<button class="btn btn-success" onclick=" window.open('http://google.com','_blank')"> Google</button>
+  </div>
 
-    <script>
-        let currentEditingCell = null; 
-        let originalValueForCurrentEdit = null; 
-        let editCount = 0;
-        
-        // Get references to elements, they might be null if HTML is changed
-        const statusTextElement = document.getElementById('statusText');
-        const editCountElement = document.getElementById('editCount');
-        const currentCellElement = document.getElementById('currentCell');
-        const totalCellsElement = document.getElementById('totalCells');
-        
-        const editableCells = []; 
-
-        function updateStatus(message, type = 'message') {
-            if (statusTextElement) { // Check if element exists
-                statusTextElement.textContent = message;
-                statusTextElement.className = ''; 
-                if (type === 'focused') {
-                    statusTextElement.classList.add('focused-cell-info');
-                } else if (type === 'editing') {
-                    statusTextElement.classList.add('editing-cell-info');
-                } else {
-                    statusTextElement.classList.add('message');
-                }
-            }
-        }
-
-        function updateEditCount() {
-            editCount++;
-            if (editCountElement) { // Check if element exists
-                editCountElement.textContent = editCount;
-            }
-        }
-
-        function updateCurrentCellDisplay(cell) {
-            if (currentCellElement) { // Check if element exists
-                currentCellElement.textContent = cell ? cell.getAttribute('data-cell') : '-';
-            }
-        }
-        
-        function makeCellEditable(cell) {
-            if (!cell || cell.classList.contains('editing')) {
-                return;
-            }
-
-            if (currentEditingCell && currentEditingCell !== cell) {
-                const activeInput = currentEditingCell.querySelector('.edit-input');
-                if (activeInput) {
-                    activeInput.blur(); 
-                }
-            }
-            
-            const cellId = cell.getAttribute('data-cell');
-            updateCurrentCellDisplay(cell); // Will do nothing if currentCellElement is null
-            originalValueForCurrentEdit = cell.textContent.trim();
-
-            cell.classList.add('editing');
-            currentEditingCell = cell; 
-            
-            cell.innerHTML = ''; 
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'edit-input';
-            input.value = originalValueForCurrentEdit;
-            cell.appendChild(input);
-
-            input.focus();
-            input.select();
-
-            updateStatus(`Editing ${cellId} (Enter/Tab to save, Esc to cancel)`, 'editing'); // Will do nothing if statusTextElement is null
-
-            input.addEventListener('blur', function handleInputBlur() {
-                if (cell.classList.contains('editing')) { 
-                    processCellEdit(cell, this.value, true); 
-                }
-            });
-
-            input.addEventListener('keydown', function handleInputKeydown(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    processCellEdit(cell, this.value, true); 
-                    moveToNextCell(cell);
-                } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    processCellEdit(cell, originalValueForCurrentEdit, false); 
-                } else if (e.key === 'Tab') {
-                    e.preventDefault(); 
-                    processCellEdit(cell, this.value, true); 
-                    if (e.shiftKey) {
-                        moveToPreviousCell(cell);
-                    } else {
-                        moveToNextCell(cell);
-                    }
-                }
-            });
-        }
-
-        function processCellEdit(cell, newValue, isSaveOperation) {
-            if (!cell || !cell.classList.contains('editing')) {
-                return; 
-            }
-
-            const cellId = cell.getAttribute('data-cell');
-            const actualPersistedOriginalValue = cell.getAttribute('data-original');
-            
-            cell.classList.remove('editing');
-
-            let finalDisplayValue;
-
-            if (isSaveOperation) {
-                finalDisplayValue = newValue.trim();
-                if (finalDisplayValue !== actualPersistedOriginalValue) {
-                    cell.setAttribute('data-original', finalDisplayValue); 
-                    updateEditCount(); // Will update internal count, DOM update is conditional
-                    updateStatus(`Saved: ${cellId} to "${finalDisplayValue}"`, 'message');
-                } else {
-                    updateStatus(`No changes to ${cellId}.`, 'message');
-                }
-            } else { 
-                finalDisplayValue = originalValueForCurrentEdit; 
-                updateStatus(`Cancelled edit for ${cellId}. Restored: "${finalDisplayValue}"`, 'message');
-            }
-            
-            cell.innerHTML = finalDisplayValue; 
-            currentEditingCell = null; 
-
-            if (!isSaveOperation) { 
-                cell.focus(); 
-            }
-            
-             setTimeout(() => {
-                const activeEl = document.activeElement;
-                if (!editableCells.includes(activeEl) && !(activeEl && activeEl.classList.contains('edit-input'))) {
-                     if (!currentEditingCell) { 
-                        updateStatus('Ready - Select a cell to edit', 'message');
-                        updateCurrentCellDisplay(null);
-                     }
-                }
-            }, 0);
-        }
-
-        function getCellIndex(cell) {
-            return editableCells.indexOf(cell);
-        }
-
-        function moveToNextCell(currentCell) {
-            const currentIndex = getCellIndex(currentCell);
-            const nextIndex = (currentIndex + 1) % editableCells.length;
-            const nextCell = editableCells[nextIndex];
-            
-            if (nextCell) {
-                nextCell.focus(); 
-            }
-        }
-
-        function moveToPreviousCell(currentCell) {
-            const currentIndex = getCellIndex(currentCell);
-            const prevIndex = (currentIndex - 1 + editableCells.length) % editableCells.length;
-            const prevCell = editableCells[prevIndex];
-            
-            if (prevCell) {
-                prevCell.focus();
-            }
-        }
-
-        function initializeTable() {
-            document.querySelectorAll('td.editable').forEach(cell => {
-                editableCells.push(cell);
-                cell.setAttribute('tabindex', '0'); 
-            });
-
-            if (totalCellsElement) { // Check if element exists
-               totalCellsElement.textContent = editableCells.length;
-            }
-
-
-            editableCells.forEach(cell => {
-                cell.addEventListener('focus', function() {
-                    makeCellEditable(this);
-                });
-            });
-
-            if (editableCells.length > 0) {
-                 updateStatus('Ready - Use Tab or click to select a cell', 'message');
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', initializeTable);
-    </script>
+  <script>
+    function openPopup() {
+      document.getElementById('popupOverlay').classList.add('active');
+    }
+    function closePopup() {
+      document.getElementById('popupOverlay').classList.remove('active');
+    }
+    function addRow() {
+      const table = document.getElementById('popupTable').getElementsByTagName('tbody')[0];
+      const newRow = table.insertRow();
+      const nameCell = newRow.insertCell(0);
+      const valueCell = newRow.insertCell(1);
+      nameCell.textContent = 'New Name';
+      valueCell.textContent = 'New Value';
+    }
+  </script>
 </body>
 </html>

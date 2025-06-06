@@ -16,7 +16,8 @@ def production_list():
     search_production_code = request.args.get('production_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_production_date = request.args.get('production_date', '').strip()
+    search_production_date_start = request.args.get('production_date_start', '').strip()
+    search_production_date_end = request.args.get('production_date_end', '').strip()
 
     # Query productions with optional filters
     productions_query = Production.query
@@ -26,12 +27,32 @@ def production_list():
             productions_query = productions_query.filter(Production.week_commencing == week_commencing_date)
         except ValueError:
             flash("Invalid Week Commencing date format.", 'error')
-    if search_production_date:
+    
+    # Handle date range filter
+    if search_production_date_start or search_production_date_end:
         try:
-            production_date = datetime.strptime(search_production_date, '%Y-%m-%d').date()
-            productions_query = productions_query.filter(Production.production_date == production_date)
+            if search_production_date_start:
+                start_date = datetime.strptime(search_production_date_start, '%Y-%m-%d').date()
+                productions_query = productions_query.filter(Production.production_date >= start_date)
+            if search_production_date_end:
+                end_date = datetime.strptime(search_production_date_end, '%Y-%m-%d').date()
+                productions_query = productions_query.filter(Production.production_date <= end_date)
+                
+            # Validate date range if both dates are provided
+            if search_production_date_start and search_production_date_end:
+                if start_date > end_date:
+                    flash("Start date must be before or equal to end date.", 'error')
+                    return render_template('production/list.html', 
+                                        productions=[],
+                                        search_production_code=search_production_code,
+                                        search_description=search_description,
+                                        search_week_commencing=search_week_commencing,
+                                        search_production_date_start=search_production_date_start,
+                                        search_production_date_end=search_production_date_end,
+                                        current_page="production")
         except ValueError:
-            flash("Invalid Production Date format.", 'error')
+            flash("Invalid date format.", 'error')
+
     if search_production_code:
         productions_query = productions_query.filter(Production.production_code.ilike(f"%{search_production_code}%"))
     if search_description:
@@ -43,7 +64,8 @@ def production_list():
                          search_production_code=search_production_code,
                          search_description=search_description,
                          search_week_commencing=search_week_commencing,
-                         search_production_date=search_production_date,
+                         search_production_date_start=search_production_date_start,
+                         search_production_date_end=search_production_date_end,
                          current_page="production")
 
 @production_bp.route('/production_create', methods=['GET', 'POST'])
@@ -172,7 +194,8 @@ def get_search_productions():
     search_production_code = request.args.get('production_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_production_date = request.args.get('production_date', '').strip()
+    search_production_date_start = request.args.get('production_date_start', '').strip()
+    search_production_date_end = request.args.get('production_date_end', '').strip()
 
     try:
         productions_query = Production.query
@@ -183,12 +206,19 @@ def get_search_productions():
                 productions_query = productions_query.filter(Production.week_commencing == week_commencing_date)
             except ValueError:
                 return jsonify({"error": "Invalid Week Commencing date format"}), 400
-        if search_production_date:
+
+        # Handle date range filter
+        if search_production_date_start or search_production_date_end:
             try:
-                production_date = datetime.strptime(search_production_date, '%Y-%m-%d').date()
-                productions_query = productions_query.filter(Production.production_date == production_date)
+                if search_production_date_start:
+                    start_date = datetime.strptime(search_production_date_start, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date >= start_date)
+                if search_production_date_end:
+                    end_date = datetime.strptime(search_production_date_end, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date <= end_date)
             except ValueError:
                 return jsonify({"error": "Invalid Production Date format"}), 400
+
         if search_production_code:
             productions_query = productions_query.filter(Production.production_code.ilike(f"%{search_production_code}%"))
         if search_description:
@@ -222,7 +252,8 @@ def export_productions_excel():
     search_production_code = request.args.get('production_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_production_date = request.args.get('production_date', '').strip()
+    search_production_date_start = request.args.get('production_date_start', '').strip()
+    search_production_date_end = request.args.get('production_date_end', '').strip()
 
     try:
         productions_query = Production.query
@@ -234,10 +265,22 @@ def export_productions_excel():
             except ValueError:
                 flash("Invalid Week Commencing date format.", 'error')
                 return redirect(url_for('production.production_list'))
-        if search_production_date:
+
+        # Handle date range filter
+        if search_production_date_start or search_production_date_end:
             try:
-                production_date = datetime.strptime(search_production_date, '%Y-%m-%d').date()
-                productions_query = productions_query.filter(Production.production_date == production_date)
+                if search_production_date_start:
+                    start_date = datetime.strptime(search_production_date_start, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date >= start_date)
+                if search_production_date_end:
+                    end_date = datetime.strptime(search_production_date_end, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date <= end_date)
+                    
+                # Validate date range if both dates are provided
+                if search_production_date_start and search_production_date_end:
+                    if start_date > end_date:
+                        flash("Start date must be before or equal to end date.", 'error')
+                        return redirect(url_for('production.production_list'))
             except ValueError:
                 flash("Invalid Production Date format.", 'error')
                 return redirect(url_for('production.production_list'))

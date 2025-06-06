@@ -1,10 +1,16 @@
 from database import db
+from sqlalchemy import Column, Integer, String, Numeric, Date
 
 class RecipeMaster(db.Model):
     __tablename__ = 'recipe_master'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    recipe_code = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String(255))
-    raw_material = db.Column(db.String(100), nullable=False)
-    kg_per_batch = db.Column(db.Float)
-    percentage = db.Column(db.Float)
+
+    id = Column(Integer, primary_key=True)
+    recipe_code = Column(String(50), nullable=False)
+    description = Column(String(200), nullable=False)
+    raw_material = Column(String(200), nullable=False)
+    kg_per_batch = Column(Numeric(10, 3), nullable=False)
+    percentage = Column(Numeric(5, 2), nullable=False, default=0)
+    week_commencing = Column(Date, nullable=False)
+
+    def __repr__(self):
+        return f'<RecipeMaster {self.recipe_code}>'

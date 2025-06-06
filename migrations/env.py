@@ -1,7 +1,5 @@
 import logging
 from logging.config import fileConfig
-import os
-from venv import logger
 
 from flask import current_app
 
@@ -13,12 +11,8 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-#fileConfig(config.config_file_name)
-#logger = logging.getLogger('alembic.env')
-#fileConfig(os.path.join(os.path.dirname(config.config_file_name), 'alembic.ini'))
-
-import os
-fileConfig(os.path.join(os.path.dirname(__file__), '..', 'alembic.ini'))
+fileConfig(config.config_file_name)
+logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
@@ -42,11 +36,7 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-#config.set_main_option('sqlalchemy.url', get_engine_url())
-config.set_main_option(
-    'sqlalchemy.url',
-    str(current_app.extensions['migrate'].db.engine.url).replace('%', '%%')
-)
+config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 
 # other values from the config, defined by the needs of env.py,

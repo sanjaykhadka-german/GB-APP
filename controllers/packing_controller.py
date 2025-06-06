@@ -129,49 +129,87 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
 @packing.route('/')
 def packing_list():
+    # Get search parameters from query string
     search_fg_code = request.args.get('fg_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
+    search_packing_date_start = request.args.get('packing_date_start', '').strip()
+    search_packing_date_end = request.args.get('packing_date_end', '').strip()
 
+    # Query packings with optional filters
     packings_query = Packing.query
-    if search_fg_code:
-        packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
-    if search_description:
-        packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
     if search_week_commencing:
         try:
             week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
             packings_query = packings_query.filter(Packing.week_commencing == week_commencing_date)
         except ValueError:
-            flash('Invalid date format for week commencing. Please use YYYY-MM-DD.', 'danger')
+            flash("Invalid Week Commencing date format.", 'error')
+
+    # Handle date range filter
+    if search_packing_date_start or search_packing_date_end:
+        try:
+            if search_packing_date_start:
+                start_date = datetime.strptime(search_packing_date_start, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.packing_date >= start_date)
+            if search_packing_date_end:
+                end_date = datetime.strptime(search_packing_date_end, '%Y-%m-%d').date()
+                packings_query = packings_query.filter(Packing.packing_date <= end_date)
+                
+            # Validate date range if both dates are provided
+            if search_packing_date_start and search_packing_date_end:
+                if start_date > end_date:
+                    flash("Start date must be before or equal to end date.", 'error')
+                    return render_template('packing/list.html', 
+                                        packing_data=[],
+                                        search_fg_code=search_fg_code,
+                                        search_description=search_description,
+                                        search_week_commencing=search_week_commencing,
+                                        search_packing_date_start=search_packing_date_start,
+                                        search_packing_date_end=search_packing_date_end,
+                                        current_page="packing")
+        except ValueError:
+            flash("Invalid Packing Date format.", 'error')
+            
+    if search_fg_code:
+        packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
+    if search_description:
+        packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
 
     packings = packings_query.all()
     packing_data = []
     total_requirement_kg = 0
     total_requirement_unit = 0
 
-    def get_monday_of_week(dt):
-        return dt - timedelta(days=dt.weekday())
-
     for packing in packings:
-        week_commencing = packing.week_commencing or get_monday_of_week(packing.packing_date)
-        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
+        # Get SOH data
+        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
         soh_units = soh.soh_total_units if soh else 0
+
+        # Get Joining data for avg_weight_per_unit
         joining = Joining.query.filter_by(fg_code=packing.product_code).first()
         avg_weight_per_unit = joining.kg_per_unit if joining else 0.0
-        min_level = joining.min_level or 0.0 if joining else 0.0
-        max_level = joining.max_level or 0.0 if joining else 0.0
-        soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
-        special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-        special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        # Calculate special order unit
+        special_order_unit = round(packing.special_order_kg / avg_weight_per_unit) if packing.special_order_kg and avg_weight_per_unit else 0
+
+        # Calculate SOH kg
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        total_stock_kg = soh_requirement_kg_week * packing.weekly_average if packing.weekly_average is not None else 0
-        total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
-        requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
 
+        # Calculate requirement kg and unit
+        requirement_kg = packing.requirement_kg if packing.requirement_kg else 0
+        requirement_unit = packing.requirement_unit if packing.requirement_unit else 0
+
+        # Calculate SOH requirement kg/week
+        soh_requirement_kg_week = requirement_kg * 4 if requirement_kg else 0
+
+        # Calculate total stock
+        total_stock_kg = soh_kg + requirement_kg if soh_kg is not None and requirement_kg is not None else 0
+        total_stock_units = soh_units + requirement_unit if soh_units is not None and requirement_unit is not None else 0
+
+        # Get week commencing
+        week_commencing = packing.week_commencing
+
+        # Update totals
         total_requirement_kg += requirement_kg
         total_requirement_unit += requirement_unit
 
@@ -195,6 +233,8 @@ def packing_list():
                          packing_data=packing_data,
                          search_fg_code=search_fg_code,
                          search_description=search_description,
+                         search_packing_date_start=search_packing_date_start,
+                         search_packing_date_end=search_packing_date_end,
                          total_requirement_kg=total_requirement_kg,
                          total_requirement_unit=total_requirement_unit,
                          current_page="packing")
@@ -561,7 +601,8 @@ def get_search_packings():
     # Extract search parameters
     fg_code = request.args.get('fg_code', '').strip()
     description = request.args.get('description', '').strip()
-    packing_date = request.args.get('packing_date', '').strip()
+    packing_date_start = request.args.get('packing_date_start', '').strip()
+    packing_date_end = request.args.get('packing_date_end', '').strip()
     week_commencing = request.args.get('week_commencing', '').strip()
 
     # Extract sorting parameters as lists
@@ -575,10 +616,25 @@ def get_search_packings():
         query = query.filter(Packing.product_code.ilike(f'%{fg_code}%'))
     if description:
         query = query.filter(Packing.product_description.ilike(f'%{description}%'))
-    if packing_date:
-        query = query.filter(Packing.packing_date == packing_date)
+
+    # Handle date range filter
+    if packing_date_start or packing_date_end:
+        try:
+            if packing_date_start:
+                start_date = datetime.strptime(packing_date_start, '%Y-%m-%d').date()
+                query = query.filter(Packing.packing_date >= start_date)
+            if packing_date_end:
+                end_date = datetime.strptime(packing_date_end, '%Y-%m-%d').date()
+                query = query.filter(Packing.packing_date <= end_date)
+        except ValueError:
+            return jsonify({'error': 'Invalid date format'}), 400
+
     if week_commencing:
-        query = query.filter(Packing.week_commencing == week_commencing)
+        try:
+            week_commencing_date = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+            query = query.filter(Packing.week_commencing == week_commencing_date)
+        except ValueError:
+            return jsonify({'error': 'Invalid week commencing date format'}), 400
 
     # Apply multi-column sorting
     if sort_by and sort_order and len(sort_by) == len(sort_order):

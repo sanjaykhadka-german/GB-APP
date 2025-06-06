@@ -13,14 +13,17 @@
             <div class="form-group">
                 <label for="search_description">Description:</label>
                 <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
+            </div>            <div class="form-group">
+                <label for="search_production_date_start">Production Date (From):</label>
+                <input type="date" id="search_production_date_start" name="production_date_start" value="{{ search_production_date_start | default('') }}">
+            </div>
+            <div class="form-group">
+                <label for="search_production_date_end">Production Date (To):</label>
+                <input type="date" id="search_production_date_end" name="production_date_end" value="{{ search_production_date_end | default('') }}">
             </div>
             <div class="form-group">
                 <label for="search_week_commencing">Week Commencing:</label>
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
-            </div>
-            <div class="form-group">
-                <label for="search_production_date">Production Date:</label>
-                <input type="date" id="search_production_date" name="production_date" value="{{ search_production_date | default('') }}">
             </div>
             <button type="button" onclick="fetchProductions()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
@@ -186,6 +189,29 @@
                 $("#production_code_suggestions").empty();
             }
         });
+
+        // Add date range validation
+        $("#search_production_date_start, #search_production_date_end").change(function() {
+            var startDate = $("#search_production_date_start").val();
+            var endDate = $("#search_production_date_end").val();
+            
+            if (startDate && endDate && startDate > endDate) {
+                alert("End date must be after start date");
+                $(this).val('');
+            }
+        });
+
+        // Add week commencing date validation
+        $("#search_week_commencing").on('change', function() {
+            const selectedDate = $(this).val();
+            if (selectedDate) {
+                const mondayDate = getMonday(selectedDate);
+                if (selectedDate !== mondayDate) {
+                    $(this).val(mondayDate);
+                    alert("Week commencing date has been adjusted to Monday: " + mondayDate);
+                }
+            }
+        });
     });
 
     // Function to add a new production entry
@@ -198,7 +224,14 @@
         var productionCode = $("#search_production_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
-        var productionDate = $("#search_production_date").val().trim();
+        var productionDateStart = $("#search_production_date_start").val().trim();
+        var productionDateEnd = $("#search_production_date_end").val().trim();
+
+        // Validate date range
+        if (productionDateStart && productionDateEnd && productionDateStart > productionDateEnd) {
+            alert("End date must be after start date");
+            return;
+        }
 
         $.ajax({
             url: "{{ url_for('production.get_search_productions') }}",
@@ -207,7 +240,8 @@
                 production_code: productionCode,
                 description: description,
                 week_commencing: weekCommencing,
-                production_date: productionDate
+                production_date_start: productionDateStart,
+                production_date_end: productionDateEnd
             },
             success: function(response) {
                 var tableBody = $("#productionListTable tbody");
@@ -277,17 +311,27 @@
         var productionCode = $("#search_production_code").val().trim();
         var description = $("#search_description").val().trim();
         var weekCommencing = $("#search_week_commencing").val().trim();
-        var productionDate = $("#search_production_date").val().trim();
+        var productionDateStart = $("#search_production_date_start").val().trim();
+        var productionDateEnd = $("#search_production_date_end").val().trim();
 
         // Construct the URL with query parameters
         var url = "{{ url_for('production.export_productions_excel') }}?" +
                   "production_code=" + encodeURIComponent(productionCode) +
                   "&description=" + encodeURIComponent(description) +
                   "&week_commencing=" + encodeURIComponent(weekCommencing) +
-                  "&production_date=" + encodeURIComponent(productionDate);
+                  "&production_date_start=" + encodeURIComponent(productionDateStart) +
+                  "&production_date_end=" + encodeURIComponent(productionDateEnd);
 
         // Trigger the download
         window.location.href = url;
+    }
+
+    // Add this function after the document ready block
+    function getMonday(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
+        return new Date(d.setDate(diff)).toISOString().split('T')[0];
     }
 
 </script>

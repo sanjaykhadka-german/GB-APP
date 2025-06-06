@@ -17,7 +17,8 @@ def filling_list():
     search_fill_code = request.args.get('fill_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_filling_date = request.args.get('filling_date', '').strip()
+    search_filling_date_start = request.args.get('filling_date_start', '').strip()
+    search_filling_date_end = request.args.get('filling_date_end', '').strip()
 
     # Query fillings with optional filters
     fillings_query = Filling.query
@@ -28,10 +29,28 @@ def filling_list():
         except ValueError:
             flash("Invalid Week Commencing date format.", 'error')
 
-    if search_filling_date:
+    # Handle date range filter
+    if search_filling_date_start or search_filling_date_end:
         try:
-            filling_date = datetime.strptime(search_filling_date, '%Y-%m-%d').date()
-            fillings_query = fillings_query.filter(Filling.filling_date == filling_date)
+            if search_filling_date_start:
+                start_date = datetime.strptime(search_filling_date_start, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.filling_date >= start_date)
+            if search_filling_date_end:
+                end_date = datetime.strptime(search_filling_date_end, '%Y-%m-%d').date()
+                fillings_query = fillings_query.filter(Filling.filling_date <= end_date)
+                
+            # Validate date range if both dates are provided
+            if search_filling_date_start and search_filling_date_end:
+                if start_date > end_date:
+                    flash("Start date must be before or equal to end date.", 'error')
+                    return render_template('filling/list.html', 
+                                        filling_data=[],
+                                        search_fill_code=search_fill_code,
+                                        search_description=search_description,
+                                        search_week_commencing=search_week_commencing,
+                                        search_filling_date_start=search_filling_date_start,
+                                        search_filling_date_end=search_filling_date_end,
+                                        current_page="filling")
         except ValueError:
             flash("Invalid Filling Date format.", 'error')
             
@@ -44,7 +63,7 @@ def filling_list():
     filling_data = [
         {
             'filling': filling,
-            'week_commencing': filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else ''  # Include week_commencing
+            'week_commencing': filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else ''
         }
         for filling in fillings
     ]
@@ -54,7 +73,8 @@ def filling_list():
                          search_fill_code=search_fill_code,
                          search_description=search_description,
                          search_week_commencing=search_week_commencing,
-                         search_filling_date=search_filling_date,
+                         search_filling_date_start=search_filling_date_start,
+                         search_filling_date_end=search_filling_date_end,
                          current_page="filling")
 
 @filling_bp.route('/filling_create', methods=['GET', 'POST'])
@@ -194,7 +214,8 @@ def get_search_fillings():
     search_fill_code = request.args.get('fill_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_filling_date = request.args.get('filling_date', '').strip()
+    search_filling_date_start = request.args.get('filling_date_start', '').strip()
+    search_filling_date_end = request.args.get('filling_date_end', '').strip()
 
     try:
         fillings_query = Filling.query
@@ -205,10 +226,16 @@ def get_search_fillings():
                 fillings_query = fillings_query.filter(Filling.week_commencing == week_commencing_date)
             except ValueError:
                 return jsonify({"error": "Invalid Week Commencing date format"}), 400
-        if search_filling_date:
+
+        # Handle date range filter
+        if search_filling_date_start or search_filling_date_end:
             try:
-                filling_date = datetime.strptime(search_filling_date, '%Y-%m-%d').date()
-                fillings_query = fillings_query.filter(Filling.filling_date == filling_date)
+                if search_filling_date_start:
+                    start_date = datetime.strptime(search_filling_date_start, '%Y-%m-%d').date()
+                    fillings_query = fillings_query.filter(Filling.filling_date >= start_date)
+                if search_filling_date_end:
+                    end_date = datetime.strptime(search_filling_date_end, '%Y-%m-%d').date()
+                    fillings_query = fillings_query.filter(Filling.filling_date <= end_date)
             except ValueError:
                 return jsonify({"error": "Invalid Filling Date format"}), 400
 
@@ -223,7 +250,7 @@ def get_search_fillings():
             {
                 "id": filling.id,
                 "filling_date": filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else "",
-                "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",  
+                "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",
                 "fill_code": filling.fill_code or "",
                 "description": filling.description or "",
                 "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""

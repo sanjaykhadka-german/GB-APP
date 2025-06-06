@@ -492,7 +492,6 @@ def autocomplete_soh():
         print("Error fetching SOH autocomplete suggestions:", e)
         return jsonify([])
 
-# ... (previous imports and code) ...
 
 @soh_bp.route('/get_search_sohs', methods=['GET'])
 def get_search_sohs():
