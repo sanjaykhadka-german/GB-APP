@@ -11,7 +11,8 @@ from .packing import Packing
 from .filling import Filling
 from .production import Production 
 
-from .raw_material import RawMaterial
+from .raw_material_report import RawMaterialReport
+from .raw_materials import RawMaterials
 from .operator import Operator
 from .production_plan import ProductionPlan
 from .injected_products import InjectedProducts

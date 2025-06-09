@@ -1,13 +1,19 @@
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy.orm import relationship
 from database import db
 from datetime import date
 
 class UsageReport(db.Model):
-    __tablename__ = 'usage_report'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    production_date = db.Column(db.Date, nullable=False)
-    week_commencing = db.Column(db.Date)
-    recipe_code = db.Column(db.String(50), nullable=False)
-    raw_material = db.Column(db.String(255), nullable=False)
-    usage_kg = db.Column(db.Float, nullable=False)
-    percentage = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=db.func.now())
+    __tablename__ = 'usage'
+
+    id = Column(Integer, primary_key=True)
+    week_commencing = Column(Date, nullable=False)
+    production_date = Column(Date, nullable=False)
+    raw_material_id = Column(Integer, ForeignKey('raw_materials.id'), nullable=False)
+    usage_kg = Column(Float, nullable=False)
+    
+    # Relationship
+    raw_material = relationship('RawMaterials', backref='usage_reports')
+
+    def __repr__(self):
+        return f'<UsageReport {self.raw_material} - {self.production_date}>'

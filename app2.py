@@ -2,6 +2,7 @@ import pandas as pd
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 import os
+from datetime import datetime, timedelta
 
 # Path to your Excel file
 excel_file_path = "Production_Plan_1.0.xlsm"
@@ -25,6 +26,7 @@ class RecipeMaster(db.Model):
     raw_material = db.Column(db.String(100), nullable=False)
     kg_per_batch = db.Column(db.Float)
     percentage = db.Column(db.Float)
+    week_commencing = db.Column(db.Date, nullable=False)
 
 # Read the Excel file
 try:
@@ -50,11 +52,14 @@ with app.app_context():
     # db.drop_all()
     db.create_all()
     
-    # Execute ALTER TABLE if needed (uncomment if you want to use this approach)
-    # db.engine.execute("ALTER TABLE recipe_master MODIFY id INT AUTO_INCREMENT;")
+    # Get the current week's Monday as week_commencing
+    today = datetime.now()
+    week_commencing = today - timedelta(days=today.weekday())
+    week_commencing = week_commencing.date()
     
     total_rows = len(df)
     print(f"Starting to upload {total_rows} rows...")
+    print(f"Using week_commencing date: {week_commencing}")
     
     for index, row in df.iterrows():
         try:
@@ -71,7 +76,8 @@ with app.app_context():
                 Description=str(row['Description']) if 'Description' in df.columns and row['Description'] != '' else None,
                 raw_material=str(row['raw_material']),
                 kg_per_batch=float(row['kg_per_batch']) if 'kg_per_batch' in df.columns and row['kg_per_batch'] != '' else None,
-                percentage=float(row['percentage']) if 'percentage' in df.columns and row['percentage'] != '' else None
+                percentage=float(row['percentage']) if 'percentage' in df.columns and row['percentage'] != '' else None,
+                week_commencing=week_commencing  # Add the week_commencing field
             )
             db.session.add(recipe)
             

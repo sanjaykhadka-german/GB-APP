@@ -31,14 +31,23 @@
 #     def __repr__(self):
 #         return f"<RawMaterial {self.material_code} - {self.description}>"
 
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from database import db
-from datetime import datetime
 
 class RawMaterialReport(db.Model):
     __tablename__ = 'raw_material_report'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    production_date = db.Column(db.Date, nullable=False)
-    week_commencing = db.Column(db.Date)
-    raw_material = db.Column(db.String(255), nullable=False)
-    meat_required = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    id = Column(Integer, primary_key=True)
+    production_date = Column(Date, nullable=False)
+    week_commencing = Column(Date)
+    raw_material = Column(String(255), nullable=False)
+    meat_required = Column(Float, nullable=False)
+    created_at = Column(DateTime)
+    raw_material_id = Column(Integer, ForeignKey('raw_materials.id'))
+
+    # Relationship
+    raw_material_ref = relationship('RawMaterials', backref='raw_material_reports')
+
+    def __repr__(self):
+        return f'<RawMaterialReport {self.raw_material} - {self.production_date}>'

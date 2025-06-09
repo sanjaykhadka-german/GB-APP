@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster
+from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport
 
 
 # Create a Blueprint for recipe routes
@@ -34,64 +34,53 @@ def get_monday_date(date_str):
 
 @recipe_bp.route('/recipe', methods=['GET', 'POST'])
 def recipe_page():
-    from database import db
-    from models import RecipeMaster
-
     if request.method == 'POST':
         try:
             data = request.get_json() if request.is_json else request.form
-            recipe_id = data.get('recipe_id')
-            recipe_code = data.get('recipe_code')
-            description = data.get('description')
-            raw_material = data.get('raw_material')
-            week_commencing = data.get('week_commencing')
-            kg_per_batch = data.get('kg_per_batch')
-
-            if not all([recipe_code, description, raw_material, week_commencing, kg_per_batch]):
-                return jsonify({'error': 'All fields are required.'}), 400
-
-            try:
-                # Ensure week_commencing is a Monday
-                week_commencing_date = get_monday_date(week_commencing)
-                if week_commencing_date != datetime.strptime(week_commencing, '%Y-%m-%d').date():
-                    print(f"Adjusted week_commencing from {week_commencing} to {week_commencing_date}")
-            except ValueError as e:
-                return jsonify({'error': f'Invalid date format: {str(e)}'}), 400
-
-            kg_per_batch = Decimal(kg_per_batch)
-
-            if recipe_id:  # Edit case
-                recipe = RecipeMaster.query.get_or_404(recipe_id)
-                recipe.recipe_code = recipe_code
-                recipe.description = description
-                recipe.raw_material = raw_material
-                recipe.week_commencing = week_commencing_date
-                recipe.kg_per_batch = kg_per_batch
-            else:  # Add case
-                recipe = RecipeMaster(
-                    recipe_code=recipe_code,
-                    description=description,
-                    raw_material=raw_material,
-                    week_commencing=week_commencing_date,
-                    kg_per_batch=kg_per_batch,
-                    percentage=Decimal(0)
-                )
-                db.session.add(recipe)
-
-            db.session.flush()
-
-            # Recalculate percentages
-            recipes_to_update = RecipeMaster.query.filter(
-                RecipeMaster.description == description,
-                RecipeMaster.week_commencing == week_commencing_date
-            ).all()
+            recipes_data = data.get('recipes', [])
             
-            total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
-            for r in recipes_to_update:
-                r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
+            for recipe_data in recipes_data:
+                recipe_id = recipe_data.get('recipe_id')
+                recipe_code = recipe_data.get('recipe_code')
+                description = recipe_data.get('description')
+                raw_material_id = recipe_data.get('raw_material_id')
+                kg_per_batch = recipe_data.get('kg_per_batch')
+
+                if not all([recipe_code, description, raw_material_id, kg_per_batch]):
+                    return jsonify({'error': 'Required fields are missing.'}), 400
+
+                kg_per_batch = Decimal(kg_per_batch)
+
+                if recipe_id:  # Edit case
+                    recipe = RecipeMaster.query.get_or_404(recipe_id)
+                    recipe.recipe_code = recipe_code
+                    recipe.description = description
+                    recipe.raw_material_id = raw_material_id
+                    recipe.kg_per_batch = kg_per_batch
+                else:  # Add case
+                    recipe = RecipeMaster(
+                        recipe_code=recipe_code,
+                        description=description,
+                        raw_material_id=raw_material_id,
+                        kg_per_batch=kg_per_batch,
+                        percentage=Decimal(0)
+                    )
+                    db.session.add(recipe)
+
+                db.session.flush()
+
+            # Recalculate percentages for all recipes with the same description
+            for recipe_data in recipes_data:
+                recipes_to_update = RecipeMaster.query.filter(
+                    RecipeMaster.description == recipe_data['description']
+                ).all()
+                
+                total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
+                for r in recipes_to_update:
+                    r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
             
             db.session.commit()
-            return jsonify({'message': 'Recipe saved successfully!'}), 200
+            return jsonify({'message': 'Recipes saved successfully!'}), 200
 
         except ValueError as e:
             db.session.rollback()
@@ -105,12 +94,16 @@ def recipe_page():
     search_description = request.args.get('description', '')
     edit_id = request.args.get('edit_id')
     
+    # Get all raw materials for the dropdowns
+    raw_materials = RawMaterials.query.order_by(RawMaterials.raw_material).all()
+    
     if edit_id:
         recipe = RecipeMaster.query.get_or_404(edit_id)
         return render_template('recipe/recipe.html', 
                              search_recipe_code=search_recipe_code,
                              search_description=search_description,
                              recipes=RecipeMaster.query.all(),
+                             raw_materials=raw_materials,
                              edit_recipe=recipe,
                              current_page='recipe')
     
@@ -118,6 +111,7 @@ def recipe_page():
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
                          recipes=RecipeMaster.query.all(),
+                         raw_materials=raw_materials,
                          current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
@@ -163,24 +157,33 @@ def autocomplete_recipe():
 
 @recipe_bp.route('/get_search_recipes', methods=['GET'])
 def get_search_recipes():
-    from database import db
-    from models import RecipeMaster
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
-    recipes_query = RecipeMaster.query
+    
+    # Join with raw_materials to get the raw material name
+    recipes_query = db.session.query(
+        RecipeMaster, 
+        RawMaterials.raw_material
+    ).join(
+        RawMaterials, 
+        RecipeMaster.raw_material_id == RawMaterials.id
+    )
+    
     if search_recipe_code:
         recipes_query = recipes_query.filter(RecipeMaster.recipe_code.ilike(f"%{search_recipe_code}%"))
     if search_description:
         recipes_query = recipes_query.filter(RecipeMaster.description.ilike(f"%{search_description}%"))
+    
     recipes = recipes_query.all()
     recipes_data = [
         {
-            "recipe_code": recipe.recipe_code,
-            "description": recipe.description,
+            "id": recipe.RecipeMaster.id,
+            "recipe_code": recipe.RecipeMaster.recipe_code,
+            "description": recipe.RecipeMaster.description,
             "raw_material": recipe.raw_material,
-            "kg_per_batch": float(recipe.kg_per_batch),
-            "percentage": float(recipe.percentage) if recipe.percentage else 0.0,
-            "id": recipe.id  # Add id for edit/delete
+            "raw_material_id": recipe.RecipeMaster.raw_material_id,
+            "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch),
+            "percentage": float(recipe.RecipeMaster.percentage) if recipe.RecipeMaster.percentage else 0.0
         }
         for recipe in recipes
     ]
@@ -188,102 +191,64 @@ def get_search_recipes():
 
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
-    from database import db
-    from models import Production, RecipeMaster, UsageReport
-    from datetime import datetime
-
-    db.session.execute(text('TRUNCATE TABLE usage_report'))
-    db.session.commit()
-
-
-    
     try:
-        # Fetch all productions
-        productions = Production.query.all()
-        if not productions:
-            print("No production records found.")
+        # Get all productions with their recipes and calculate usage
+        usage_query = """
+        WITH recipe_percentages AS (
+            SELECT 
+                r1.recipe_code,
+                r1.raw_material_id,
+                r1.kg_per_batch,
+                (r1.kg_per_batch / NULLIF(SUM(r2.kg_per_batch) OVER (PARTITION BY r1.recipe_code), 0) * 100) as calculated_percentage
+            FROM recipe_master r1
+            LEFT JOIN recipe_master r2 ON r1.recipe_code = r2.recipe_code
+        )
+        SELECT 
+            p.production_date,
+            p.production_code as recipe_code,
+            rm.raw_material,
+            p.total_kg,
+            rp.calculated_percentage as percentage,
+            (p.total_kg * rp.calculated_percentage / 100) as usage_kg
+        FROM production p
+        JOIN recipe_percentages rp ON p.production_code = rp.recipe_code
+        JOIN raw_materials rm ON rp.raw_material_id = rm.id
+        WHERE p.total_kg > 0
+        ORDER BY p.production_date DESC, p.production_code, rm.raw_material
+        """
         
-        for production in productions:
-            recipes = RecipeMaster.query.filter_by(recipe_code=production.production_code).all()
-            #print(f"Processing production: {production.production_code}")
-            #print(f"Recipes found: {len(recipes)}")
-            
-            if not recipes:
-                print(f"No recipes found for production code: {production.production_code}")
-                continue
-            
-            for recipe in recipes:
-                #print(f"Processing recipe: {recipe.raw_material}")
-                try:
-                    # Calculate usage
-                    if production.total_kg is None or recipe.percentage is None:
-                        #print(f"Invalid data: total_kg={production.total_kg}, percentage={recipe.percentage}")
-                        continue
-                    usage_kg = float(production.total_kg) * (float(recipe.percentage) / 100)
-                    #print(f"Calculated usage_kg: {usage_kg}")
-                    
-                    # Check if usage record already exists
-                    existing_record = UsageReport.query.filter_by(
-                        production_date=production.production_date,
-                        recipe_code=production.production_code,
-                        raw_material=recipe.raw_material
-                    ).first()
-                    
-                    if existing_record:
-                        # Update existing record
-                        existing_record.usage_kg = round(usage_kg, 2)
-                        existing_record.percentage = float(recipe.percentage)
-                        #print(f"Updated usage record for {recipe.raw_material}")
-                    else:
-                        # Create new usage record
-                        usage_record = UsageReport(
-                            production_date=production.production_date,
-                            week_commencing=production.week_commencing,
-                            recipe_code=production.production_code,
-                            raw_material=recipe.raw_material,
-                            usage_kg=round(usage_kg, 2),
-                            percentage=float(recipe.percentage)
-                        )
-                        db.session.add(usage_record)
-                        #print(f"Added new usage record for {recipe.raw_material}")
+        results = db.session.execute(text(usage_query)).fetchall()
+        
+        # Group usage data by production_date
+        grouped_usage_data = {}
+        for record in results:
+            date_str = record.production_date.strftime('%d/%m/%Y')
+            if date_str not in grouped_usage_data:
+                grouped_usage_data[date_str] = []
                 
-                except Exception as e:
-                    #print(f"Error processing recipe {recipe.raw_material}: {str(e)}")
-                    continue
+            grouped_usage_data[date_str].append({
+                'production_date': date_str,
+                'recipe_code': record.recipe_code,
+                'raw_material': record.raw_material,
+                'usage_kg': round(float(record.usage_kg), 2),
+                'percentage': round(float(record.percentage), 2)
+            })
         
-        # Commit changes to the database
-        db.session.commit()
-        print("Database commit successful.")
+        # Sort dates in reverse chronological order
+        sorted_usage_data = dict(sorted(grouped_usage_data.items(), 
+                                      key=lambda x: datetime.strptime(x[0], '%d/%m/%Y'),
+                                      reverse=True))
+        
+        return render_template('recipe/usage.html', 
+                             grouped_usage_data=sorted_usage_data, 
+                             current_page='usage')
     
     except Exception as e:
         db.session.rollback()
-        print(f"Database commit failed: {str(e)}")
-        # Optionally, return an error response
-        return render_template('error.html', error=str(e)), 500
-    
-    # Fetch all usage records for display
-    usage_records = UsageReport.query.all()
-    
-    # Group usage data by production_date
-    grouped_usage_data = {}
-    for record in usage_records:
-        date_str = record.production_date.strftime('%d/%m/%Y')
-        if date_str not in grouped_usage_data:
-            grouped_usage_data[date_str] = []
-        grouped_usage_data[date_str].append({
-            'recipe_code': record.recipe_code,
-            'raw_material': record.raw_material,
-            'usage_kg': record.usage_kg,
-            'percentage': record.percentage,
-            'week_commencing': record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else '',
-            'production_date': date_str
-        })
-    
-    # Sort dates
-    sorted_usage_data = dict(sorted(grouped_usage_data.items(), key=lambda x: datetime.strptime(x[0], '%d/%m/%Y')))
-    
-    return render_template('recipe/usage.html', grouped_usage_data=sorted_usage_data, current_page='usage')
-
+        flash(f"Error generating usage report: {str(e)}", 'error')
+        return render_template('recipe/usage.html', 
+                             grouped_usage_data={}, 
+                             current_page='usage')
 
 @recipe_bp.route('/usage_download', methods=['GET'])
 def usage_download():
@@ -355,90 +320,43 @@ def usage_download():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
-
-
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
-    from database import db
-    from models import UsageReport, RawMaterial
-    from datetime import datetime
-
-    # Fetch all usage records from UsageReport
-    usage_records = UsageReport.query.all()
-
-    # Aggregate usage by week_commencing, production_date, and raw_material
-    raw_material_totals = {}
-    for record in usage_records:
-        week_commencing = record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else ''
-        production_date = record.production_date.strftime('%d/%m/%Y')
-        raw_material = record.raw_material
-        usage_kg = record.usage_kg
-
-        key = (week_commencing, production_date, raw_material)
-        if key in raw_material_totals:
-            raw_material_totals[key] += usage_kg
-        else:
-            raw_material_totals[key] = usage_kg
-
-    # Save or update data in RawMaterial table
     try:
-        for key, total in raw_material_totals.items():
-            week_commencing, production_date, raw_material = key
-            # Convert string dates back to datetime.date for database
-            production_date_obj = datetime.strptime(production_date, '%d/%m/%Y').date()
-            week_commencing_obj = datetime.strptime(week_commencing, '%d/%m/%Y').date() if week_commencing else None
-
-            # Check if record    record already exists
-            existing_record = RawMaterial.query.filter_by(
-                production_date=production_date_obj,
-                week_commencing=week_commencing_obj,
-                raw_material=raw_material
-            ).first()
-
-            if existing_record:
-                # Update existing record
-                existing_record.meat_required = round(total, 2)
-                print(f"Updated RawMaterial record for {raw_material} on {production_date}")
-            else:
-                # Create new record
-                new_record = RawMaterial(
-                    production_date=production_date_obj,
-                    week_commencing=week_commencing_obj,
-                    raw_material=raw_material,
-                    meat_required=round(total, 2)
-                )
-                db.session.add(new_record)
-                print(f"Added new RawMaterial record for {raw_material} on {production_date}")
-
-        # Commit changes to the database
-        db.session.commit()
-        print("RawMaterial table updated successfully.")
-
+        # Get raw material usage aggregated by date and material
+        raw_material_query = """
+        SELECT 
+            p.production_date,
+            rm.raw_material,
+            SUM(p.total_kg * r.percentage / 100) as total_usage
+        FROM production p
+        JOIN recipe_master r ON p.production_code = r.recipe_code
+        JOIN raw_materials rm ON r.raw_material_id = rm.id
+        GROUP BY p.production_date, rm.raw_material
+        ORDER BY p.production_date, rm.raw_material
+        """
+        
+        results = db.session.execute(text(raw_material_query)).fetchall()
+        
+        # Convert to list of dictionaries for template
+        raw_material_data = [
+            {
+                'production_date': result.production_date.strftime('%d/%m/%Y'),
+                'raw_material': result.raw_material,
+                'usage': round(float(result.total_usage), 2)
+            }
+            for result in results
+        ]
+        
+        return render_template('recipe/raw_material_report.html', 
+                             raw_material_data=raw_material_data,
+                             current_page='raw_material_report')
+    
     except Exception as e:
-        db.session.rollback()
-        print(f"Error saving to RawMaterial table: {str(e)}")
-        # Optionally, handle the error (e.g., return an error page)
-        return render_template('error.html', error=str(e)), 500
-
-    # Convert to list of dictionaries for template
-    raw_material_data = [
-        {
-            'week_commencing': key[0],
-            'production_date': key[1],
-            'raw_material': key[2],
-            'usage': round(total, 2)
-        }
-        for key, total in raw_material_totals.items()
-    ]
-
-    # Sort by week_commencing, production_date, and raw_material
-    raw_material_data.sort(key=lambda x: (
-        x['week_commencing'] or '',
-        datetime.strptime(x['production_date'], '%d/%m/%Y') if x['production_date'] else datetime.min,
-        x['raw_material']
-    ))
-
-    return render_template('recipe/raw_material.html', raw_material_data=raw_material_data, current_page='raw_material')
+        flash(f"Error generating raw material report: {str(e)}", 'error')
+        return render_template('recipe/raw_material_report.html', 
+                             raw_material_data=[],
+                             current_page='raw_material_report')
 
 @recipe_bp.route('/raw_material_download', methods=['GET'])
 def raw_material_download():

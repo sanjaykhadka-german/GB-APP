@@ -57,12 +57,10 @@
             <div class="search-field">
                 <label for="search-input">Recipe Code:</label>
                 <input type="text" id="search-input" name="recipe_code" class="search-input-lg" value="{{ search_recipe_code | default('') }}" autocomplete="off">
-                
             </div>
             <div class="search-field">
                 <label for="search_description">Description:</label>
                 <input type="text" id="search_description" name="description" class="search-input-lg" value="{{ search_description | default('') }}">
-                
             </div>
             <div class="search-field">
                 <button class="btn btn-primary" onclick="fetchRecipes()">Search</button>
@@ -105,7 +103,6 @@
                             <th>Recipe Code</th>
                             <th>Description</th>
                             <th>Raw Material</th>
-                            <th>Week Commencing</th>
                             <th>KG per Batch</th>
                         </tr>
                     </thead>
@@ -113,10 +110,13 @@
                         <tr>
                             <td><input type="text" name="recipe_code" required></td>
                             <td><input type="text" name="description" required></td>
-                            <td><input type="text" name="raw_material" required></td>
                             <td>
-                                <input type="date" name="week_commencing" required onchange="validateWeekCommencing(this)">
-                                <span class="error-message" id="week-error"></span>
+                                <select name="raw_material" required>
+                                    <option value="">Select Raw Material</option>
+                                    {% for material in raw_materials %}
+                                    <option value="{{ material.id }}">{{ material.raw_material }}</option>
+                                    {% endfor %}
+                                </select>
                             </td>
                             <td><input type="number" name="kg_per_batch" step="0.001" required></td>
                         </tr>
@@ -141,7 +141,6 @@
                             <th>Recipe Code</th>
                             <th>Description</th>
                             <th>Raw Material</th>
-                            <th>Week Commencing</th>
                             <th>KG per Batch</th>
                             <th>Action</th>
                         </tr>
@@ -204,7 +203,7 @@
     .add-row-btn:hover {
         background: #0056b3;
     }
-    .popup-box table input {
+    .popup-box table input, .popup-box table select {
         width: 100%;
         padding: 5px;
         border: 1px solid #ccc;
@@ -261,6 +260,7 @@
             $("#search-input").val($(this).data("recipe-code"));
             $("#search_description").val($(this).data("description"));
             $("#recipe_code_suggestions").empty();
+            fetchRecipes();
         });
 
         $(document).click(function (event) {
@@ -268,6 +268,11 @@
                 $("#recipe_code_suggestions").empty();
             }
         });
+
+        // Initial search if recipe code is provided
+        if ($("#search-input").val().trim()) {
+            fetchRecipes();
+        }
     });
 
     function showPageSection(sectionId) {
@@ -302,9 +307,7 @@
                                 <td>${recipe.percentage ? (recipe.percentage.toFixed(2) + '%') : '0.00%'}</td>
                                 <td>
                                     <button class="edit-btn" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
-                                    <form action="/recipe/delete/${recipe.id}" method="POST" style="display:inline;">
-                                        <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to delete this recipe?')">Delete</button>
-                                    </form>
+                                    <button class="delete-btn" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
                                 </td>
                             </tr>
                         `);
@@ -312,7 +315,7 @@
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="no-results">
                                     <p>No recipes found for Recipe Code: ${recipeCode}</p>
                                     <button class="add-recipe-btn" onclick="openAddRecipePopup('${recipeCode}')">
@@ -338,10 +341,13 @@
             <tr>
                 <td><input type="text" name="recipe_code" value="${recipeCode}" required></td>
                 <td><input type="text" name="description" required></td>
-                <td><input type="text" name="raw_material" required></td>
                 <td>
-                    <input type="date" name="week_commencing" required onchange="validateWeekCommencing(this)">
-                    <span class="error-message" id="week-error"></span>
+                    <select name="raw_material" required>
+                        <option value="">Select Raw Material</option>
+                        {% for material in raw_materials %}
+                        <option value="{{ material.id }}">{{ material.raw_material }}</option>
+                        {% endfor %}
+                    </select>
                 </td>
                 <td><input type="number" name="kg_per_batch" step="0.001" required></td>
             </tr>
@@ -352,7 +358,7 @@
         $.ajax({
             url: "{{ url_for('recipe.get_search_recipes') }}",
             type: "GET",
-            data: { recipe_code: '', description: '' }, // Fetch all recipes to find the one with the ID
+            data: { recipe_code: '', description: '' },
             success: function(response) {
                 const recipe = response.find(r => r.id == id);
                 if (recipe) {
@@ -363,13 +369,21 @@
                         <tr>
                             <td><input type="text" name="recipe_code" value="${recipe.recipe_code}" required></td>
                             <td><input type="text" name="description" value="${recipe.description}" required></td>
-                            <td><input type="text" name="raw_material" value="${recipe.raw_material}" required></td>
-                            <td><input type="date" name="week_commencing" value="${recipe.week_commencing}" required></td>
+                            <td>
+                                <select name="raw_material" required>
+                                    <option value="">Select Raw Material</option>
+                                    {% for material in raw_materials %}
+                                    <option value="{{ material.id }}" ${recipe.raw_material_id === {{ material.id }} ? 'selected' : ''}>
+                                        {{ material.raw_material }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
                             <td><input type="number" name="kg_per_batch" step="0.001" value="${recipe.kg_per_batch}" required></td>
                             <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
                         </tr>
                     `;
-                    // Fetch other recipes with the same description to allow editing the family
+                    // Fetch other recipes with the same description
                     $.ajax({
                         url: "{{ url_for('recipe.get_search_recipes') }}",
                         type: "GET",
@@ -397,8 +411,16 @@
         newRow.innerHTML = `
             <td><input type="text" name="recipe_code" value="${recipe ? recipe.recipe_code : ''}" required></td>
             <td><input type="text" name="description" value="${recipe ? recipe.description : ''}" required></td>
-            <td><input type="text" name="raw_material" value="${recipe ? recipe.raw_material : ''}" required></td>
-            <td><input type="date" name="week_commencing" value="${recipe ? recipe.week_commencing : ''}" required></td>
+            <td>
+                <select name="raw_material" required>
+                    <option value="">Select Raw Material</option>
+                    {% for material in raw_materials %}
+                    <option value="{{ material.id }}" ${recipe && recipe.raw_material_id === {{ material.id }} ? 'selected' : ''}>
+                        {{ material.raw_material }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </td>
             <td><input type="number" name="kg_per_batch" step="0.001" value="${recipe ? recipe.kg_per_batch : ''}" required></td>
             <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
         `;
@@ -420,13 +442,13 @@
 
         for (let row of rows) {
             const inputs = row.getElementsByTagName('input');
+            const select = row.querySelector('select[name="raw_material"]');
             recipes.push({
                 recipe_id: document.getElementById(mode + '-recipe-id').value,
                 recipe_code: inputs[0].value,
                 description: inputs[1].value,
-                raw_material: inputs[2].value,
-                week_commencing: inputs[3].value,
-                kg_per_batch: inputs[4].value
+                raw_material_id: select.value,
+                kg_per_batch: inputs[2].value
             });
         }
 
@@ -438,7 +460,7 @@
             success: function(response) {
                 alert(mode === 'add' ? "Recipes added successfully!" : "Recipes updated successfully!");
                 closePopup(popupId);
-                window.location.reload();
+                fetchRecipes();
             },
             error: function(xhr) {
                 alert("Error saving recipes: " + xhr.responseText);
@@ -452,7 +474,7 @@
                 url: "{{ url_for('recipe.delete_recipe', id=0) }}".replace('0', id),
                 type: "POST",
                 success: function() {
-                    window.location.reload();
+                    fetchRecipes();
                 },
                 error: function() {
                     alert("Error deleting recipe.");

@@ -13,7 +13,6 @@
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Week Commencing</th>
                     <th>Production Date</th>
                     <th>Raw Material</th>
                     <th>Usage (kg)</th>
@@ -22,7 +21,6 @@
             <tbody>
                 {% for entry in raw_material_data %}
                 <tr>
-                    <td>{{ entry.week_commencing }}</td>
                     <td>{{ entry.production_date }}</td>
                     <td>{{ entry.raw_material }}</td>
                     <td>{{ entry.usage }}</td>
