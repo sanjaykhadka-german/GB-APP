@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime
 from database import db
 
 class UsageReport(db.Model):
@@ -13,10 +12,6 @@ class UsageReport(db.Model):
     usage_kg = Column(Float, nullable=False)
     percentage = Column(Float, nullable=False)
     created_at = Column(DateTime)
-    raw_material_id = Column(Integer, ForeignKey('raw_materials.id'))
-
-    # Relationship
-    raw_material_ref = relationship('RawMaterials', backref='usage_reports')
 
     def __repr__(self):
-        return f'<UsageReport {self.raw_material} - {self.production_date}>' 
+        return f'<UsageReport {self.raw_material} - {self.production_date}>'

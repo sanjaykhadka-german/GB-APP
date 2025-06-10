@@ -10,7 +10,7 @@ class RecipeMaster(db.Model):
     description = Column(String(255))
     kg_per_batch = Column(Float)
     percentage = Column(Float)
-    week_commencing = Column(Date, nullable=True)
+    week_commencing = Column(Date, nullable=False)
     raw_material_id = Column(Integer, ForeignKey('raw_materials.id'))
     
     # Relationship

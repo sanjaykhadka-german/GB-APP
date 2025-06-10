@@ -7,6 +7,10 @@ import pandas as pd
 from io import BytesIO
 from database import db
 from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport
+from models.usage_report import UsageReport
+from models.recipe_master import RecipeMaster
+from models.raw_materials import RawMaterials
+from models.production import Production
 
 
 # Create a Blueprint for recipe routes
@@ -51,6 +55,10 @@ def recipe_page():
 
                 kg_per_batch = Decimal(kg_per_batch)
 
+                # Get current date and calculate its Monday (week commencing)
+                today = datetime.now().date()
+                week_commencing = today - timedelta(days=today.weekday())
+
                 if recipe_id:  # Edit case
                     recipe = RecipeMaster.query.get_or_404(recipe_id)
                     recipe.recipe_code = recipe_code
@@ -63,7 +71,8 @@ def recipe_page():
                         description=description,
                         raw_material_id=raw_material_id,
                         kg_per_batch=kg_per_batch,
-                        percentage=Decimal(0)
+                        percentage=Decimal(0),
+                        week_commencing=week_commencing  # Add week commencing date
                     )
                     db.session.add(recipe)
 
@@ -192,39 +201,32 @@ def get_search_recipes():
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
     try:
-        # Get all productions with their recipes and calculate usage
-        usage_query = """
-        WITH recipe_percentages AS (
-            SELECT 
-                r1.recipe_code,
-                r1.raw_material_id,
-                r1.kg_per_batch,
-                (r1.kg_per_batch / NULLIF(SUM(r2.kg_per_batch) OVER (PARTITION BY r1.recipe_code), 0) * 100) as calculated_percentage
-            FROM recipe_master r1
-            LEFT JOIN recipe_master r2 ON r1.recipe_code = r2.recipe_code
-        )
-        SELECT 
-            p.production_date,
-            p.production_code as recipe_code,
-            rm.raw_material,
-            p.total_kg,
-            rp.calculated_percentage as percentage,
-            (p.total_kg * rp.calculated_percentage / 100) as usage_kg
-        FROM production p
-        JOIN recipe_percentages rp ON p.production_code = rp.recipe_code
-        JOIN raw_materials rm ON rp.raw_material_id = rm.id
-        WHERE p.total_kg > 0
-        ORDER BY p.production_date DESC, p.production_code, rm.raw_material
-        """
+        print("\nStarting usage report generation...")  # Debug log
         
-        results = db.session.execute(text(usage_query)).fetchall()
+        # Get date filters from request
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
         
-        # Group usage data by production_date
+        # Base query
+        query = UsageReport.query.order_by(UsageReport.production_date.desc())
+        
+        # Apply date filters if provided
+        if from_date:
+            query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
+        if to_date:
+            query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
+        
+        # Get the filtered data
+        usage_records = query.all()
+        print(f"Found {len(usage_records)} records in usage_report table")  # Debug log
+        
+        # Group usage data by production_date for display
         grouped_usage_data = {}
-        for record in results:
+        for record in usage_records:
             date_str = record.production_date.strftime('%d/%m/%Y')
             if date_str not in grouped_usage_data:
                 grouped_usage_data[date_str] = []
+                print(f"Processing date: {date_str}")  # Debug log
                 
             grouped_usage_data[date_str].append({
                 'production_date': date_str,
@@ -234,16 +236,24 @@ def usage():
                 'percentage': round(float(record.percentage), 2)
             })
         
+        print(f"Grouped data by {len(grouped_usage_data)} dates")  # Debug log
+        
         # Sort dates in reverse chronological order
         sorted_usage_data = dict(sorted(grouped_usage_data.items(), 
                                       key=lambda x: datetime.strptime(x[0], '%d/%m/%Y'),
                                       reverse=True))
+        
+        print("Rendering template with data...")  # Debug log
+        print(f"Sample data for first date: {list(sorted_usage_data.values())[0] if sorted_usage_data else []}")  # Debug log
         
         return render_template('recipe/usage.html', 
                              grouped_usage_data=sorted_usage_data, 
                              current_page='usage')
     
     except Exception as e:
+        print(f"Error in usage function: {str(e)}")  # Debug log
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")  # Debug log
         db.session.rollback()
         flash(f"Error generating usage report: {str(e)}", 'error')
         return render_template('recipe/usage.html', 
@@ -260,8 +270,21 @@ def usage_download():
     from flask import send_file
     from datetime import datetime
     
-    # Fetch usage records
-    usage_records = UsageReport.query.all()
+    # Get date filters from request
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    
+    # Base query
+    query = UsageReport.query
+    
+    # Apply date filters if provided
+    if from_date:
+        query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
+    if to_date:
+        query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
+    
+    # Get filtered records
+    usage_records = query.order_by(UsageReport.production_date.desc()).all()
     
     # Create Excel workbook
     wb = Workbook()
@@ -323,7 +346,11 @@ def usage_download():
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
     try:
-        # Get raw material usage aggregated by date and material
+        # Get date filters from request
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        
+        # Base query
         raw_material_query = """
         SELECT 
             p.production_date,
@@ -332,11 +359,29 @@ def raw_material_report():
         FROM production p
         JOIN recipe_master r ON p.production_code = r.recipe_code
         JOIN raw_materials rm ON r.raw_material_id = rm.id
-        GROUP BY p.production_date, rm.raw_material
-        ORDER BY p.production_date, rm.raw_material
         """
         
-        results = db.session.execute(text(raw_material_query)).fetchall()
+        # Add date filters to the query
+        conditions = []
+        params = {}
+        
+        if from_date:
+            conditions.append("p.production_date >= :from_date")
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+        
+        if to_date:
+            conditions.append("p.production_date <= :to_date")
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        
+        if conditions:
+            raw_material_query += " WHERE " + " AND ".join(conditions)
+        
+        raw_material_query += """
+        GROUP BY p.production_date, rm.raw_material
+        ORDER BY p.production_date DESC, rm.raw_material
+        """
+        
+        results = db.session.execute(text(raw_material_query), params).fetchall()
         
         # Convert to list of dictionaries for template
         raw_material_data = [
@@ -368,8 +413,21 @@ def raw_material_download():
     from flask import send_file
     from datetime import datetime
 
-    # Fetch all usage records from UsageReport
-    usage_records = UsageReport.query.all()
+    # Get date filters from request
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    
+    # Base query
+    query = UsageReport.query
+    
+    # Apply date filters if provided
+    if from_date:
+        query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
+    if to_date:
+        query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
+    
+    # Get filtered records
+    usage_records = query.order_by(UsageReport.production_date.desc()).all()
 
     # Aggregate usage by week_commencing, production_date, and raw_material
     raw_material_totals = {}
@@ -401,7 +459,7 @@ def raw_material_download():
         x['week_commencing'] or '',
         datetime.strptime(x['production_date'], '%d/%m/%Y') if x['production_date'] else datetime.min,
         x['raw_material']
-    ))
+    ), reverse=True)
 
     # Create Excel workbook
     wb = Workbook()

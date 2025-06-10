@@ -1,0 +1,1 @@
+ALTER TABLE usage_report DROP COLUMN raw_material_id; 

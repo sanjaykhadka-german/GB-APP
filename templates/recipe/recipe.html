@@ -373,7 +373,7 @@
                                 <select name="raw_material" required>
                                     <option value="">Select Raw Material</option>
                                     {% for material in raw_materials %}
-                                    <option value="{{ material.id }}" ${recipe.raw_material_id === {{ material.id }} ? 'selected' : ''}>
+                                    <option value="{{ material.id }}" \${parseInt(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
                                         {{ material.raw_material }}
                                     </option>
                                     {% endfor %}
@@ -415,7 +415,7 @@
                 <select name="raw_material" required>
                     <option value="">Select Raw Material</option>
                     {% for material in raw_materials %}
-                    <option value="{{ material.id }}" ${recipe && recipe.raw_material_id === {{ material.id }} ? 'selected' : ''}>
+                    <option value="{{ material.id }}" \${recipe && parseInt(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
                         {{ material.raw_material }}
                     </option>
                     {% endfor %}
