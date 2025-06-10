@@ -4,19 +4,18 @@
 <div class="container mt-4">
     <h1>Raw Material Report</h1>
 
-    <!-- Date Range Filter Form -->
+    <!-- Week Commencing Filter Form -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label for="from_date" class="form-label">Production Date From:</label>
-                    <input type="date" class="form-control" id="from_date" name="from_date" value="{{ request.args.get('from_date', '') }}">
+                <div class="col-md-6">
+                    <label for="week_commencing" class="form-label">Week Commencing:</label>
+                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" 
+                           value="{{ request.args.get('week_commencing', '') }}"
+                           onchange="adjustToMonday(this)">
+                    <small class="text-muted" id="week_commencing_feedback"></small>
                 </div>
-                <div class="col-md-4">
-                    <label for="to_date" class="form-label">Production Date To:</label>
-                    <input type="date" class="form-control" id="to_date" name="to_date" value="{{ request.args.get('to_date', '') }}">
-                </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <button type="submit" class="btn btn-primary">Filter</button>
                     <a href="{{ url_for('recipe.raw_material_report') }}" class="btn btn-secondary">Reset</a>
                 </div>
@@ -26,14 +25,14 @@
 
     <div class="d-flex justify-content-between mb-3">
         <a href="{{ url_for('recipe.recipe_page') }}" class="btn btn-primary">Back to Recipe Page</a>
-        <a href="{{ url_for('recipe.raw_material_download') }}{% if request.args.get('from_date') %}?from_date={{ request.args.get('from_date') }}&to_date={{ request.args.get('to_date') }}{% endif %}" class="btn btn-success">Download as Excel</a>
+        <a href="{{ url_for('recipe.raw_material_download') }}{% if request.args.get('week_commencing') %}?week_commencing={{ request.args.get('week_commencing') }}{% endif %}" class="btn btn-success">Download as Excel</a>
     </div>
 
     {% if raw_material_data %}
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Production Date</th>
+                    <th>Week Commencing</th>
                     <th>Raw Material</th>
                     <th>Usage (kg)</th>
                 </tr>
@@ -41,17 +40,54 @@
             <tbody>
                 {% for entry in raw_material_data %}
                 <tr>
-                    <td>{{ entry.production_date }}</td>
+                    <td>{{ entry.week_commencing }}</td>
                     <td>{{ entry.raw_material }}</td>
-                    <td>{{ entry.usage }}</td>
+                    <td>{{ "%.2f"|format(entry.usage) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     {% else %}
         <div class="alert alert-warning">
-            <p>No raw material data available for the selected date range.</p>
+            <p>No raw material data available for the selected week.</p>
         </div>
     {% endif %}
 </div>
+
+<script>
+function adjustToMonday(input) {
+    const selectedDate = new Date(input.value);
+    if (isNaN(selectedDate.getTime())) {
+        input.nextElementSibling.textContent = "Please enter a valid date";
+        input.value = '';
+        return;
+    }
+    
+    const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    if (dayOfWeek !== 1) { // If not Monday
+        // Calculate the Monday of that week
+        const monday = new Date(selectedDate);
+        monday.setDate(selectedDate.getDate() - ((dayOfWeek + 6) % 7));
+        
+        // Format date as YYYY-MM-DD for input value
+        const formattedDate = monday.toISOString().split('T')[0];
+        
+        // Update input value to Monday
+        input.value = formattedDate;
+        
+        // Show feedback message
+        input.nextElementSibling.textContent = "Date adjusted to Monday";
+        input.nextElementSibling.style.color = "orange";
+        setTimeout(() => {
+            input.nextElementSibling.textContent = "";
+        }, 3000);
+    } else {
+        input.nextElementSibling.textContent = "✓ Valid Monday date";
+        input.nextElementSibling.style.color = "green";
+        setTimeout(() => {
+            input.nextElementSibling.textContent = "";
+        }, 2000);
+    }
+}
+</script>
 {% endblock %}

@@ -11,6 +11,8 @@ from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.raw_materials import RawMaterials
 from models.production import Production
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
 
 
 # Create a Blueprint for recipe routes
@@ -201,192 +203,275 @@ def get_search_recipes():
 @recipe_bp.route('/usage', methods=['GET'])
 def usage():
     try:
-        print("\nStarting usage report generation...")  # Debug log
+        print("\nStarting usage report generation...")
         
         # Get date filters from request
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
         
-        # Base query
-        query = UsageReport.query.order_by(UsageReport.production_date.desc())
+        # Build the query to get usage data from production and recipe_master
+        usage_query = """
+        SELECT 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
+            p.production_date,
+            p.production_code as recipe_code,
+            rm.raw_material,
+            p.total_kg * r.percentage / 100 as usage_kg,
+            r.percentage
+        FROM production p
+        JOIN recipe_master r ON p.production_code = r.recipe_code
+        JOIN raw_materials rm ON r.raw_material_id = rm.id
+        """
         
-        # Apply date filters if provided
-        if from_date:
-            query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
-        if to_date:
-            query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
+        # Add date filters if provided
+        params = {}
+        if from_date and to_date:
+            usage_query += " WHERE p.production_date BETWEEN :from_date AND :to_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        elif from_date:
+            usage_query += " WHERE p.production_date >= :from_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+        elif to_date:
+            usage_query += " WHERE p.production_date <= :to_date"
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
         
-        # Get the filtered data
-        usage_records = query.all()
-        print(f"Found {len(usage_records)} records in usage_report table")  # Debug log
+        usage_query += " ORDER BY p.production_date DESC, rm.raw_material"
+        
+        # Execute query
+        results = db.session.execute(text(usage_query), params).fetchall()
+        print(f"Found {len(results)} records from production/recipe data")
+        
+        # Clear existing records for the date range
+        delete_query = "DELETE FROM usage_report"
+        params = {}
+        if from_date and to_date:
+            delete_query += " WHERE production_date BETWEEN :from_date AND :to_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        elif from_date:
+            delete_query += " WHERE production_date >= :from_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+        elif to_date:
+            delete_query += " WHERE production_date <= :to_date"
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        
+        db.session.execute(text(delete_query), params)
+        
+        # Save results to usage_report table
+        for result in results:
+            report = UsageReport(
+                week_commencing=result.week_commencing,
+                production_date=result.production_date,
+                recipe_code=result.recipe_code,
+                raw_material=result.raw_material,
+                usage_kg=float(result.usage_kg),
+                percentage=float(result.percentage),
+                created_at=datetime.now()
+            )
+            db.session.add(report)
+        
+        db.session.commit()
         
         # Group usage data by production_date for display
         grouped_usage_data = {}
-        for record in usage_records:
-            date_str = record.production_date.strftime('%d/%m/%Y')
+        for result in results:
+            date_str = result.production_date.strftime('%d/%m/%Y')
             if date_str not in grouped_usage_data:
                 grouped_usage_data[date_str] = []
-                print(f"Processing date: {date_str}")  # Debug log
-                
+            
             grouped_usage_data[date_str].append({
+                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
                 'production_date': date_str,
-                'recipe_code': record.recipe_code,
-                'raw_material': record.raw_material,
-                'usage_kg': round(float(record.usage_kg), 2),
-                'percentage': round(float(record.percentage), 2)
+                'recipe_code': result.recipe_code,
+                'raw_material': result.raw_material,
+                'usage_kg': round(float(result.usage_kg), 2),
+                'percentage': round(float(result.percentage), 2)
             })
-        
-        print(f"Grouped data by {len(grouped_usage_data)} dates")  # Debug log
         
         # Sort dates in reverse chronological order
         sorted_usage_data = dict(sorted(grouped_usage_data.items(), 
                                       key=lambda x: datetime.strptime(x[0], '%d/%m/%Y'),
                                       reverse=True))
         
-        print("Rendering template with data...")  # Debug log
-        print(f"Sample data for first date: {list(sorted_usage_data.values())[0] if sorted_usage_data else []}")  # Debug log
-        
         return render_template('recipe/usage.html', 
-                             grouped_usage_data=sorted_usage_data, 
+                             grouped_usage_data=sorted_usage_data,
+                             from_date=from_date,
+                             to_date=to_date,
                              current_page='usage')
     
     except Exception as e:
-        print(f"Error in usage function: {str(e)}")  # Debug log
+        print(f"Error in usage function: {str(e)}")
         import traceback
-        print(f"Traceback: {traceback.format_exc()}")  # Debug log
+        print(f"Traceback: {traceback.format_exc()}")
         db.session.rollback()
         flash(f"Error generating usage report: {str(e)}", 'error')
         return render_template('recipe/usage.html', 
-                             grouped_usage_data={}, 
+                             grouped_usage_data={},
+                             from_date=from_date,
+                             to_date=to_date,
                              current_page='usage')
 
 @recipe_bp.route('/usage_download', methods=['GET'])
 def usage_download():
-    from database import db
-    from models import UsageReport
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment
-    from io import BytesIO
-    from flask import send_file
-    from datetime import datetime
-    
-    # Get date filters from request
-    from_date = request.args.get('from_date')
-    to_date = request.args.get('to_date')
-    
-    # Base query
-    query = UsageReport.query
-    
-    # Apply date filters if provided
-    if from_date:
-        query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
-    if to_date:
-        query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
-    
-    # Get filtered records
-    usage_records = query.order_by(UsageReport.production_date.desc()).all()
-    
-    # Create Excel workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Usage Report"
-    
-    # Define headers
-    headers = [
-        "Week Commencing",
-        "Production Date",
-        "Recipe Code",
-        "Raw Material",
-        "Usage (kg)",
-        "Percentage (%)"
-    ]
-    ws.append(headers)
-    
-    # Style headers
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal='center')
-    
-    # Populate data
-    for record in usage_records:
-        ws.append([
-            record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else '',
-            record.production_date.strftime('%d/%m/%Y'),
-            record.recipe_code,
-            record.raw_material,
-            record.usage_kg,
-            record.percentage
-        ])
-    
-    # Auto-adjust column widths
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = (max_length + 2) * 1.2
-        ws.column_dimensions[column].width = adjusted_width
-    
-    # Save to BytesIO
-    excel_file = BytesIO()
-    wb.save(excel_file)
-    excel_file.seek(0)
-    
-    return send_file(
-        excel_file,
-        download_name=f"usage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-        as_attachment=True,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-
-@recipe_bp.route('/raw_material_report', methods=['GET'])
-def raw_material_report():
     try:
         # Get date filters from request
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
         
-        # Base query
+        # Build the query to get usage data from production and recipe_master
+        usage_query = """
+        SELECT 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
+            p.production_date,
+            p.production_code as recipe_code,
+            rm.raw_material,
+            p.total_kg * r.percentage / 100 as usage_kg,
+            r.percentage
+        FROM production p
+        JOIN recipe_master r ON p.production_code = r.recipe_code
+        JOIN raw_materials rm ON r.raw_material_id = rm.id
+        """
+        
+        # Add date filters if provided
+        params = {}
+        if from_date and to_date:
+            usage_query += " WHERE p.production_date BETWEEN :from_date AND :to_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        elif from_date:
+            usage_query += " WHERE p.production_date >= :from_date"
+            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
+        elif to_date:
+            usage_query += " WHERE p.production_date <= :to_date"
+            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
+        
+        usage_query += " ORDER BY p.production_date DESC, rm.raw_material"
+        
+        # Execute query
+        results = db.session.execute(text(usage_query), params).fetchall()
+        
+        # Create Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Usage Report"
+        
+        # Define headers
+        headers = [
+            "Week Commencing",
+            "Production Date",
+            "Recipe Code",
+            "Raw Material",
+            "Usage (kg)",
+            "Percentage (%)"
+        ]
+        ws.append(headers)
+        
+        # Style headers
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        
+        # Populate data
+        for result in results:
+            ws.append([
+                result.week_commencing.strftime('%d/%m/%Y'),
+                result.production_date.strftime('%d/%m/%Y'),
+                result.recipe_code,
+                result.raw_material,
+                round(float(result.usage_kg), 2),
+                round(float(result.percentage), 2)
+            ])
+        
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column].width = adjusted_width
+        
+        # Save to BytesIO
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        return send_file(
+            excel_file,
+            download_name=f"usage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            as_attachment=True,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        print(f"Error in usage_download: {str(e)}")
+        flash(f"Error downloading report: {str(e)}", 'error')
+        return redirect(url_for('recipe.usage'))
+
+@recipe_bp.route('/raw_material_report', methods=['GET'])
+def raw_material_report():
+    try:
+        # Get week commencing filter from request
+        week_commencing = request.args.get('week_commencing')
+        
+        # Base query for weekly data
         raw_material_query = """
         SELECT 
-            p.production_date,
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
             rm.raw_material,
+            rm.id as raw_material_id,
             SUM(p.total_kg * r.percentage / 100) as total_usage
         FROM production p
         JOIN recipe_master r ON p.production_code = r.recipe_code
         JOIN raw_materials rm ON r.raw_material_id = rm.id
         """
         
-        # Add date filters to the query
-        conditions = []
+        # Add date filter to the query
         params = {}
-        
-        if from_date:
-            conditions.append("p.production_date >= :from_date")
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-        
-        if to_date:
-            conditions.append("p.production_date <= :to_date")
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        
-        if conditions:
-            raw_material_query += " WHERE " + " AND ".join(conditions)
+        if week_commencing:
+            raw_material_query += """ 
+            WHERE DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) = :week_commencing
+            """
+            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
         
         raw_material_query += """
-        GROUP BY p.production_date, rm.raw_material
-        ORDER BY p.production_date DESC, rm.raw_material
+        GROUP BY 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
+            rm.raw_material,
+            rm.id
+        ORDER BY week_commencing DESC, rm.raw_material
         """
         
         results = db.session.execute(text(raw_material_query), params).fetchall()
         
+        # Clear existing records for the week
+        if week_commencing:
+            delete_query = "DELETE FROM raw_material_report WHERE week_commencing = :week_commencing"
+            delete_params = {'week_commencing': datetime.strptime(week_commencing, '%Y-%m-%d').date()}
+            db.session.execute(text(delete_query), delete_params)
+        
+        # Save results to raw_material_report table
+        for result in results:
+            report = RawMaterialReport(
+                production_date=result.week_commencing,  # Using week_commencing as production_date
+                week_commencing=result.week_commencing,
+                raw_material=result.raw_material,
+                raw_material_id=result.raw_material_id,
+                meat_required=float(result.total_usage),
+                created_at=datetime.now()
+            )
+            db.session.add(report)
+        
+        db.session.commit()
+        
         # Convert to list of dictionaries for template
         raw_material_data = [
             {
-                'production_date': result.production_date.strftime('%d/%m/%Y'),
+                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
                 'raw_material': result.raw_material,
                 'usage': round(float(result.total_usage), 2)
             }
@@ -398,6 +483,7 @@ def raw_material_report():
                              current_page='raw_material_report')
     
     except Exception as e:
+        db.session.rollback()
         flash(f"Error generating raw material report: {str(e)}", 'error')
         return render_template('recipe/raw_material_report.html', 
                              raw_material_data=[],
@@ -405,111 +491,91 @@ def raw_material_report():
 
 @recipe_bp.route('/raw_material_download', methods=['GET'])
 def raw_material_download():
-    from database import db
-    from models import UsageReport
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment
-    from io import BytesIO
-    from flask import send_file
-    from datetime import datetime
-
-    # Get date filters from request
-    from_date = request.args.get('from_date')
-    to_date = request.args.get('to_date')
-    
-    # Base query
-    query = UsageReport.query
-    
-    # Apply date filters if provided
-    if from_date:
-        query = query.filter(UsageReport.production_date >= datetime.strptime(from_date, '%Y-%m-%d').date())
-    if to_date:
-        query = query.filter(UsageReport.production_date <= datetime.strptime(to_date, '%Y-%m-%d').date())
-    
-    # Get filtered records
-    usage_records = query.order_by(UsageReport.production_date.desc()).all()
-
-    # Aggregate usage by week_commencing, production_date, and raw_material
-    raw_material_totals = {}
-    for record in usage_records:
-        week_commencing = record.week_commencing.strftime('%d/%m/%Y') if record.week_commencing else ''
-        production_date = record.production_date.strftime('%d/%m/%Y')
-        raw_material = record.raw_material
-        usage_kg = record.usage_kg
-
-        key = (week_commencing, production_date, raw_material)
-        if key in raw_material_totals:
-            raw_material_totals[key] += usage_kg
-        else:
-            raw_material_totals[key] = usage_kg
-
-    # Convert to list of dictionaries for Excel
-    raw_material_data = [
-        {
-            'week_commencing': key[0],
-            'production_date': key[1],
-            'raw_material': key[2],
-            'usage_kg': round(total, 2)
-        }
-        for key, total in raw_material_totals.items()
-    ]
-
-    # Sort by week_commencing, production_date, and raw_material
-    raw_material_data.sort(key=lambda x: (
-        x['week_commencing'] or '',
-        datetime.strptime(x['production_date'], '%d/%m/%Y') if x['production_date'] else datetime.min,
-        x['raw_material']
-    ), reverse=True)
-
-    # Create Excel workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Raw Material Report"
-
-    # Define headers
-    headers = [
-        "Week Commencing",
-        "Production Date",
-        "Raw Material",
-        "Usage (kg)"
-    ]
-    ws.append(headers)
-
-    # Style headers
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal='center')
-
-    # Populate data
-    for entry in raw_material_data:
-        ws.append([
-            entry['week_commencing'],
-            entry['production_date'],
-            entry['raw_material'],
-            entry['usage_kg']
-        ])
-
-    # Auto-adjust column widths
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except:
-                pass
-        adjusted_width = (max_length + 2) * 1.2
-        ws.column_dimensions[column].width = adjusted_width
-
-    # Save to BytesIO
-    excel_file = BytesIO()
-    wb.save(excel_file)
-    excel_file.seek(0)
-
-    return send_file(
-        excel_file,
-        download_name=f"raw_material_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-        as_attachment=True,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    try:
+        # Get week commencing filter from request
+        week_commencing = request.args.get('week_commencing')
+        
+        # Base query for weekly data
+        raw_material_query = """
+        SELECT 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
+            rm.raw_material,
+            rm.id as raw_material_id,
+            SUM(p.total_kg * r.percentage / 100) as total_usage
+        FROM production p
+        JOIN recipe_master r ON p.production_code = r.recipe_code
+        JOIN raw_materials rm ON r.raw_material_id = rm.id
+        """
+        
+        # Add date filter to the query
+        params = {}
+        if week_commencing:
+            raw_material_query += """ 
+            WHERE DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) = :week_commencing
+            """
+            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+        
+        raw_material_query += """
+        GROUP BY 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
+            rm.raw_material,
+            rm.id
+        ORDER BY week_commencing DESC, rm.raw_material
+        """
+        
+        results = db.session.execute(text(raw_material_query), params).fetchall()
+        
+        # Create Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Raw Material Report"
+        
+        # Define headers
+        headers = [
+            "Week Commencing",
+            "Raw Material",
+            "Usage (kg)"
+        ]
+        ws.append(headers)
+        
+        # Style headers
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        
+        # Populate data
+        for result in results:
+            ws.append([
+                result.week_commencing.strftime('%d/%m/%Y'),
+                result.raw_material,
+                round(float(result.total_usage), 2)
+            ])
+        
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column].width = adjusted_width
+        
+        # Save to BytesIO
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        return send_file(
+            excel_file,
+            download_name=f"raw_material_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            as_attachment=True,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        print(f"Error in raw_material_download: {str(e)}")
+        flash(f"Error downloading report: {str(e)}", 'error')
+        return redirect(url_for('recipe.raw_material_report'))
