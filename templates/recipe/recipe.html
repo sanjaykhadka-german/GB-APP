@@ -373,7 +373,7 @@
                                 <select name="raw_material" required>
                                     <option value="">Select Raw Material</option>
                                     {% for material in raw_materials %}
-                                    <option value="{{ material.id }}" \${parseInt(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
+                                    <option value="{{ material.id }}" \${Number(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
                                         {{ material.raw_material }}
                                     </option>
                                     {% endfor %}
@@ -383,6 +383,13 @@
                             <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
                         </tr>
                     `;
+
+                    // After setting innerHTML, manually set the selected value
+                    const selectElement = tableBody.querySelector('select[name="raw_material"]');
+                    if (selectElement) {
+                        selectElement.value = recipe.raw_material_id;
+                    }
+
                     // Fetch other recipes with the same description
                     $.ajax({
                         url: "{{ url_for('recipe.get_search_recipes') }}",
@@ -415,7 +422,7 @@
                 <select name="raw_material" required>
                     <option value="">Select Raw Material</option>
                     {% for material in raw_materials %}
-                    <option value="{{ material.id }}" \${recipe && parseInt(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
+                    <option value="{{ material.id }}" \${recipe && Number(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
                         {{ material.raw_material }}
                     </option>
                     {% endfor %}
@@ -424,6 +431,14 @@
             <td><input type="number" name="kg_per_batch" step="0.001" value="${recipe ? recipe.kg_per_batch : ''}" required></td>
             <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
         `;
+
+        // After setting innerHTML, manually set the selected value
+        if (recipe) {
+            const selectElement = newRow.querySelector('select[name="raw_material"]');
+            if (selectElement) {
+                selectElement.value = recipe.raw_material_id;
+            }
+        }
     }
 
     function deleteRecipeRow(button) {
