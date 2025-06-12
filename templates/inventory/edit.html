@@ -19,7 +19,7 @@
     <form method="POST" action="{{ url_for('inventory.edit_inventory', id=inventory.id) }}">
         <div>
             <label>Week Commencing:</label>
-            <input type="date" name="week_commencing" value="{{ inventory.week_commencing.strftime('%Y-%m-%d') }}" required>
+            <input type="date" name="week_commencing" value="{{ inventory.week_commencing.strftime('%Y-%m%d') }}" required>
         </div>
         <div>
             <label>Category:</label>
@@ -35,7 +35,7 @@
             <select name="raw_material_id" required>
                 <option value="">Select Raw Material</option>
                 {% for material in raw_materials %}
-                    <option value="{{ material.id }}" {% if material.id == inventory.raw_material_id %}selected{% endif %}>{{ material.name }}</option>
+                    <option value="{{ material.id }}" {% if material.id == inventory.raw_material_id %}selected{% endif %}>{{ material.raw_material }}</option>  <!-- Use raw_material -->
                 {% endfor %}
             </select>
         </div>
@@ -77,10 +77,10 @@
         </div>
         <div>
             <label>Wednesday2:</label>
-            <input type="number" step="0.01" name="wednesday2" value="{{ inventory.wednesday2 }}" required>
+            <input type="number" step="wednesday2" value="{{ inventory.wednesday2 }}" required>
         </div>
         <div>
-            <label>Thursday2:</label>
+            <label>Thursday2:<label>
             <input type="number" step="0.01" name="thursday2" value="{{ inventory.thursday2 }}" required>
         </div>
         <div>

@@ -35,7 +35,7 @@
             <select name="raw_material_id" required>
                 <option value="">Select Raw Material</option>
                 {% for material in raw_materials %}
-                    <option value="{{ material.id }}">{{ material.name }}</option>
+                    <option value="{{ material.id }}">{{ material.raw_material }}</option>  <!-- Use raw_material -->
                 {% endfor %}
             </select>
         </div>
