@@ -32,6 +32,9 @@
     {% if grouped_usage_data %}
         {% for date, entries in grouped_usage_data.items() %}
             <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ date.strftime('%d/%m/%Y') }}</h5>
+                </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">

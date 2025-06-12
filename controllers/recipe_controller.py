@@ -197,217 +197,106 @@ def get_search_recipes():
     
     return jsonify(recipes_data)
 
-@recipe_bp.route('/usage', methods=['GET'])
+@recipe_bp.route('/usage')
 def usage():
-    try:
-        print("\nStarting usage report generation...")
-        
-        # Get date filters from request
-        from_date = request.args.get('from_date')
-        to_date = request.args.get('to_date')
-        
-        # Build the query to get usage data from production and recipe_master
-        usage_query = """
-        SELECT 
-            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            p.production_date,
-            p.production_code as recipe_code,
-            rm.raw_material,
-            p.total_kg * r.percentage / 100 as usage_kg,
-            r.percentage
-        FROM production p
-        JOIN recipe_master r ON p.production_code = r.recipe_code
-        JOIN raw_materials rm ON r.raw_material_id = rm.id
-        """
-        
-        # Add date filters if provided
-        params = {}
-        if from_date and to_date:
-            usage_query += " WHERE p.production_date BETWEEN :from_date AND :to_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        elif from_date:
-            usage_query += " WHERE p.production_date >= :from_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-        elif to_date:
-            usage_query += " WHERE p.production_date <= :to_date"
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        
-        usage_query += " ORDER BY p.production_date DESC, rm.raw_material"
-        
-        # Execute query
-        results = db.session.execute(text(usage_query), params).fetchall()
-        print(f"Found {len(results)} records from production/recipe data")
-        
-        # Clear existing records for the date range
-        delete_query = "DELETE FROM usage_report"
-        params = {}
-        if from_date and to_date:
-            delete_query += " WHERE production_date BETWEEN :from_date AND :to_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        elif from_date:
-            delete_query += " WHERE production_date >= :from_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-        elif to_date:
-            delete_query += " WHERE production_date <= :to_date"
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        
-        db.session.execute(text(delete_query), params)
-        
-        # Save results to usage_report table
-        for result in results:
-            report = UsageReport(
-                week_commencing=result.week_commencing,
-                production_date=result.production_date,
-                recipe_code=result.recipe_code,
-                raw_material=result.raw_material,
-                usage_kg=float(result.usage_kg),
-                percentage=float(result.percentage),
-                created_at=datetime.now()
-            )
-            db.session.add(report)
-        
-        db.session.commit()
-        
-        # Group usage data by production_date for display
-        grouped_usage_data = {}
-        for result in results:
-            date_str = result.production_date.strftime('%d/%m/%Y')
-            if date_str not in grouped_usage_data:
-                grouped_usage_data[date_str] = []
-            
-            grouped_usage_data[date_str].append({
-                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
-                'production_date': date_str,
-                'recipe_code': result.recipe_code,
-                'raw_material': result.raw_material,
-                'usage_kg': round(float(result.usage_kg), 2),
-                'percentage': round(float(result.percentage), 2)
-            })
-        
-        # Sort dates in reverse chronological order
-        sorted_usage_data = dict(sorted(grouped_usage_data.items(), 
-                                      key=lambda x: datetime.strptime(x[0], '%d/%m/%Y'),
-                                      reverse=True))
-        
-        return render_template('recipe/usage.html', 
-                             grouped_usage_data=sorted_usage_data,
-                             from_date=from_date,
-                             to_date=to_date,
-                             current_page='usage')
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
     
-    except Exception as e:
-        print(f"Error in usage function: {str(e)}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        db.session.rollback()
-        flash(f"Error generating usage report: {str(e)}", 'error')
-        return render_template('recipe/usage.html', 
-                             grouped_usage_data={},
-                             from_date=from_date,
-                             to_date=to_date,
-                             current_page='usage')
-
-@recipe_bp.route('/usage_download', methods=['GET'])
-def usage_download():
-    try:
-        # Get date filters from request
-        from_date = request.args.get('from_date')
-        to_date = request.args.get('to_date')
-        
-        # Build the query to get usage data from production and recipe_master
-        usage_query = """
-        SELECT 
-            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            p.production_date,
-            p.production_code as recipe_code,
-            rm.raw_material,
-            p.total_kg * r.percentage / 100 as usage_kg,
-            r.percentage
-        FROM production p
-        JOIN recipe_master r ON p.production_code = r.recipe_code
-        JOIN raw_materials rm ON r.raw_material_id = rm.id
-        """
-        
-        # Add date filters if provided
-        params = {}
-        if from_date and to_date:
-            usage_query += " WHERE p.production_date BETWEEN :from_date AND :to_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        elif from_date:
-            usage_query += " WHERE p.production_date >= :from_date"
-            params['from_date'] = datetime.strptime(from_date, '%Y-%m-%d').date()
-        elif to_date:
-            usage_query += " WHERE p.production_date <= :to_date"
-            params['to_date'] = datetime.strptime(to_date, '%Y-%m-%d').date()
-        
-        usage_query += " ORDER BY p.production_date DESC, rm.raw_material"
-        
-        # Execute query
-        results = db.session.execute(text(usage_query), params).fetchall()
-        
-        # Create Excel workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Usage Report"
-        
-        # Define headers
-        headers = [
-            "Week Commencing",
-            "Production Date",
-            "Recipe Code",
-            "Raw Material",
-            "Usage (kg)",
-            "Percentage (%)"
-        ]
-        ws.append(headers)
-        
-        # Style headers
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal='center')
-        
-        # Populate data
-        for result in results:
-            ws.append([
-                result.week_commencing.strftime('%d/%m/%Y'),
-                result.production_date.strftime('%d/%m/%Y'),
-                result.recipe_code,
-                result.raw_material,
-                round(float(result.usage_kg), 2),
-                round(float(result.percentage), 2)
-            ])
-        
-        # Auto-adjust column widths
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = (max_length + 2) * 1.2
-            ws.column_dimensions[column].width = adjusted_width
-        
-        # Save to BytesIO
-        excel_file = BytesIO()
-        wb.save(excel_file)
-        excel_file.seek(0)
-        
-        return send_file(
-            excel_file,
-            download_name=f"usage_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            as_attachment=True,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    # Query to get usage data
+    query = db.session.query(
+        RecipeMaster,
+        ItemMaster.description.label('raw_material_name')
+    ).join(
+        ItemMaster,
+        RecipeMaster.raw_material_id == ItemMaster.id
+    )
+    
+    # Apply date filters if provided
+    if from_date and to_date:
+        query = query.filter(
+            RecipeMaster.created_at >= from_date,
+            RecipeMaster.created_at <= to_date
         )
-    except Exception as e:
-        print(f"Error in usage_download: {str(e)}")
-        flash(f"Error downloading report: {str(e)}", 'error')
-        return redirect(url_for('recipe.usage'))
+    
+    # Get the results
+    usage_data = query.all()
+    
+    # Group data by date
+    grouped_usage_data = {}
+    for recipe, raw_material_name in usage_data:
+        date = recipe.created_at.date()
+        if date not in grouped_usage_data:
+            grouped_usage_data[date] = []
+            
+        grouped_usage_data[date].append({
+            'week_commencing': recipe.created_at.strftime('%Y-%m-%d'),
+            'production_date': recipe.created_at.strftime('%Y-%m-%d'),
+            'recipe_code': recipe.recipe_code,
+            'raw_material': raw_material_name,
+            'usage_kg': recipe.kg_per_batch,
+            'percentage': recipe.percentage
+        })
+    
+    return render_template('recipe/usage.html',
+                         grouped_usage_data=grouped_usage_data,
+                         from_date=from_date,
+                         to_date=to_date,
+                         current_page='usage')
+
+@recipe_bp.route('/usage/download')
+def usage_download():
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    
+    # Query to get usage data
+    query = db.session.query(
+        RecipeMaster,
+        ItemMaster.description.label('raw_material_name')
+    ).join(
+        ItemMaster,
+        RecipeMaster.raw_material_id == ItemMaster.id
+    )
+    
+    # Apply date filters if provided
+    if from_date and to_date:
+        query = query.filter(
+            RecipeMaster.created_at >= from_date,
+            RecipeMaster.created_at <= to_date
+        )
+    
+    # Get the results
+    usage_data = query.all()
+    
+    # Create Excel file
+    import pandas as pd
+    from io import BytesIO
+    
+    data = []
+    for recipe, raw_material_name in usage_data:
+        data.append({
+            'Week Commencing': recipe.created_at.strftime('%Y-%m-%d'),
+            'Production Date': recipe.created_at.strftime('%Y-%m-%d'),
+            'Recipe Code': recipe.recipe_code,
+            'Raw Material': raw_material_name,
+            'Usage (kg)': recipe.kg_per_batch,
+            'Percentage (%)': recipe.percentage
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Create Excel file
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, sheet_name='Usage Report', index=False)
+    
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'usage_report_{from_date}_{to_date}.xlsx' if from_date and to_date else 'usage_report.xlsx'
+    )
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():

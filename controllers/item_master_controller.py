@@ -152,11 +152,11 @@ def save_item():
         if not data.get('id'):
             db.session.add(item)
         
-            db.session.commit()
+        db.session.commit()
         return jsonify({'message': 'Item saved successfully!', 'id': item.id}), 200
         
     except Exception as e:
-            db.session.rollback()
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 @item_master_bp.route('/delete-item/<int:id>', methods=['DELETE'])
@@ -166,6 +166,6 @@ def delete_item(id):
         db.session.delete(item)
         db.session.commit()
         return jsonify({'message': 'Item deleted successfully!'}), 200
-        except Exception as e:
-            db.session.rollback()
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
