@@ -23,6 +23,9 @@
                     <li class="{% if current_page == 'home' %}active{% endif %}">
                     <a href="{{ url_for('index') }}">Home</a>
                 </li>
+                    <li class="{% if current_page == 'item_master' %}active{% endif %}">
+                    <a href="{{ url_for('item_master.item_master_list') }}">Item Master</a>
+                </li>
                     <li class="{% if current_page == 'raw_materials' %}active{% endif %}">
                     <a href="{{ url_for('raw_materials.raw_materials_page') }}">Raw Materials</a>
                 </li>
@@ -55,6 +58,10 @@
                 <li
                     class="{% if current_page == 'raw_material_report' %}active{% endif %}">
                     <a href="{{ url_for('recipe.raw_material_report') }}">Raw Material Report</a>
+                </li>
+                <li
+                    class="{% if current_page == 'inventory' %}active{% endif %}">
+                    <a href="{{ url_for('inventory.list_inventory') }}">Inventory</a>
                 </li>
             <li
                 class="{% if current_page == 'production_plan_list' %}active{% endif %}">

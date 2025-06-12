@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport
+from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport, ItemMaster
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.raw_materials import RawMaterials
@@ -73,8 +73,8 @@ def recipe_page():
                         description=description,
                         raw_material_id=raw_material_id,
                         kg_per_batch=kg_per_batch,
-                        percentage=Decimal(0),
-                        week_commencing=week_commencing  # Add week commencing date
+                        percentage=Decimal('0.00'),
+                        week_commencing=week_commencing
                     )
                     db.session.add(recipe)
 
@@ -88,7 +88,7 @@ def recipe_page():
                 
                 total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
                 for r in recipes_to_update:
-                    r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
+                    r.percentage = Decimal(round((float(r.kg_per_batch) / total_kg) * 100, 2)) if total_kg > 0 else Decimal('0.00')
             
             db.session.commit()
             return jsonify({'message': 'Recipes saved successfully!'}), 200
@@ -127,8 +127,6 @@ def recipe_page():
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
 def delete_recipe(id):
-    from database import db
-    from models import RecipeMaster
     try:
         recipe = RecipeMaster.query.get_or_404(id)
         description = recipe.description
@@ -140,15 +138,13 @@ def delete_recipe(id):
         if recipes_to_update:
             total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
             for r in recipes_to_update:
-                r.percentage = Decimal((float(r.kg_per_batch) / total_kg) * 100) if total_kg > 0 else Decimal(0)
+                r.percentage = Decimal(round((float(r.kg_per_batch) / total_kg) * 100, 2)) if total_kg > 0 else Decimal('0.00')
             db.session.commit()
 
-        flash("Recipe deleted successfully!", 'success')
-        return redirect(url_for('recipe.recipe_page'))
+        return jsonify({'message': 'Recipe deleted successfully!'}), 200
     except Exception as e:
         db.session.rollback()
-        flash(f"An error occurred: {str(e)}", 'error')
-        return redirect(url_for('recipe.recipe_page'))
+        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
 @recipe_bp.route('/autocomplete_recipe', methods=['GET'])
 def autocomplete_recipe():
@@ -171,13 +167,13 @@ def get_search_recipes():
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
     
-    # Join with raw_materials to get the raw material name
+    # Join with item_master to get the raw material name
     recipes_query = db.session.query(
         RecipeMaster, 
-        RawMaterials.raw_material
+        ItemMaster.description.label('raw_material_name')
     ).join(
-        RawMaterials, 
-        RecipeMaster.raw_material_id == RawMaterials.id
+        ItemMaster, 
+        RecipeMaster.raw_material_id == ItemMaster.id
     )
     
     if search_recipe_code:
@@ -191,13 +187,14 @@ def get_search_recipes():
             "id": recipe.RecipeMaster.id,
             "recipe_code": recipe.RecipeMaster.recipe_code,
             "description": recipe.RecipeMaster.description,
-            "raw_material": recipe.raw_material,
+            "raw_material": recipe.raw_material_name,
             "raw_material_id": recipe.RecipeMaster.raw_material_id,
-            "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch),
-            "percentage": float(recipe.RecipeMaster.percentage) if recipe.RecipeMaster.percentage else 0.0
+            "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch) if recipe.RecipeMaster.kg_per_batch else 0.00,
+            "percentage": round(float(recipe.RecipeMaster.percentage), 2) if recipe.RecipeMaster.percentage else 0.00
         }
         for recipe in recipes
     ]
+    
     return jsonify(recipes_data)
 
 @recipe_bp.route('/usage', methods=['GET'])

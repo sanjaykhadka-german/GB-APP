@@ -2,5 +2,9 @@ from database import db
 
 class Category(db.Model):
     __tablename__ = 'category'
-    categoryID = db.Column(db.String, primary_key=True, autoincrement=True)
-    categoryName = db.Column(db.String(50), nullable=False, unique=True)
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(50), nullable=False, unique=True)
+
+    def __repr__(self):
+        return f'<Category {self.name}>'

@@ -6,22 +6,41 @@ raw_materials_bp = Blueprint('raw_materials', __name__, template_folder='templat
 
 @raw_materials_bp.route('/raw-materials')
 def raw_materials_page():
-    materials = RawMaterials.query.order_by(RawMaterials.raw_material).all()
+    materials = RawMaterials.query.order_by(RawMaterials.raw_material_code).all()
     return render_template('raw_materials/raw_materials.html', materials=materials, current_page='raw_materials')
 
 @raw_materials_bp.route('/raw-materials/add', methods=['POST'])
 def add_material():
     try:
         raw_material = request.form.get('raw_material')
-        if not raw_material:
-            return jsonify({'success': False, 'message': 'Raw material name is required'}), 400
+        raw_material_code = request.form.get('raw_material_code')
+        description = request.form.get('description')
+        category_id = request.form.get('category_id')
+        department_id = request.form.get('department_id')
+        uom_id = request.form.get('uom_id')
+        min_level = request.form.get('min_level')
+        max_level = request.form.get('max_level')
+        price_per_kg = request.form.get('price_per_kg')
 
-        # Check if material already exists
-        existing_material = RawMaterials.query.filter_by(raw_material=raw_material).first()
+        if not raw_material or not raw_material_code:
+            return jsonify({'success': False, 'message': 'Raw material name and code are required'}), 400
+
+        # Check if material code already exists
+        existing_material = RawMaterials.query.filter_by(raw_material_code=raw_material_code).first()
         if existing_material:
-            return jsonify({'success': False, 'message': 'Raw material already exists'}), 400
+            return jsonify({'success': False, 'message': 'Raw material code already exists'}), 400
 
-        new_material = RawMaterials(raw_material=raw_material)
+        new_material = RawMaterials(
+            raw_material_code=raw_material_code,
+            raw_material=raw_material,
+            description=description,
+            category_id=category_id if category_id else None,
+            department_id=department_id if department_id else None,
+            uom_id=uom_id if uom_id else None,
+            min_level=float(min_level) if min_level else None,
+            max_level=float(max_level) if max_level else None,
+            price_per_kg=float(price_per_kg) if price_per_kg else None
+        )
         db.session.add(new_material)
         db.session.commit()
 
@@ -35,21 +54,38 @@ def edit_material():
     try:
         material_id = request.form.get('material_id')
         raw_material = request.form.get('raw_material')
+        raw_material_code = request.form.get('raw_material_code')
+        description = request.form.get('description')
+        category_id = request.form.get('category_id')
+        department_id = request.form.get('department_id')
+        uom_id = request.form.get('uom_id')
+        min_level = request.form.get('min_level')
+        max_level = request.form.get('max_level')
+        price_per_kg = request.form.get('price_per_kg')
 
-        if not all([material_id, raw_material]):
-            return jsonify({'success': False, 'message': 'All fields are required'}), 400
+        if not all([material_id, raw_material, raw_material_code]):
+            return jsonify({'success': False, 'message': 'Material ID, name, and code are required'}), 400
 
         # Check if material exists
         material = RawMaterials.query.get(material_id)
         if not material:
             return jsonify({'success': False, 'message': 'Raw material not found'}), 404
 
-        # Check if new name already exists for different material
-        existing_material = RawMaterials.query.filter_by(raw_material=raw_material).first()
+        # Check if new code already exists for different material
+        existing_material = RawMaterials.query.filter_by(raw_material_code=raw_material_code).first()
         if existing_material and existing_material.id != int(material_id):
-            return jsonify({'success': False, 'message': 'Raw material name already exists'}), 400
+            return jsonify({'success': False, 'message': 'Raw material code already exists'}), 400
 
+        material.raw_material_code = raw_material_code
         material.raw_material = raw_material
+        material.description = description
+        material.category_id = category_id if category_id else None
+        material.department_id = department_id if department_id else None
+        material.uom_id = uom_id if uom_id else None
+        material.min_level = float(min_level) if min_level else None
+        material.max_level = float(max_level) if max_level else None
+        material.price_per_kg = float(price_per_kg) if price_per_kg else None
+
         db.session.commit()
 
         return jsonify({'success': True, 'message': 'Raw material updated successfully'})

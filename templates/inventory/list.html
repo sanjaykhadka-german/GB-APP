@@ -1,0 +1,95 @@
+<!-- templates/inventory/list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inventory List</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Inventory List</h1>
+    <a href="{{ url_for('inventory.create_inventory') }}">Create New Inventory Record</a>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>Week Commencing</th>
+                <th>Category</th>
+                <th>Raw Material</th>
+                <th>$/kg</th>
+                <th>Total Required</th>
+                <th>SOH</th>
+                <th>Value SOH</th>
+                <th>Monday</th>
+                <th>Tuesday</th>
+                <th>Wednesday</th>
+                <th>Thursday</th>
+                <th>Friday</th>
+                <th>Total to be Ordered</th>
+                <th>Monday2</th>
+                <th>Tuesday2</th>
+                <th>Wednesday2</th>
+                <th>Thursday2</th>
+                <th>Friday2</th>
+                <th>Variance</th>
+                <th>Value to be Ordered</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inventory in inventories %}
+            <tr>
+                <td>{{ inventory.week_commencing.strftime('%Y-%m-%d') }}</td>
+                <td>{{ inventory.category.name }}</td>
+                <td>{{ inventory.raw_material.name }}</td>
+                <td>{{ inventory.price_per_kg }}</td>
+                <td>{{ inventory.total_required }}</td>
+                <td>{{ inventory.soh }}</td>
+                <td>{{ inventory.value_soh }}</td>
+                <td>{{ inventory.monday }}</td>
+                <td>{{ inventory.tuesday }}</td>
+                <td>{{ inventory.wednesday }}</td>
+                <td>{{ inventory.thursday }}</td>
+                <td>{{ inventory.friday }}</td>
+                <td>{{ inventory.total_to_be_ordered }}</td>
+                <td>{{ inventory.monday2 }}</td>
+                <td>{{ inventory.tuesday2 }}</td>
+                <td>{{ inventory.wednesday2 }}</td>
+                <td>{{ inventory.thursday2 }}</td>
+                <td>{{ inventory.friday2 }}</td>
+                <td>{{ inventory.variance }}</td>
+                <td>{{ inventory.value_to_be_ordered }}</td>
+                <td>
+                    <a href="{{ url_for('inventory.edit_inventory', id=inventory.id) }}">Edit</a>
+                    <form action="{{ url_for('inventory.delete_inventory', id=inventory.id) }}" method="POST" style="display:inline;">
+                        <button type="submit" onclick="return confirm('Are you sure?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        // Calculate Total Required client-side
+        document.addEventListener('DOMContentLoaded', function() {
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const monday = parseFloat(row.cells[7].textContent) || 0;
+                const tuesday = parseFloat(row.cells[8].textContent) || 0;
+                const wednesday = parseFloat(row.cells[9].textContent) || 0;
+                const thursday = parseFloat(row.cells[10].textContent) || 0;
+                const friday = parseFloat(row.cells[11].textContent) || 0;
+                row.cells[4].textContent = (monday + tuesday + wednesday + thursday + friday).toFixed(2);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -36,6 +36,7 @@
                 <li><a href="{{ url_for('production.production_list') }}">Production</a></li>
                 <li><a href="{{ url_for('recipe.usage') }}">Usage Report</a></li>
                 <li><a href="{{ url_for('recipe.raw_material_report') }}" class="{% if current_page == 'raw_material_report' %}active{% endif %}">Raw Material Report</a></li>
+                <li><a href="{{ url_for('inventory.inventory_list') }}" class="{% if current_page == 'inventory' %}active{% endif %}">Inventory</a></li>
             </ul>
         </nav>
     </header>

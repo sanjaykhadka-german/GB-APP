@@ -1,0 +1,93 @@
+<!-- templates/inventory/edit.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Inventory Record</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Edit Inventory Record</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('inventory.edit_inventory', id=inventory.id) }}">
+        <div>
+            <label>Week Commencing:</label>
+            <input type="date" name="week_commencing" value="{{ inventory.week_commencing.strftime('%Y-%m-%d') }}" required>
+        </div>
+        <div>
+            <label>Category:</label>
+            <select name="category_id" required>
+                <option value="">Select Category</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}" {% if category.id == inventory.category_id %}selected{% endif %}>{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Raw Material:</label>
+            <select name="raw_material_id" required>
+                <option value="">Select Raw Material</option>
+                {% for material in raw_materials %}
+                    <option value="{{ material.id }}" {% if material.id == inventory.raw_material_id %}selected{% endif %}>{{ material.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>$/kg:</label>
+            <input type="number" step="0.01" name="price_per_kg" value="{{ inventory.price_per_kg }}" required>
+        </div>
+        <div>
+            <label>SOH:</label>
+            <input type="number" step="0.01" name="soh" value="{{ inventory.soh }}" required>
+        </div>
+        <div>
+            <label>Monday:</label>
+            <input type="number" step="0.01" name="monday" value="{{ inventory.monday }}" required>
+        </div>
+        <div>
+            <label>Tuesday:</label>
+            <input type="number" step="0.01" name="tuesday" value="{{ inventory.tuesday }}" required>
+        </div>
+        <div>
+            <label>Wednesday:</label>
+            <input type="number" step="0.01" name="wednesday" value="{{ inventory.wednesday }}" required>
+        </div>
+        <div>
+            <label>Thursday:</label>
+            <input type="number" step="0.01" name="thursday" value="{{ inventory.thursday }}" required>
+        </div>
+        <div>
+            <label>Friday:</label>
+            <input type="number" step="0.01" name="friday" value="{{ inventory.friday }}" required>
+        </div>
+        <div>
+            <label>Monday2:</label>
+            <input type="number" step="0.01" name="monday2" value="{{ inventory.monday2 }}" required>
+        </div>
+        <div>
+            <label>Tuesday2:</label>
+            <input type="number" step="0.01" name="tuesday2" value="{{ inventory.tuesday2 }}" required>
+        </div>
+        <div>
+            <label>Wednesday2:</label>
+            <input type="number" step="0.01" name="wednesday2" value="{{ inventory.wednesday2 }}" required>
+        </div>
+        <div>
+            <label>Thursday2:</label>
+            <input type="number" step="0.01" name="thursday2" value="{{ inventory.thursday2 }}" required>
+        </div>
+        <div>
+            <label>Friday2:</label>
+            <input type="number" step="0.01" name="friday2" value="{{ inventory.friday2 }}" required>
+        </div>
+        <button type="submit">Update</button>
+    </form>
+</body>
+</html>

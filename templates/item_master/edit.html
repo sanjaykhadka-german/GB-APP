@@ -1,0 +1,373 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">{{ 'Edit' if item else 'Add' }} Item</h4>
+            <button class="btn btn-secondary" onclick="window.location.href='/item-master'">
+                <i class="fas fa-arrow-left"></i> Back to List
+            </button>
+        </div>
+        <div class="card-body">
+            <form id="itemForm" onsubmit="saveItem(event)">
+                <input type="hidden" id="item-id" value="{{ item.id if item else '' }}">
+                
+                <!-- Basic Information -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Basic Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-code" class="form-label">Item Code <span class="text-danger">*</span></label>
+                                    <input type="text" id="item-code" class="form-control" required 
+                                           value="{{ item.item_code if item else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-description" class="form-label">Description <span class="text-danger">*</span></label>
+                                    <input type="text" id="item-description" class="form-control" required
+                                           value="{{ item.description if item else '' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-type" class="form-label">Type <span class="text-danger">*</span></label>
+                                    <select id="item-type" class="form-select" required onchange="toggleTypeFields()">
+                                        <option value="raw_material" {{ 'selected' if item and item.item_type == 'raw_material' else '' }}>Raw Material</option>
+                                        <option value="finished_good" {{ 'selected' if item and item.item_type == 'finished_good' else '' }}>Finished Good</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-category" class="form-label">Category</label>
+                                    <select id="item-category" class="form-select">
+                                        <option value="">Select Category</option>
+                                        {% for category in categories %}
+                                        <option value="{{ category.id }}" {{ 'selected' if item and item.category_id == category.id else '' }}>
+                                            {{ category.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Details -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Additional Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-department" class="form-label">Department</label>
+                                    <select id="item-department" class="form-select">
+                                        <option value="">Select Department</option>
+                                        {% for dept in departments %}
+                                        <option value="{{ dept.department_id }}" {{ 'selected' if item and item.department_id == dept.department_id else '' }}>
+                                            {{ dept.departmentName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-uom" class="form-label">UOM</label>
+                                    <select id="item-uom" class="form-select">
+                                        <option value="">Select UOM</option>
+                                        {% for uom in uoms %}
+                                        <option value="{{ uom.UOMID }}" {{ 'selected' if item and item.uom_id == uom.UOMID else '' }}>
+                                            {{ uom.UOMName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-min-level" class="form-label">Min Level</label>
+                                    <input type="number" id="item-min-level" class="form-control" step="0.01"
+                                           value="{{ item.min_level if item else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-max-level" class="form-label">Max Level</label>
+                                    <input type="number" id="item-max-level" class="form-control" step="0.01"
+                                           value="{{ item.max_level if item else '' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Type Specific Fields -->
+                <div id="raw-material-fields" class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Raw Material Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-price-per-kg" class="form-label">Price per KG</label>
+                                    <input type="number" id="item-price-per-kg" class="form-control" step="0.01"
+                                           value="{{ item.price_per_kg if item else '' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="finished-good-fields" class="card mb-4" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0">Finished Good Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-kg-per-unit" class="form-label">KG per Unit</label>
+                                    <input type="number" id="item-kg-per-unit" class="form-control" step="0.001"
+                                           value="{{ item.kg_per_unit if item else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-units-per-bag" class="form-label">Units per Bag</label>
+                                    <input type="number" id="item-units-per-bag" class="form-control"
+                                           value="{{ item.units_per_bag if item else '' }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-loss-percentage" class="form-label">Loss Percentage</label>
+                                    <input type="number" id="item-loss-percentage" class="form-control" step="0.01"
+                                           value="{{ item.loss_percentage if item else '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="item-machinery" class="form-label">Machinery</label>
+                                    <select id="item-machinery" class="form-select">
+                                        <option value="">Select Machinery</option>
+                                        {% for machine in machinery %}
+                                        <option value="{{ machine.machineID }}" {{ 'selected' if item and item.machinery_id == machine.machineID else '' }}>
+                                            {{ machine.machineryName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <div class="form-check">
+                                        <input type="checkbox" id="item-make-to-order" class="form-check-input"
+                                               {{ 'checked' if item and item.is_make_to_order else '' }}>
+                                        <label class="form-check-label" for="item-make-to-order">Make to Order</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Allergens -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Allergens</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group mb-3">
+                                    <select id="item-allergens" class="form-select" multiple size="8">
+                                        {% for allergen in allergens %}
+                                        <option value="{{ allergen.allergens_id }}" 
+                                                {{ 'selected' if item and allergen in item.allergens else '' }}>
+                                            {{ allergen.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check">
+                            <input type="checkbox" id="item-active" class="form-check-input" 
+                                   {{ 'checked' if not item or item.is_active else '' }}>
+                            <label class="form-check-label" for="item-active">Active</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='/item-master'">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: none;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    padding: 1rem 1.35rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #4e73df;
+}
+
+.form-control, .form-select {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.35rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+
+.btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.35rem;
+}
+
+.btn-primary {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.btn-secondary {
+    background-color: #858796;
+    border-color: #858796;
+}
+
+.form-check-input:checked {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+#item-allergens {
+    min-height: 200px;
+}
+
+.text-danger {
+    color: #e74a3b;
+}
+</style>
+
+<script>
+function toggleTypeFields() {
+    const type = document.getElementById('item-type').value;
+    const rawMaterialFields = document.getElementById('raw-material-fields');
+    const finishedGoodFields = document.getElementById('finished-good-fields');
+    
+    if (type === 'raw_material') {
+        rawMaterialFields.style.display = 'block';
+        finishedGoodFields.style.display = 'none';
+    } else {
+        rawMaterialFields.style.display = 'none';
+        finishedGoodFields.style.display = 'block';
+    }
+}
+
+function saveItem(event) {
+    event.preventDefault();
+    
+    const data = {
+        id: document.getElementById('item-id').value,
+        item_code: document.getElementById('item-code').value,
+        description: document.getElementById('item-description').value,
+        item_type: document.getElementById('item-type').value,
+        category_id: document.getElementById('item-category').value,
+        department_id: document.getElementById('item-department').value,
+        uom_id: document.getElementById('item-uom').value,
+        min_level: document.getElementById('item-min-level').value,
+        max_level: document.getElementById('item-max-level').value,
+        is_active: document.getElementById('item-active').checked,
+        allergen_ids: Array.from(document.getElementById('item-allergens').selectedOptions).map(o => o.value)
+    };
+    
+    if (data.item_type === 'raw_material') {
+        data.price_per_kg = document.getElementById('item-price-per-kg').value;
+    } else {
+        data.kg_per_unit = document.getElementById('item-kg-per-unit').value;
+        data.units_per_bag = document.getElementById('item-units-per-bag').value;
+        data.loss_percentage = document.getElementById('item-loss-percentage').value;
+        data.is_make_to_order = document.getElementById('item-make-to-order').checked;
+        data.machinery_id = document.getElementById('item-machinery').value;
+    }
+    
+    fetch('/item-master', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            alert(result.error);
+        } else {
+            alert(result.message);
+            window.location.href = '/item-master';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while saving the item');
+    });
+}
+
+// Initialize type fields on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleTypeFields();
+});
+</script>
+{% endblock %}

@@ -170,7 +170,7 @@
                     <select id="categoryID" name="categoryID">
                         <option value="">Select Category</option>
                         {% for category in categories %}
-                        <option value="{{ category.categoryID }}">{{ category.categoryName }}</option>
+                        <option value="{{ category.id }}">{{ category.name }}</option>
                         {% endfor %}
                     </select>
                     <button type="button" onclick="showCategoryForm()">Add Category</button>
@@ -348,8 +348,8 @@
                     </td>
                     <td>
                         {% for category in categories %}
-                            {% if category.categoryID == item.categoryID %}
-                                {{ category.categoryName }}
+                            {% if category.id == item.category_id %}
+                                {{ category.name }}
                             {% endif %}
                         {% endfor %}
                     </td>

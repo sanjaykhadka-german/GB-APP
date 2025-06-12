@@ -111,7 +111,7 @@
                             <td><input type="text" name="recipe_code" required></td>
                             <td><input type="text" name="description" required></td>
                             <td>
-                                <select name="raw_material" required>
+                                <select name="raw_material_id" required>
                                     <option value="">Select Raw Material</option>
                                     {% for material in raw_materials %}
                                     <option value="{{ material.id }}">{{ material.raw_material }}</option>
@@ -300,53 +300,35 @@
     }
 
     function fetchRecipes() {
-        var recipeCode = $("#search-input").val().trim();
-        var description = $("#search_description").val().trim();
-
-        $.ajax({
-            url: "{{ url_for('recipe.get_search_recipes') }}",
-            type: "GET",
-            data: { recipe_code: recipeCode, description: description },
-            success: function(response) {
-                var tableBody = $("#search-results-table tbody");
-                tableBody.empty();
-                $("#search-results-container").removeClass("hidden");
-
-                if (response.length > 0) {
-                    response.forEach(function(recipe) {
-                        tableBody.append(`
-                            <tr>
-                                <td>${recipe.recipe_code || ''}</td>
-                                <td>${recipe.description || ''}</td>
-                                <td>${recipe.raw_material || ''}</td>
-                                <td>${recipe.kg_per_batch || ''}</td>
-                                <td>${recipe.percentage ? (recipe.percentage.toFixed(2) + '%') : '0.00%'}</td>
-                                <td>
-                                    <button class="edit-btn" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
-                                    <button class="delete-btn" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
-                                </td>
-                            </tr>
-                        `);
-                    });
-                } else {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="7">
-                                <div class="no-results">
-                                    <p>No recipes found for Recipe Code: ${recipeCode}</p>
-                                    <button class="add-recipe-btn" onclick="openAddRecipePopup('${recipeCode}')">
-                                        Add Recipe for Recipe Code ${recipeCode}
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `);
-                }
-            },
-            error: function() {
-                alert("Error fetching recipes.");
-            }
-        });
+        const recipe_code = document.getElementById('search-input').value;
+        const description = document.getElementById('search_description').value;
+        
+        fetch(`/get_search_recipes?recipe_code=${encodeURIComponent(recipe_code)}&description=${encodeURIComponent(description)}`)
+            .then(response => response.json())
+            .then(recipes => {
+                const tbody = document.querySelector('#search-results-table tbody');
+                tbody.innerHTML = '';
+                
+                recipes.forEach(recipe => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${recipe.recipe_code}</td>
+                        <td>${recipe.description}</td>
+                        <td>${recipe.raw_material}</td>
+                        <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
+                        <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
+                        <td>
+                            <button class="btn btn-secondary btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while fetching recipes');
+            });
     }
 
     function openAddRecipePopup(recipeCode = '') {
@@ -358,7 +340,7 @@
                 <td><input type="text" name="recipe_code" value="${recipeCode}" required></td>
                 <td><input type="text" name="description" required></td>
                 <td>
-                    <select name="raw_material" required>
+                    <select name="raw_material_id" required>
                         <option value="">Select Raw Material</option>
                         {% for material in raw_materials %}
                         <option value="{{ material.id }}">{{ material.raw_material }}</option>
@@ -370,58 +352,50 @@
         `;
     }
 
-    function openEditRecipePopup(id) {
-        $.ajax({
-            url: "{{ url_for('recipe.get_search_recipes') }}",
-            type: "GET",
-            data: { recipe_code: '', description: '' },
-            success: function(response) {
-                const recipe = response.find(r => r.id == id);
-                if (recipe) {
-                    document.getElementById('editRecipePopup').classList.add('active');
-                    document.getElementById('edit-recipe-id').value = recipe.id;
-                    const tableBody = document.getElementById('editRecipeTable').getElementsByTagName('tbody')[0];
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td><input type="text" name="recipe_code" value="${recipe.recipe_code}" required></td>
-                            <td><input type="text" name="description" value="${recipe.description}" required></td>
-                            <td>
-                                <select name="raw_material" required>
-                                    <option value="">Select Raw Material</option>
-                                    {% for material in raw_materials %}
-                                    <option value="{{ material.id }}" \${Number(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
-                                        {{ material.raw_material }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </td>
-                            <td><input type="number" name="kg_per_batch" step="0.001" value="${recipe.kg_per_batch}" required></td>
-                            <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
-                        </tr>
+    function openEditRecipePopup(recipeId) {
+        fetch(`/get_search_recipes?recipe_code=&description=`)
+            .then(response => response.json())
+            .then(recipes => {
+                const sameDescriptionRecipes = recipes.filter(r => r.description === recipes.find(recipe => recipe.id === parseInt(recipeId)).description);
+                
+                const popup = document.getElementById('editRecipePopup');
+                const form = document.getElementById('edit-recipe-form');
+                const tableBody = form.querySelector('tbody');
+                tableBody.innerHTML = '';
+                
+                sameDescriptionRecipes.forEach(recipe => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="text" name="recipe_code" value="${recipe.recipe_code}" required></td>
+                        <td><input type="text" name="description" value="${recipe.description}" required></td>
+                        <td>
+                            <select name="raw_material_id" required>
+                                <option value="">Select Raw Material</option>
+                                {% for material in raw_materials %}
+                                <option value="{{ material.id }}">{{ material.raw_material }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" name="kg_per_batch" value="${recipe.kg_per_batch}" step="0.001" required></td>
+                        <td><button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">Remove</button></td>
                     `;
-
-                    // After setting innerHTML, manually set the selected value
-                    const selectElement = tableBody.querySelector('select[name="raw_material"]');
+                    
+                    // Set the selected raw material after creating the element
+                    const selectElement = row.querySelector('select[name="raw_material_id"]');
                     if (selectElement) {
                         selectElement.value = recipe.raw_material_id;
                     }
-
-                    // Fetch other recipes with the same description
-                    $.ajax({
-                        url: "{{ url_for('recipe.get_search_recipes') }}",
-                        type: "GET",
-                        data: { description: recipe.description },
-                        success: function(familyRecipes) {
-                            familyRecipes.forEach(fr => {
-                                if (fr.id != id) {
-                                    addRecipeRow('editRecipeTable', fr);
-                                }
-                            });
-                        }
-                    });
-                }
-            }
-        });
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                document.getElementById('edit-recipe-id').value = recipeId;
+                popup.classList.add('active');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while fetching recipe details');
+            });
     }
 
     function closePopup(popupId) {
@@ -435,12 +409,10 @@
             <td><input type="text" name="recipe_code" value="${recipe ? recipe.recipe_code : ''}" required></td>
             <td><input type="text" name="description" value="${recipe ? recipe.description : ''}" required></td>
             <td>
-                <select name="raw_material" required>
+                <select name="raw_material_id" required>
                     <option value="">Select Raw Material</option>
                     {% for material in raw_materials %}
-                    <option value="{{ material.id }}" \${recipe && Number(recipe.raw_material_id) === {{ material.id }} ? 'selected' : ''}>
-                        {{ material.raw_material }}
-                    </option>
+                    <option value="{{ material.id }}">{{ material.raw_material }}</option>
                     {% endfor %}
                 </select>
             </td>
@@ -450,7 +422,7 @@
 
         // After setting innerHTML, manually set the selected value
         if (recipe) {
-            const selectElement = newRow.querySelector('select[name="raw_material"]');
+            const selectElement = newRow.querySelector('select[name="raw_material_id"]');
             if (selectElement) {
                 selectElement.value = recipe.raw_material_id;
             }
@@ -464,52 +436,78 @@
 
     function submitRecipeForm(event, mode) {
         event.preventDefault();
-        const formId = mode === 'add' ? 'add-recipe-form' : 'edit-recipe-form';
-        const tableId = mode === 'add' ? 'addRecipeTable' : 'editRecipeTable';
-        const popupId = mode === 'add' ? 'addRecipePopup' : 'editRecipePopup';
-        const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];
-        const rows = table.getElementsByTagName('tr');
+        const form = event.target;
+        const table = form.querySelector('table');
+        const rows = table.querySelectorAll('tbody tr');
         const recipes = [];
-
-        for (let row of rows) {
-            const inputs = row.getElementsByTagName('input');
-            const select = row.querySelector('select[name="raw_material"]');
+        
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            const select = row.querySelector('select');
+            
+            if (!inputs[0].value || !inputs[1].value || !select.value || !inputs[2].value) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
             recipes.push({
-                recipe_id: document.getElementById(mode + '-recipe-id').value,
+                recipe_id: mode === 'edit' ? document.getElementById('edit-recipe-id').value : '',
                 recipe_code: inputs[0].value,
                 description: inputs[1].value,
                 raw_material_id: select.value,
                 kg_per_batch: inputs[2].value
             });
+        });
+        
+        if (recipes.length === 0) {
+            alert('Please add at least one recipe');
+            return;
         }
-
-        $.ajax({
-            url: "{{ url_for('recipe.recipe_page') }}",
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify({ recipes: recipes }),
-            success: function(response) {
-                alert(mode === 'add' ? "Recipes added successfully!" : "Recipes updated successfully!");
-                closePopup(popupId);
-                fetchRecipes();
+        
+        fetch('/recipe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
             },
-            error: function(xhr) {
-                alert("Error saving recipes: " + xhr.responseText);
+            body: JSON.stringify({ recipes: recipes })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert(data.message);
+                closePopup(mode === 'edit' ? 'editRecipePopup' : 'addRecipePopup');
+                fetchRecipes();
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the recipe');
         });
     }
 
     function deleteRecipeHandler(id) {
         if (confirm('Are you sure you want to delete this recipe?')) {
-            $.ajax({
-                url: "{{ url_for('recipe.delete_recipe', id=0) }}".replace('0', id),
-                type: "POST",
-                success: function() {
-                    fetchRecipes();
+            fetch('/delete_recipe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                error: function() {
-                    alert("Error deleting recipe.");
+                body: JSON.stringify({ id: id })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('Recipe deleted successfully');
+                    fetchRecipes();
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while deleting the recipe');
             });
         }
     }
