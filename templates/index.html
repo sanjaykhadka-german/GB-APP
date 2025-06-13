@@ -63,14 +63,6 @@
                     class="{% if current_page == 'inventory' %}active{% endif %}">
                     <a href="{{ url_for('inventory.list_inventory') }}">Inventory</a>
                 </li>
-            <li
-                class="{% if current_page == 'production_plan_list' %}active{% endif %}">
-                <a href="{{ url_for('production_plan.production_plan_list') }}">Production Plan</a>
-            </li>
-            <li
-                class="{% if current_page == 'production_plan_create' %}active{% endif %}">
-                <li><a href="{{ url_for('production_plan.production_plan_create') }}">Create Production Plan</a>
-                </li>
             </ul>
         </nav>
     </header>

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport, ItemMaster
+from models import Production, RecipeMaster, RawMaterials, UsageReport, RawMaterialReport, ItemMaster, Joining  # Updated import
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.raw_materials import RawMaterials
@@ -198,35 +198,38 @@ def get_search_recipes():
     return jsonify(recipes_data)
 
 @recipe_bp.route('/usage')
-@recipe_bp.route('/usage')
 def usage():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
     
-    # Query to get usage data
+    # Query to get production and recipe usage data
     query = db.session.query(
+        Production,
         RecipeMaster,
         ItemMaster.description.label('raw_material_name')
     ).join(
+        RecipeMaster,
+        Production.production_code == RecipeMaster.recipe_code  # Join Production to RecipeMaster
+    ).join(
         ItemMaster,
-        RecipeMaster.raw_material_id == ItemMaster.id
+        RecipeMaster.raw_material_id == ItemMaster.id  # Join RecipeMaster to ItemMaster
     )
     
     # Apply date filters if provided
     if from_date and to_date:
         query = query.filter(
-            RecipeMaster.created_at >= from_date,
-            RecipeMaster.created_at <= to_date
+            Production.production_date >= from_date,
+            Production.production_date <= to_date
         )
     
     # Get the results
     usage_data = query.all()
     
-    # Group data by date
+    # Group data by production date
     grouped_usage_data = {}
-    for recipe, raw_material_name in usage_data:
-        date = recipe.created_at.date()
-        # Calculate the Monday of the week for the created_at date
+    for production, recipe, raw_material_name in usage_data:
+        date = production.production_date  # production_date is already a date object
+        # Calculate the Monday of the week for the production_date
         week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
         
         if date not in grouped_usage_data:
@@ -234,10 +237,11 @@ def usage():
             
         grouped_usage_data[date].append({
             'week_commencing': week_commencing.strftime('%Y-%m-%d'),
-            'production_date': recipe.created_at.strftime('%Y-%m-%d'),
+            'production_date': production.production_date.strftime('%Y-%m-%d'),
+            'production_code': production.production_code,
             'recipe_code': recipe.recipe_code,
             'raw_material': raw_material_name,
-            'usage_kg': recipe.kg_per_batch,
+            'usage_kg': recipe.kg_per_batch * production.batches,  # Scale by batches
             'percentage': recipe.percentage
         })
     

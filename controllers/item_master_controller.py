@@ -112,12 +112,16 @@ def save_item():
             item = ItemMaster.query.get_or_404(data['id'])
         else:
             # For new item, check if item_code already exists
-            if ItemMaster.query.filter_by(item_code=data['item_code']).first():
+            item_code = data['item_code']
+            # Add "RM_" prefix for raw materials
+            if data['item_type'] == 'raw_material':
+                item_code = f"RM_{item_code}"
+            if ItemMaster.query.filter_by(item_code=item_code).first():
                 return jsonify({'error': 'Item code already exists'}), 400
             item = ItemMaster()
         
         # Update basic fields
-        item.item_code = data['item_code']
+        item.item_code = item_code
         item.description = data['description']
         item.item_type = data['item_type']
         item.category_id = data['category_id'] if data['category_id'] else None
