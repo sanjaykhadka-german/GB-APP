@@ -162,3 +162,13 @@ button[onclick*="confirm"]:hover {
         padding: 15px;
     }
 } 
+
+.form-control {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.card .form-control {
+    width: 100%;
+    overflow: hidden;
+}

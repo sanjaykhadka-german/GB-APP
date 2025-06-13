@@ -1,42 +1,42 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container">
-    <div class="card">
+<div class="container-fluid px-4">
+    <div class="card mb-4">
         <div class="card-header">
-            <h2>Add New Item</h2>
+            <h4 class="mb-0">Create New Item</h4>
         </div>
         <div class="card-body">
-            <form id="itemForm" onsubmit="saveItem(event)">
-                <div class="row">
-                    <div class="col-md-6">
+            <form id="item-form">
+                <div class="row mb-3">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Item Code:</label>
-                            <input type="text" id="item-code" class="form-control" required>
+                            <label for="item_code" class="form-label">Item Code *</label>
+                            <input type="text" id="item_code" name="item_code" class="form-control" required>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Description:</label>
-                            <input type="text" id="item-description" class="form-control" required>
+                            <label for="description" class="form-label">Description *</label>
+                            <input type="text" id="description" name="description" class="form-control" required>
                         </div>
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Type:</label>
-                            <select id="item-type" class="form-control" required onchange="toggleTypeFields()">
+                            <label for="item_type" class="form-label">Item Type *</label>
+                            <select id="item_type" name="item_type" class="form-select" required>
                                 <option value="raw_material">Raw Material</option>
                                 <option value="finished_good">Finished Good</option>
                             </select>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Category:</label>
-                            <select id="item-category" class="form-control">
+                            <label for="category_id" class="form-label">Category</label>
+                            <select id="category_id" name="category_id" class="form-select">
                                 <option value="">Select Category</option>
                                 {% for category in categories %}
                                 <option value="{{ category.id }}">{{ category.name }}</option>
@@ -44,55 +44,61 @@
                             </select>
                         </div>
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Department:</label>
-                            <select id="item-department" class="form-control">
+                            <label for="department_id" class="form-label">Department</label>
+                            <select id="department_id" name="department_id" class="form-select">
                                 <option value="">Select Department</option>
-                                {% for dept in departments %}
-                                <option value="{{ dept.department_id }}">{{ dept.departmentName }}</option>
+                                {% for department in departments %}
+                                <option value="{{ department.id }}">{{ department.departmentName }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>UOM:</label>
-                            <select id="item-uom" class="form-control">
+                            <label for="uom_id" class="form-label">UOM</label>
+                            <select id="uom_id" name="uom_id" class="form-select">
                                 <option value="">Select UOM</option>
                                 {% for uom in uoms %}
-                                <option value="{{ uom.UOMID }}">{{ uom.UOMName }}</option>
+                                <option value="{{ uom.id }}">{{ uom.UOMName }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-6">
+                <div class="row mb-3">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Min Level:</label>
-                            <input type="number" id="item-min-level" class="form-control" step="0.01">
+                            <label for="min_level" class="form-label">Min Level</label>
+                            <input type="number" id="min_level" name="min_level" class="form-control" step="1" min="0">
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <div class="form-group">
-                            <label>Max Level:</label>
-                            <input type="number" id="item-max-level" class="form-control" step="0.01">
+                            <label for="max_level" class="form-label">Max Level</label>
+                            <input type="number" id="max_level" name="max_level" class="form-control" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="is_active" class="form-label">Status</label>
+                            <select id="is_active" name="is_active" class="form-select">
+                                <option value="True">Active</option>
+                                <option value="False">Inactive</option>
+                            </select>
                         </div>
                     </div>
                 </div>
 
                 <!-- Raw Material Specific Fields -->
-                <div id="raw-material-fields">
-                    <div class="row">
-                        <div class="col-md-6">
+                <div id="raw-material-fields" style="display: none;">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
                             <div class="form-group">
-                                <label>Price per KG:</label>
-                                <input type="number" id="item-price-per-kg" class="form-control" step="0.01">
+                                <label for="price_per_kg" class="form-label">Price per KG</label>
+                                <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" step="0.01" min="0">
                             </div>
                         </div>
                     </div>
@@ -100,56 +106,56 @@
 
                 <!-- Finished Good Specific Fields -->
                 <div id="finished-good-fields" style="display: none;">
-                    <div class="row">
-                        <div class="col-md-6">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
                             <div class="form-group">
-                                <label>KG per Unit:</label>
-                                <input type="number" id="item-kg-per-unit" class="form-control" step="0.001">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Units per Bag:</label>
-                                <input type="number" id="item-units-per-bag" class="form-control">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Loss Percentage:</label>
-                                <input type="number" id="item-loss-percentage" class="form-control" step="0.01">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Make to Order:</label>
-                                <div class="form-check">
-                                    <input type="checkbox" id="item-make-to-order" class="form-check-input">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Machinery:</label>
-                                <select id="item-machinery" class="form-control">
+                                <label for="machinery_id" class="form-label">Machinery</label>
+                                <select id="machinery_id" name="machinery_id" class="form-select">
                                     <option value="">Select Machinery</option>
                                     {% for machine in machinery %}
-                                    <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
+                                    <option value="{{ machine.id }}">{{ machine.machineryName }}</option>
                                     {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="kg_per_unit" class="form-label">KG per Unit</label>
+                                <input type="number" id="kg_per_unit" name="kg_per_unit" class="form-control" step="0.01" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="units_per_bag" class="form-label">Units per Bag</label>
+                                <input type="number" id="units_per_bag" name="units_per_bag" class="form-control" step="1" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="loss_percentage" class="form-label">Loss Percentage</label>
+                                <input type="number" id="loss_percentage" name="loss_percentage" class="form-control" step="0.01" min="0" max="100">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="is_make_to_order" class="form-label">Make to Order</label>
+                                <select id="is_make_to_order" name="is_make_to_order" class="form-select">
+                                    <option value="False">No</option>
+                                    <option value="True">Yes</option>
                                 </select>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
+                <!-- Allergens -->
+                <div class="row mb-3">
                     <div class="col-md-12">
                         <div class="form-group">
-                            <label>Allergens:</label>
-                            <select id="item-allergens" class="form-control" multiple>
+                            <label for="allergen_ids" class="form-label">Allergens</label>
+                            <select id="allergen_ids" name="allergen_ids" class="form-select" multiple>
                                 {% for allergen in allergens %}
                                 <option value="{{ allergen.allergens_id }}">{{ allergen.name }}</option>
                                 {% endfor %}
@@ -159,20 +165,14 @@
                 </div>
 
                 <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label>Status:</label>
-                            <div class="form-check">
-                                <input type="checkbox" id="item-active" class="form-check-input" checked>
-                                <label class="form-check-label">Active</label>
-                            </div>
-                        </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Item
+                        </button>
+                        <a href="/item-master" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
                     </div>
-                </div>
-
-                <div class="form-group mt-3">
-                    <button type="submit" class="btn btn-success">Save Item</button>
-                    <a href="{{ url_for('item_master_list') }}" class="btn btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>
@@ -181,152 +181,119 @@
 
 <style>
 .card {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: none;
 }
 
 .card-header {
-    background-color: #f8f9fa;
-    padding: 20px;
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    padding: 1rem 1.35rem;
 }
 
-.card-body {
-    padding: 30px;
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px 15px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    transition: border-color 0.3s;
-    font-size: 16px;
-    height: auto;
-    min-width: 300px;
-}
-
-.form-group {
-    margin-bottom: 25px;
-    width: 100%;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 10px;
+.form-label {
     font-weight: 500;
-    color: #333;
-    font-size: 14px;
+    margin-bottom: 0.5rem;
+    color: #4e73df;
 }
 
-select.form-control {
-    height: 45px;
+.form-control, .form-select {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.35rem;
 }
 
-#item-allergens {
-    min-height: 120px;
-}
-
-.row {
-    margin: 0 -20px 20px -20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-}
-
-.col-md-6 {
-    padding: 0 20px;
-    min-width: 450px;
-}
-
-/* Specific styling for item code and description */
-#item-code, #item-description {
-    width: 100%;
-    min-width: 400px;
+.form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
 }
 
 .btn {
-    padding: 12px 30px;
-    font-size: 16px;
-    margin-right: 10px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.35rem;
 }
 
-#raw-material-fields,
-#finished-good-fields {
-    background-color: #f8f9fa;
-    padding: 25px;
-    border-radius: 8px;
-    margin-bottom: 25px;
+.btn-primary {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.btn-secondary {
+    background-color: #858796;
+    border-color: #858796;
 }
 </style>
 
 <script>
-function toggleTypeFields() {
-    const type = document.getElementById('item-type').value;
+document.addEventListener('DOMContentLoaded', function() {
+    const itemTypeSelect = document.getElementById('item_type');
     const rawMaterialFields = document.getElementById('raw-material-fields');
     const finishedGoodFields = document.getElementById('finished-good-fields');
-    
-    if (type === 'raw_material') {
-        rawMaterialFields.style.display = 'block';
-        finishedGoodFields.style.display = 'none';
-    } else {
-        rawMaterialFields.style.display = 'none';
-        finishedGoodFields.style.display = 'block';
-    }
-}
 
-function saveItem(event) {
-    event.preventDefault();
-    
-    const data = {
-        item_code: document.getElementById('item-code').value,
-        description: document.getElementById('item-description').value,
-        item_type: document.getElementById('item-type').value,
-        category_id: document.getElementById('item-category').value,
-        department_id: document.getElementById('item-department').value,
-        uom_id: document.getElementById('item-uom').value,
-        min_level: document.getElementById('item-min-level').value,
-        max_level: document.getElementById('item-max-level').value,
-        is_active: document.getElementById('item-active').checked,
-        allergen_ids: Array.from(document.getElementById('item-allergens').selectedOptions).map(o => o.value)
-    };
-    
-    if (data.item_type === 'raw_material') {
-        data.price_per_kg = document.getElementById('item-price-per-kg').value;
-    } else {
-        data.kg_per_unit = document.getElementById('item-kg-per-unit').value;
-        data.units_per_bag = document.getElementById('item-units-per-bag').value;
-        data.loss_percentage = document.getElementById('item-loss-percentage').value;
-        data.is_make_to_order = document.getElementById('item-make-to-order').checked;
-        data.machinery_id = document.getElementById('item-machinery').value;
-    }
-    
-    fetch('/item-master', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.error) {
-            alert(result.error);
+    function toggleFields() {
+        if (itemTypeSelect.value === 'raw_material') {
+            rawMaterialFields.style.display = 'block';
+            finishedGoodFields.style.display = 'none';
+            // Clear finished good fields
+            document.getElementById('machinery_id').value = '';
+            document.getElementById('kg_per_unit').value = '';
+            document.getElementById('units_per_bag').value = '';
+            document.getElementById('loss_percentage').value = '';
+            document.getElementById('is_make_to_order').value = 'False';
+        } else if (itemTypeSelect.value === 'finished_good') {
+            rawMaterialFields.style.display = 'none';
+            finishedGoodFields.style.display = 'block';
+            // Clear raw material fields
+            document.getElementById('price_per_kg').value = '';
         } else {
-            alert(result.message);
-            window.location.href = "{{ url_for('item_master_list') }}";
+            rawMaterialFields.style.display = 'none';
+            finishedGoodFields.style.display = 'none';
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while saving the item');
-    });
-}
+    }
 
-// Set focus on item code field when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('item-code').focus();
-    toggleTypeFields();
+    itemTypeSelect.addEventListener('change', toggleFields);
+
+    document.getElementById('item-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {};
+        formData.forEach((value, key) => {
+            if (key === 'allergen_ids') {
+                if (!data[key]) data[key] = [];
+                data[key].push(value);
+            } else {
+                data[key] = value === '' ? null : value;
+            }
+        });
+
+        // Convert boolean strings to actual booleans
+        data.is_active = data.is_active === 'True';
+        data.is_make_to_order = data.is_make_to_order === 'True';
+
+        fetch('/item-master', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                alert(result.message);
+                window.location.href = '/item-master';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the item');
+        });
+    });
 });
 </script>
 {% endblock %}

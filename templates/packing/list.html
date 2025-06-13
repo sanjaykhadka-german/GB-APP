@@ -26,6 +26,13 @@
                 <label for="search_week_commencing">Week Commencing:</label>
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
+            <div class="form-group">
+                <label for="search_machinery">Machinery:</label>
+                <select id="search_machinery" name="machinery">
+                    <option value="">All Machinery</option>
+                    <!-- Options will be populated dynamically via JavaScript -->
+                </select>
+            </div>
             <button type="button" onclick="fetchPackings()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
@@ -187,6 +194,14 @@
     }
     .form-group {
         margin-bottom: 15px;
+    }
+    
+    /* Style for machinery filter dropdown */
+    #search_machinery {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
     }
     
     /* Column Toggle Styles */
@@ -542,7 +557,7 @@ $(document).ready(function() {
     });
 
     // Trigger search on input change
-    $("#search_packing_date_start, #search_packing_date_end, #search_week_commencing, #search_fg_code, #search_description").on('change', function() {
+    $("#search_packing_date_start, #search_packing_date_end, #search_week_commencing, #search_fg_code, #search_description, #search_machinery").on('change', function() {
         fetchPackings();
     });
 
@@ -554,6 +569,18 @@ $(document).ready(function() {
         if (startDate && endDate && startDate > endDate) {
             alert("End date must be after start date");
             $(this).val('');
+        }
+    });
+
+    // Add week commencing date validation
+    $("#search_week_commencing").on('change', function() {
+        const selectedDate = $(this).val();
+        if (selectedDate) {
+            const mondayDate = getMonday(selectedDate);
+            if (selectedDate !== mondayDate) {
+                $(this).val(mondayDate);
+                alert("Week commencing date has been adjusted to Monday: " + mondayDate);
+            }
         }
     });
 
@@ -581,13 +608,20 @@ function fetchMachineryOptions() {
     });
 }
 
-// Populate machinery dropdown in bulk edit modal
+// Populate machinery dropdowns (for bulk edit and search filter)
 function populateMachineryDropdown() {
-    const select = $("#bulk_machinery");
-    select.empty();
-    select.append('<option value="">Select Machinery</option>');
+    const bulkSelect = $("#bulk_machinery");
+    const searchSelect = $("#search_machinery");
+    
+    bulkSelect.empty();
+    searchSelect.empty();
+    
+    bulkSelect.append('<option value="">Select Machinery</option>');
+    searchSelect.append('<option value="">All Machinery</option>');
+    
     machineryOptions.forEach(function(machine) {
-        select.append(`<option value="${machine.id}">${machine.name}</option>`);
+        bulkSelect.append(`<option value="${machine.id}">${machine.name}</option>`);
+        searchSelect.append(`<option value="${machine.id}">${machine.name}</option>`);
     });
 }
 
@@ -611,25 +645,13 @@ function formatDateToYYYYMMDD(dateString) {
     return dateString;
 }
 
-// Add this function after the existing utility functions
+// Utility function to get Monday of the week
 function getMonday(date) {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is sunday
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
     return new Date(d.setDate(diff)).toISOString().split('T')[0];
 }
-
-// Add week commencing date validation
-$("#search_week_commencing").on('change', function() {
-    const selectedDate = $(this).val();
-    if (selectedDate) {
-        const mondayDate = getMonday(selectedDate);
-        if (selectedDate !== mondayDate) {
-            $(this).val(mondayDate);
-            alert("Week commencing date has been adjusted to Monday: " + mondayDate);
-        }
-    }
-});
 
 // Fetch packing entries based on search and sorting
 function fetchPackings() {
@@ -638,6 +660,7 @@ function fetchPackings() {
     let weekCommencing = $("#search_week_commencing").val().trim();
     let fgCode = $("#search_fg_code").val().trim();
     let description = $("#search_description").val().trim();
+    let machinery = $("#search_machinery").val().trim(); // Add machinery filter
     let sortBy = sortCriteria.map(criterion => criterion.column);
     let sortOrder = sortCriteria.map(criterion => criterion.direction);
 
@@ -653,6 +676,7 @@ function fetchPackings() {
         week_commencing: weekCommencing, 
         fg_code: fgCode, 
         description: description, 
+        machinery: machinery, 
         sort_by: sortBy, 
         sort_order: sortOrder 
     });
@@ -668,6 +692,7 @@ function fetchPackings() {
             week_commencing: weekCommencing,
             fg_code: fgCode,
             description: description,
+            machinery: machinery, // Add machinery to AJAX data
             sort_by: sortBy,
             sort_order: sortOrder
         },
@@ -710,7 +735,7 @@ function fetchPackings() {
                         <tr data-id="${packing.id || ''}">
                             <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
                             <td>${packing.week_commencing || ''}</td>
-                            <td>${formatDateToDDMMYYYY(packing.packing_date) || ''}</td> <!-- Removed editable class and data-field -->
+                            <td>${formatDateToDDMMYYYY(packing.packing_date) || ''}</td>
                             <td>${packing.product_code || ''}</td>
                             <td>${packing.product_description || ''}</td>
                             <td class="editable" data-field="special_order_kg" data-original="${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}">${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}</td>
@@ -913,7 +938,6 @@ function updateCellSelect(select) {
 function toggleColumn(colIndex) {
     columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
     applyColumnVisibility();
-    // Reapply filters after toggling columns
     fetchPackings();
 }
 
@@ -928,7 +952,6 @@ function showEssentialColumns() {
         let idx = parseInt($(this).attr('data-col-index'));
         $(this).prop('checked', [2, 3, 6, 7].includes(idx));
     });
-    // Reapply filters after showing essential columns
     fetchPackings();
 }
 
@@ -944,7 +967,6 @@ function resetToDefault() {
         let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 15, 18, 19];
         $(this).prop('checked', defaultVisibleCols.includes(idx));
     });
-    // Reapply filters after resetting to default
     fetchPackings();
 }
 
@@ -952,7 +974,6 @@ function showAllColumns() {
     columnVisibility = Array(20).fill(true);
     applyColumnVisibility();
     $('#column-toggle input[type="checkbox"]').prop('checked', true);
-    // Reapply filters after showing all columns
     fetchPackings();
 }
 
@@ -963,6 +984,7 @@ function exportToExcel() {
     let weekCommencing = $("#search_week_commencing").val().trim();
     let fgCode = $("#search_fg_code").val().trim();
     let description = $("#search_description").val().trim();
+    let machinery = $("#search_machinery").val().trim();
     let sortBy = sortCriteria.map(criterion => criterion.column);
     let sortOrder = sortCriteria.map(criterion => criterion.direction);
 
@@ -971,7 +993,8 @@ function exportToExcel() {
               "&packing_date_end=" + encodeURIComponent(packingDateEnd) +
               "&week_commencing=" + encodeURIComponent(weekCommencing) +
               "&fg_code=" + encodeURIComponent(fgCode) +
-              "&description=" + encodeURIComponent(description);
+              "&description=" + encodeURIComponent(description) +
+              "&machinery=" + encodeURIComponent(machinery);
     
     sortBy.forEach((sort, index) => {
         url += `&sort_by=${encodeURIComponent(sort)}&sort_order=${encodeURIComponent(sortOrder[index])}`;
@@ -1046,12 +1069,6 @@ function updateSortUI() {
 function updateCell(packingId, field, value) {
     if (value === '' || value == null) {
         value = field === 'priority' ? 0 : (field === 'machinery' ? null : 0);
-    } else if (field === 'packing_date') {
-        // Ensure date is in YYYY-MM-DD format
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            alert("Invalid date format. Please use YYYY-MM-DD.");
-            return;
-        }
     } else {
         value = field === 'priority' || field === 'machinery' ? parseInt(value) : parseFloat(value);
     }

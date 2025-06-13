@@ -450,3 +450,12 @@ nav ul li.active a {
     margin-top: var(--search-height, 110px); 
 }
 
+.form-control {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.card .form-control {
+    width: 100%;
+    overflow: hidden;
+}

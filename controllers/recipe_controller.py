@@ -198,6 +198,7 @@ def get_search_recipes():
     return jsonify(recipes_data)
 
 @recipe_bp.route('/usage')
+@recipe_bp.route('/usage')
 def usage():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
@@ -225,11 +226,14 @@ def usage():
     grouped_usage_data = {}
     for recipe, raw_material_name in usage_data:
         date = recipe.created_at.date()
+        # Calculate the Monday of the week for the created_at date
+        week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
+        
         if date not in grouped_usage_data:
             grouped_usage_data[date] = []
             
         grouped_usage_data[date].append({
-            'week_commencing': recipe.created_at.strftime('%Y-%m-%d'),
+            'week_commencing': week_commencing.strftime('%Y-%m-%d'),
             'production_date': recipe.created_at.strftime('%Y-%m-%d'),
             'recipe_code': recipe.recipe_code,
             'raw_material': raw_material_name,
@@ -268,13 +272,12 @@ def usage_download():
     usage_data = query.all()
     
     # Create Excel file
-    import pandas as pd
-    from io import BytesIO
-    
     data = []
     for recipe, raw_material_name in usage_data:
+        # Calculate the Monday of the week for the created_at date
+        week_commencing = get_monday_date(recipe.created_at.date().strftime('%Y-%m-%d'))
         data.append({
-            'Week Commencing': recipe.created_at.strftime('%Y-%m-%d'),
+            'Week Commencing': week_commencing.strftime('%Y-%m-%d'),
             'Production Date': recipe.created_at.strftime('%Y-%m-%d'),
             'Recipe Code': recipe.recipe_code,
             'Raw Material': raw_material_name,
@@ -296,7 +299,7 @@ def usage_download():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
         download_name=f'usage_report_{from_date}_{to_date}.xlsx' if from_date and to_date else 'usage_report.xlsx'
-    )
+    )   
 
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():

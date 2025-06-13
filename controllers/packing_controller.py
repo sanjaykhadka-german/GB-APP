@@ -604,6 +604,7 @@ def get_search_packings():
     packing_date_start = request.args.get('packing_date_start', '').strip()
     packing_date_end = request.args.get('packing_date_end', '').strip()
     week_commencing = request.args.get('week_commencing', '').strip()
+    machinery = request.args.get('machinery', '').strip()
 
     # Extract sorting parameters as lists
     sort_by = request.args.getlist('sort_by[]') or request.args.getlist('sort_by')
@@ -635,6 +636,14 @@ def get_search_packings():
             query = query.filter(Packing.week_commencing == week_commencing_date)
         except ValueError:
             return jsonify({'error': 'Invalid week commencing date format'}), 400
+    
+    # Handle machinery filter
+    if machinery:
+        try:
+            machinery_id = int(machinery)
+            query = query.filter(Packing.machinery == machinery_id)
+        except ValueError:
+            return jsonify({'error': 'Invalid machinery ID'}), 400
 
     # Apply multi-column sorting
     if sort_by and sort_order and len(sort_by) == len(sort_order):
@@ -803,6 +812,7 @@ def export_packings():
         search_description = request.args.get('description', '').strip()
         search_week_commencing = request.args.get('week_commencing', '').strip()
         search_packing_date = request.args.get('packing_date', '').strip()
+        machinery = request.args.get('machinery', '').strip()
         sort_columns = request.args.getlist('sort_by')
         sort_orders = request.args.getlist('sort_order')
 
@@ -824,6 +834,13 @@ def export_packings():
                 packings_query = packings_query.filter(Packing.packing_date == packing_date)
             except ValueError:
                 flash('Invalid Packing Date format. Use YYYY-MM-DD.', 'danger')
+                return redirect(url_for('packing.packing_list'))
+        if machinery:
+            try:
+                machinery_id = int(machinery)
+                packings_query = packings_query.filter(Packing.machinery == machinery_id)
+            except ValueError:
+                flash('Invalid Machinery ID.', 'danger')
                 return redirect(url_for('packing.packing_list'))
 
         if sort_columns and sort_orders:

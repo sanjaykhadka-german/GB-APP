@@ -3,234 +3,211 @@
 {% block content %}
 <div class="container-fluid px-4">
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">{{ 'Edit' if item else 'Add' }} Item</h4>
-            <button class="btn btn-secondary" onclick="window.location.href='/item-master'">
-                <i class="fas fa-arrow-left"></i> Back to List
-            </button>
+        <div class="card-header">
+            <h4 class="mb-0">{{ 'Edit Item' if item else 'Create New Item' }}</h4>
         </div>
         <div class="card-body">
-            <form id="itemForm" onsubmit="saveItem(event)">
-                <input type="hidden" id="item-id" value="{{ item.id if item else '' }}">
+            <form id="item-form">
+                {% if item %}
+                <input type="hidden" name="id" value="{{ item.id }}">
+                {% endif %}
                 
-                <!-- Basic Information -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Basic Information</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-code" class="form-label">Item Code <span class="text-danger">*</span></label>
-                                    <input type="text" id="item-code" class="form-control" required 
-                                           value="{{ item.item_code if item else '' }}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-description" class="form-label">Description <span class="text-danger">*</span></label>
-                                    <input type="text" id="item-description" class="form-control" required
-                                           value="{{ item.description if item else '' }}">
-                                </div>
-                            </div>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="item_code" class="form-label">Item Code *</label>
+                            <input type="text" id="item_code" name="item_code" class="form-control" 
+                                   value="{{ item.item_code if item else '' }}" required>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-type" class="form-label">Type <span class="text-danger">*</span></label>
-                                    <select id="item-type" class="form-select" required onchange="toggleTypeFields()">
-                                        <option value="raw_material" {{ 'selected' if item and item.item_type == 'raw_material' else '' }}>Raw Material</option>
-                                        <option value="finished_good" {{ 'selected' if item and item.item_type == 'finished_good' else '' }}>Finished Good</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-category" class="form-label">Category</label>
-                                    <select id="item-category" class="form-select">
-                                        <option value="">Select Category</option>
-                                        {% for category in categories %}
-                                        <option value="{{ category.id }}" {{ 'selected' if item and item.category_id == category.id else '' }}>
-                                            {{ category.name }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="description" class="form-label">Description *</label>
+                            <input type="text" id="description" name="description" class="form-control" 
+                                   value="{{ item.description if item else '' }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="item_type" class="form-label">Item Type *</label>
+                            <select id="item_type" name="item_type" class="form-select" required>
+                                <option value="raw_material" {{ 'selected' if item and item.item_type == 'raw_material' else '' }}>
+                                    Raw Material
+                                </option>
+                                <option value="finished_good" {{ 'selected' if item and item.item_type == 'finished_good' else '' }}>
+                                    Finished Good
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="category_id" class="form-label">Category</label>
+                            <select id="category_id" name="category_id" class="form-select">
+                                <option value="">Select Category</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" 
+                                        {{ 'selected' if item and item.category_id == category.id else '' }}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="department_id" class="form-label">Department</label>
+                            <select id="department_id" name="department_id" class="form-select">
+                                <option value="">Select Department</option>
+                                {% for department in departments %}
+                                <option value="{{ department.id }}" 
+                                        {{ 'selected' if item and item.department_id == department.id else '' }}>
+                                    {{ department.departmentName }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="uom_id" class="form-label">UOM</label>
+                            <select id="uom_id" name="uom_id" class="form-select">
+                                <option value="">Select UOM</option>
+                                {% for uom in uoms %}
+                                <option value="{{ uom.id }}" 
+                                        {{ 'selected' if item and item.uom_id == uom.id else '' }}>
+                                    {{ uom.UOMName }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="min_level" class="form-label">Min Level</label>
+                            <input type="number" id="min_level" name="min_level" class="form-control" 
+                                   value="{{ item.min_level if item and item.min_level else '' }}" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="max_level" class="form-label">Max Level</label>
+                            <input type="number" id="max_level" name="max_level" class="form-control" 
+                                   value="{{ item.max_level if item and item.max_level else '' }}" step="1" min="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="is_active" class="form-label">Status</label>
+                            <select id="is_active" name="is_active" class="form-select">
+                                <option value="True" {{ 'selected' if item and item.is_active else '' }}>Active</option>
+                                <option value="False" {{ 'selected' if item and not item.is_active else '' }}>Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Raw Material Specific Fields -->
+                <div id="raw-material-fields">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="price_per_kg" class="form-label">Price per KG</label>
+                                <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" 
+                                       value="{{ item.price_per_kg if item and item.price_per_kg else '' }}" 
+                                       step="0.01" min="0">
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Additional Details -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Additional Details</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-department" class="form-label">Department</label>
-                                    <select id="item-department" class="form-select">
-                                        <option value="">Select Department</option>
-                                        {% for dept in departments %}
-                                        <option value="{{ dept.department_id }}" {{ 'selected' if item and item.department_id == dept.department_id else '' }}>
-                                            {{ dept.departmentName }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-uom" class="form-label">UOM</label>
-                                    <select id="item-uom" class="form-select">
-                                        <option value="">Select UOM</option>
-                                        {% for uom in uoms %}
-                                        <option value="{{ uom.UOMID }}" {{ 'selected' if item and item.uom_id == uom.UOMID else '' }}>
-                                            {{ uom.UOMName }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
+                <!-- Finished Good Specific Fields -->
+                <div id="finished-good-fields">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="machinery_id" class="form-label">Machinery</label>
+                                <select id="machinery_id" name="machinery_id" class="form-select">
+                                    <option value="">Select Machinery</option>
+                                    {% for machine in machinery %}
+                                    <option value="{{ machine.id }}" 
+                                            {{ 'selected' if item and item.machinery_id == machine.id else '' }}>
+                                        {{ machine.machineryName }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-min-level" class="form-label">Min Level</label>
-                                    <input type="number" id="item-min-level" class="form-control" step="0.01"
-                                           value="{{ item.min_level if item else '' }}">
-                                </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="kg_per_unit" class="form-label">KG per Unit</label>
+                                <input type="number" id="kg_per_unit" name="kg_per_unit" class="form-control" 
+                                       value="{{ item.kg_per_unit if item and item.kg_per_unit else '' }}" 
+                                       step="0.01" min="0">
                             </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-max-level" class="form-label">Max Level</label>
-                                    <input type="number" id="item-max-level" class="form-control" step="0.01"
-                                           value="{{ item.max_level if item else '' }}">
-                                </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="units_per_bag" class="form-label">Units per Bag</label>
+                                <input type="number" id="units_per_bag" name="units_per_bag" class="form-control" 
+                                       value="{{ item.units_per_bag if item and item.units_per_bag else '' }}" 
+                                       step="1" min="0">
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Type Specific Fields -->
-                <div id="raw-material-fields" class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Raw Material Details</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-price-per-kg" class="form-label">Price per KG</label>
-                                    <input type="number" id="item-price-per-kg" class="form-control" step="0.01"
-                                           value="{{ item.price_per_kg if item else '' }}">
-                                </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="loss_percentage" class="form-label">Loss Percentage</label>
+                                <input type="number" id="loss_percentage" name="loss_percentage" class="form-control" 
+                                       value="{{ item.loss_percentage if item and item.loss_percentage else '' }}" 
+                                       step="0.01" min="0" max="100">
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div id="finished-good-fields" class="card mb-4" style="display: none;">
-                    <div class="card-header">
-                        <h5 class="mb-0">Finished Good Details</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-kg-per-unit" class="form-label">KG per Unit</label>
-                                    <input type="number" id="item-kg-per-unit" class="form-control" step="0.001"
-                                           value="{{ item.kg_per_unit if item else '' }}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-units-per-bag" class="form-label">Units per Bag</label>
-                                    <input type="number" id="item-units-per-bag" class="form-control"
-                                           value="{{ item.units_per_bag if item else '' }}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-loss-percentage" class="form-label">Loss Percentage</label>
-                                    <input type="number" id="item-loss-percentage" class="form-control" step="0.01"
-                                           value="{{ item.loss_percentage if item else '' }}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <label for="item-machinery" class="form-label">Machinery</label>
-                                    <select id="item-machinery" class="form-select">
-                                        <option value="">Select Machinery</option>
-                                        {% for machine in machinery %}
-                                        <option value="{{ machine.machineID }}" {{ 'selected' if item and item.machinery_id == machine.machineID else '' }}>
-                                            {{ machine.machineryName }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group mb-3">
-                                    <div class="form-check">
-                                        <input type="checkbox" id="item-make-to-order" class="form-check-input"
-                                               {{ 'checked' if item and item.is_make_to_order else '' }}>
-                                        <label class="form-check-label" for="item-make-to-order">Make to Order</label>
-                                    </div>
-                                </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="is_make_to_order" class="form-label">Make to Order</label>
+                                <select id="is_make_to_order" name="is_make_to_order" class="form-select">
+                                    <option value="True" {{ 'selected' if item and item.is_make_to_order else '' }}>Yes</option>
+                                    <option value="False" {{ 'selected' if item and not item.is_make_to_order else '' }}>No</option>
+                                </select>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Allergens -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Allergens</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="form-group mb-3">
-                                    <select id="item-allergens" class="form-select" multiple size="8">
-                                        {% for allergen in allergens %}
-                                        <option value="{{ allergen.allergens_id }}" 
-                                                {{ 'selected' if item and allergen in item.allergens else '' }}>
-                                            {{ allergen.name }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label for="allergen_ids" class="form-label">Allergens</label>
+                            <select id="allergen_ids" name="allergen_ids" class="form-select" multiple>
+                                {% for allergen in allergens %}
+                                <option value="{{ allergen.allergens_id }}" 
+                                        {{ 'selected' if item and allergen in item.allergens else '' }}>
+                                    {{ allergen.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
                         </div>
                     </div>
                 </div>
 
-                <!-- Status -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">Status</h5>
+                <div class="row">
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Item
+                        </button>
+                        <a href="/item-master" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Cancel
+                        </a>
                     </div>
-                    <div class="card-body">
-                        <div class="form-check">
-                            <input type="checkbox" id="item-active" class="form-check-input" 
-                                   {{ 'checked' if not item or item.is_active else '' }}>
-                            <label class="form-check-label" for="item-active">Active</label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Form Actions -->
-                <div class="d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-secondary" onclick="window.location.href='/item-master'">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Item</button>
                 </div>
             </form>
         </div>
@@ -282,92 +259,76 @@
     background-color: #858796;
     border-color: #858796;
 }
-
-.form-check-input:checked {
-    background-color: #4e73df;
-    border-color: #4e73df;
-}
-
-.gap-2 {
-    gap: 0.5rem;
-}
-
-#item-allergens {
-    min-height: 200px;
-}
-
-.text-danger {
-    color: #e74a3b;
-}
 </style>
 
 <script>
-function toggleTypeFields() {
-    const type = document.getElementById('item-type').value;
+document.addEventListener('DOMContentLoaded', function() {
+    const itemTypeSelect = document.getElementById('item_type');
     const rawMaterialFields = document.getElementById('raw-material-fields');
     const finishedGoodFields = document.getElementById('finished-good-fields');
-    
-    if (type === 'raw_material') {
-        rawMaterialFields.style.display = 'block';
-        finishedGoodFields.style.display = 'none';
-    } else {
-        rawMaterialFields.style.display = 'none';
-        finishedGoodFields.style.display = 'block';
-    }
-}
 
-function saveItem(event) {
-    event.preventDefault();
-    
-    const data = {
-        id: document.getElementById('item-id').value,
-        item_code: document.getElementById('item-code').value,
-        description: document.getElementById('item-description').value,
-        item_type: document.getElementById('item-type').value,
-        category_id: document.getElementById('item-category').value,
-        department_id: document.getElementById('item-department').value,
-        uom_id: document.getElementById('item-uom').value,
-        min_level: document.getElementById('item-min-level').value,
-        max_level: document.getElementById('item-max-level').value,
-        is_active: document.getElementById('item-active').checked,
-        allergen_ids: Array.from(document.getElementById('item-allergens').selectedOptions).map(o => o.value)
-    };
-    
-    if (data.item_type === 'raw_material') {
-        data.price_per_kg = document.getElementById('item-price-per-kg').value;
-    } else {
-        data.kg_per_unit = document.getElementById('item-kg-per-unit').value;
-        data.units_per_bag = document.getElementById('item-units-per-bag').value;
-        data.loss_percentage = document.getElementById('item-loss-percentage').value;
-        data.is_make_to_order = document.getElementById('item-make-to-order').checked;
-        data.machinery_id = document.getElementById('item-machinery').value;
-    }
-    
-    fetch('/item-master', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.error) {
-            alert(result.error);
+    function toggleFields() {
+        if (itemTypeSelect.value === 'raw_material') {
+            rawMaterialFields.style.display = 'block';
+            finishedGoodFields.style.display = 'none';
+            // Clear finished good fields
+            document.getElementById('machinery_id').value = '';
+            document.getElementById('kg_per_unit').value = '';
+            document.getElementById('units_per_bag').value = '';
+            document.getElementById('loss_percentage').value = '';
+            document.getElementById('is_make_to_order').value = 'False';
         } else {
-            alert(result.message);
-            window.location.href = '/item-master';
+            rawMaterialFields.style.display = 'none';
+            finishedGoodFields.style.display = 'block';
+            // Clear raw material fields
+            document.getElementById('price_per_kg').value = '';
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while saving the item');
-    });
-}
+    }
 
-// Initialize type fields on page load
-document.addEventListener('DOMContentLoaded', function() {
-    toggleTypeFields();
+    // Set initial visibility on page load
+    toggleFields();
+
+    itemTypeSelect.addEventListener('change', toggleFields);
+
+    document.getElementById('item-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {};
+        formData.forEach((value, key) => {
+            if (key === 'allergen_ids') {
+                if (!data[key]) data[key] = [];
+                data[key].push(value);
+            } else {
+                data[key] = value === '' ? null : value;
+            }
+        });
+
+        // Convert boolean strings to actual booleans
+        data.is_active = data.is_active === 'True';
+        data.is_make_to_order = data.is_make_to_order === 'True';
+
+        fetch('/item-master', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                alert(result.message);
+                window.location.href = '/item-master';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the item');
+        });
+    });
 });
 </script>
 {% endblock %}
