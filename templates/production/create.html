@@ -1,43 +1,47 @@
 {% extends 'index.html' %}
 
+{% block nav %}
+    {% set current_page = 'production' %}
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h2>Create Production Entry</h2>
     
     {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'error' else 'warning' }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
     {% endwith %}
 
-    <form method="post" action="{{ url_for('production.production_create') }}">
+    <form method="POST" action="{{ url_for('production.production_create') }}">
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
             <input type="date" class="form-control" id="week_commencing" name="week_commencing">
         </div>
-        <div class="mb-3">
-            <label for="production_date" class="form-label">Production Date</label>
+        <div class="form-group">
+            <label for="production_date">Production Date</label>
             <input type="date" class="form-control" id="production_date" name="production_date" required>
         </div>
-        <div class="mb-3">
-            <label for="production_code" class="form-label">Production Code</label>
+        <div class="form-group">
+            <label for="production_code">Production Code</label>
             <input type="text" class="form-control" id="production_code" name="production_code" required>
         </div>
-        <div class="mb-3">
-            <label for="description" class="form-label">Description</label>
+        <div class="form-group">
+            <label for="description">Description</label>
             <input type="text" class="form-control" id="description" name="description">
         </div>
-        <div class="mb-3">
-            <label for="batches" class="form-label">Batches</label>
+        <div class="form-group">
+            <label for="batches">Batches</label>
             <input type="number" step="0.01" class="form-control" id="batches" name="batches" required>
         </div>
-        <div class="mb-3">
-            <label for="total_kg" class="form-label">Total KG</label>
+        <div class="form-group">
+            <label for="total_kg">Total KG</label>
             <input type="number" step="0.01" class="form-control" id="total_kg" name="total_kg" required>
         </div>
         <button type="submit" class="btn btn-primary">Create</button>

@@ -6,9 +6,9 @@ class Packing(db.Model):
     __tablename__ = 'packing'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    week_commencing = db.Column(db.Date, nullable=True)
-    packing_date = db.Column(db.Date, nullable=False)
-    product_code = db.Column(db.String(50), nullable=False)
+    week_commencing = db.Column(db.Date,primary_key=True, nullable=False)
+    packing_date = db.Column(db.Date, primary_key=True, nullable=False)
+    product_code = db.Column(db.String(50), primary_key=True, nullable=False)
     product_description = db.Column(db.String(255))
     special_order_kg = db.Column(db.Float, default=0.0)
     special_order_unit = db.Column(db.Integer, default=0)
@@ -23,7 +23,7 @@ class Packing(db.Model):
     total_stock_units = db.Column(db.Integer, default=0)
     weekly_average = db.Column(db.Float, default=0.0)
     priority = db.Column(db.Integer, default=0)
-    machinery = db.Column(db.Integer, db.ForeignKey('machinery.machineID'), nullable=True)
+    machinery = db.Column(db.Integer,primary_key=True, nullable=False)
 
     __table_args__ = (
         db.ForeignKeyConstraint(
@@ -31,7 +31,7 @@ class Packing(db.Model):
             ['soh.week_commencing', 'soh.fg_code'],
             name='fk_packing_soh_week_commencing_product_code'
         ),
-        UniqueConstraint('week_commencing', 'product_code', name='uq_packing_week_product')
+        
     )
 
     def __repr__(self):

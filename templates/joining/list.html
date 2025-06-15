@@ -133,7 +133,7 @@
     }
     .add-joining-btn {
         background-color: #007bff;
-        color: white;
+        color: rgb(16, 173, 63);
         padding: 8px 16px;
         border: none;
         border-radius: 4px;
@@ -190,6 +190,30 @@
 
         padding: 8px;
         text-align: left;
+    }
+
+    .search-btn {
+        background-color: #28a745; /* Green background */
+        color: rgb(14, 219, 48); /* White text for contrast */
+        padding: 8px 16px; /* Consistent padding */
+        border: none; /* Remove default border */
+        border-radius: 4px; /* Rounded corners */
+        cursor: pointer; /* Pointer cursor on hover */
+    }
+    .search-btn:hover {
+        background-color: #218838; /* Darker green on hover */
+    }
+
+    /* Existing styles continue... */
+    .suggestion-list {
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        max-height: 200px;
+        overflow-y: auto;
+        width: 100%;
+        z-index: 1000;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
 </style>
 

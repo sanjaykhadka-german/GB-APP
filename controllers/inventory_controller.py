@@ -13,7 +13,7 @@ inventory_bp = Blueprint('inventory', __name__)
 @inventory_bp.route('/inventory')
 def list_inventory():
     inventories = Inventory.query.all()
-    return render_template('inventory/list.html', inventories=inventories)
+    return render_template('inventory/list.html', inventories=inventories,current_page='inventory')
 
 @inventory_bp.route('/inventory/create', methods=['GET', 'POST'])
 def create_inventory():
@@ -65,7 +65,7 @@ def create_inventory():
     categories = Category.query.all()
     raw_materials = RawMaterials.query.all()
     productions = Production.query.all()
-    return render_template('inventory/create.html', categories=categories, raw_materials=raw_materials, productions=productions)
+    return render_template('inventory/create.html', categories=categories, raw_materials=raw_materials, productions=productions,current_page='inventory')
 
 @inventory_bp.route('/inventory/edit/<int:id>', methods=['GET', 'POST'])
 def edit_inventory(id):
