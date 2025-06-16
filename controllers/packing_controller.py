@@ -48,7 +48,25 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         avg_weight_per_unit = avg_weight_per_unit or joining.kg_per_unit or 0.0  # Fetch from Joining
 
         # Use provided weekly_average or fetch from existing Packing entry
-        packing = Packing.query.filter_by(product_code=fg_code, packing_date=packing_date).first()
+        packing = Packing.query.filter_by(
+            product_code=fg_code, 
+            packing_date=packing_date,
+            week_commencing=week_commencing,
+            machinery=machinery
+        ).first()
+        
+        # If no packing found with the new key structure, try to find by old structure
+        if not packing:
+            packing = Packing.query.filter_by(
+                product_code=fg_code, 
+                packing_date=packing_date
+            ).first()
+            
+            # If found with old structure, update it to new structure
+            if packing:
+                packing.week_commencing = week_commencing
+                packing.machinery = machinery
+
         weekly_average = weekly_average if weekly_average is not None else (packing.weekly_average if packing else 0.0)
 
         # Calculate soh_requirement_units_week based on SOH and Joining
@@ -252,11 +270,30 @@ def packing_create():
             machinery = int(request.form['machinery']) if request.form['machinery'] else None
             priority = int(request.form['priority']) if request.form['priority'] else 0
 
-            # Calculate week_commencing
+            # Calculate week_commencing if not provided
             if not week_commencing:
                 def get_monday_of_week(dt):
                     return dt - timedelta(days=dt.weekday())
                 week_commencing = get_monday_of_week(packing_date)
+
+            # Check for duplicate based on uq_packing_week_product_date_machinery
+            existing_packing = Packing.query.filter_by(
+                week_commencing=week_commencing,
+                product_code=product_code,
+                packing_date=packing_date,
+                machinery=machinery
+            ).first()
+
+            if existing_packing:
+                flash(f'A packing entry already exists for product {product_code} on {packing_date} (week commencing {week_commencing}) with machinery {machinery}. Please edit the existing entry.', 'warning')
+                return redirect(url_for('packing.packing_edit', id=existing_packing.id))
+
+            # Validate machinery if provided
+            if machinery is not None:
+                machinery_exists = Machinery.query.filter_by(machineID=machinery).first()
+                if not machinery_exists:
+                    flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
+                    return redirect(url_for('packing.packing_create'))
 
             # Fetch Joining data for avg_weight_per_unit
             joining = Joining.query.filter_by(fg_code=product_code).first()
@@ -267,6 +304,9 @@ def packing_create():
 
             # Fetch SOH data and calculate soh_requirement_units_week
             soh = SOH.query.filter_by(fg_code=product_code, week_commencing=week_commencing).first()
+            if not soh:
+                flash(f"No SOH entry found for product code {product_code} and week commencing {week_commencing}.", 'danger')
+                return redirect(url_for('packing.packing_create'))
             soh_units = soh.soh_total_units if soh else 0
             min_level = joining.min_level or 0.0
             max_level = joining.max_level or 0.0
@@ -335,17 +375,16 @@ def packing_create():
         except ValueError as e:
             db.session.rollback()
             flash(f'Invalid data format: {str(e)}', 'danger')
-        except KeyError as e:
-            db.session.rollback()
-            flash(f'Missing required field: {str(e)}', 'danger')
+            logger.error(f"Invalid data format: {str(e)}")
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating packing entry: {str(e)}', 'danger')
+            logger.error(f"Error creating packing entry: {str(e)}")
 
-    # Fetch machinery and products for dropdowns
     products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
     machinery = Machinery.query.all()
     return render_template('packing/create.html', products=products, machinery=machinery, current_page="packing")
+
 
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):

@@ -16,6 +16,7 @@ class Joining(db.Model):
     production = db.Column(db.String(50))
     product_description = db.Column(db.String(255))
     units_per_bag = db.Column(db.Float, nullable=True)
+    weekly_average = db.Column(db.Float, nullable=True)
 
     allergens = db.relationship('Allergen', secondary='joining_allergen', backref=db.backref('joinings', lazy='dynamic'))
 

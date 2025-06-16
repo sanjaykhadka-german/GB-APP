@@ -51,6 +51,7 @@ def joining_create():
         filling_description = request.form.get('filling_description')
         production = request.form.get('production')
         units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None
+        weekly_average = float(request.form['weekly_average']) if request.form.get('weekly_average') else None
         allergens = request.form.getlist('allergens')
 
         new_joining = Joining(
@@ -65,7 +66,8 @@ def joining_create():
             filling_code=filling_code,
             filling_description=filling_description,
             production=production,
-            units_per_bag=units_per_bag
+            units_per_bag=units_per_bag,
+            weekly_average=weekly_average
         )
         db.session.add(new_joining)
         db.session.flush()  # Flush to get the new joining ID
@@ -110,6 +112,7 @@ def joining_edit(id):
             joining.filling_description = request.form.get('filling_description')
             joining.production = request.form.get('production')
             joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') and request.form['units_per_bag'].strip() else None
+            joining.weekly_average = float(request.form['weekly_average']) if request.form.get('weekly_average') and request.form['weekly_average'].strip() else None
             allergens = request.form.getlist('allergens')
 
             # update allergens
@@ -209,6 +212,7 @@ def get_search_joinings():
                 "production": joining.production or "",
                 "product_description" : joining.product_description or "",
                 "units_per_bag": joining.units_per_bag if joining.units_per_bag is not None else "",
+                "weekly_average": joining.weekly_average if joining.weekly_average is not None else "",
                 "allergens": [allergen.name for allergen in joining.allergens]
             }
             for joining in joinings

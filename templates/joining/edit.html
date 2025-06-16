@@ -87,6 +87,11 @@
             </div>
 
             <div class="form-group mb-3">
+                <label for="weekly_average" class="form-label">Weekly Average</label>
+                <input type="number" step="0.01" class="form-input" id="weekly_average" name="weekly_average" value="{{ joining.weekly_average if joining.weekly_average is not none else '' }}">
+            </div>
+
+            <div class="form-group mb-3">
                 <label for="allergens" class="form-label">Allergens</label>
                 <select class="form-input" id="allergens" name="allergens" multiple>
                     {% for allergen in all_allergens %}

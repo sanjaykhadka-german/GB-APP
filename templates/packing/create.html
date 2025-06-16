@@ -10,18 +10,18 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-    <form method="POST" action="{{ url_for('packing.packing_create') }}">
+    <form method="POST" action="{{ url_for('packing.packing_create') }}" id="packingForm">
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
-            <input type="date" class="form-control" id="week_commencing" name="week_commencing">
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" required onchange="checkDuplicate()">
         </div>
         <div class="form-group">
             <label for="packing_date">Packing Date</label>
-            <input type="date" class="form-control" id="packing_date" name="packing_date" required>
+            <input type="date" class="form-control" id="packing_date" name="packing_date" required onchange="checkDuplicate()">
         </div>
         <div class="form-group">
             <label for="product_code">Product Code</label>
-            <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription()">
+            <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription(); checkDuplicate()">
                 <option value="">Select Product Code</option>
                 {% for product in products %}
                     <option value="{{ product.fg_code }}" data-description="{{ product.description }}">{{ product.fg_code }} - {{ product.description }}</option>
@@ -30,7 +30,8 @@
         </div>
         <div class="form-group">
             <label for="product_description">Product Description</label>
-            <input type="text" class="form-control" id="product_description" name="product_description" required readonly> </div>
+            <input type="text" class="form-control" id="product_description" name="product_description" required readonly>
+        </div>
         <div class="form-group">
             <label for="special_order_kg">Special Order KG</label>
             <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="0.0">
@@ -41,7 +42,7 @@
         </div>
         <div class="form-group">
             <label for="machinery">Machinery</label>
-            <select class="form-control" id="machinery" name="machinery">
+            <select class="form-control" id="machinery" name="machinery" required onchange="checkDuplicate()">
                 <option value="">Select Machinery</option>
                 {% for machine in machinery %}
                     <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
@@ -52,7 +53,7 @@
             <label for="priority">Priority</label>
             <input type="number" class="form-control" id="priority" name="priority" value="0">
         </div>
-        <button type="submit" class="btn btn-primary">Create</button>
+        <button type="submit" class="btn btn-primary" id="submitButton">Create</button>
         <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
@@ -63,17 +64,50 @@
         const descriptionInput = document.getElementById('product_description');
         const selectedOption = select.options[select.selectedIndex];
         
-        // Check if a valid option is selected (not the "Select Product Code" default)
         if (selectedOption && selectedOption.value !== "") {
             descriptionInput.value = selectedOption.getAttribute('data-description');
         } else {
-            descriptionInput.value = ''; // Clear description if no product is selected
+            descriptionInput.value = '';
         }
     }
 
-    
+    function checkDuplicate() {
+        const weekCommencing = document.getElementById('week_commencing').value;
+        const packingDate = document.getElementById('packing_date').value;
+        const productCode = document.getElementById('product_code').value;
+        const machinery = document.getElementById('machinery').value;
+        const submitButton = document.getElementById('submitButton');
+        const alertContainer = document.getElementById('packingForm').parentElement;
+
+        // Remove any existing alerts
+        const existingAlert = alertContainer.querySelector('.alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
+        if (weekCommencing && productCode && packingDate && machinery) {
+            fetch(`/packing/check_duplicate?week_commencing=${weekCommencing}&product_code=${productCode}&packing_date=${packingDate}&machinery=${machinery}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        submitButton.disabled = true;
+                        const alert = document.createElement('div');
+                        alert.className = 'alert alert-danger';
+                        alert.innerText = `A packing entry already exists for product ${productCode} on ${packingDate} (week commencing ${weekCommencing}) with machinery ${machinery}. Please edit the existing entry.`;
+                        alertContainer.insertBefore(alert, document.getElementById('packingForm'));
+                    } else {
+                        submitButton.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking duplicate:', error);
+                });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         updateDescription();
+        checkDuplicate();
     });
 </script>
 {% endblock %}

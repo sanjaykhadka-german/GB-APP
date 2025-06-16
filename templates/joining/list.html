@@ -55,6 +55,7 @@
                         <th class="col-production">Production</th>
                         <th class="col-product-description">Product Description</th>
                         <th class="col-units-per-bag">Units_per_box</th>
+                        <th class="col-weekly-average">Weekly Average</th>
                         <th class="col-allergens">Allergens</th>
                         <th class="col-actions">Actions</th>
                     </tr>
@@ -77,6 +78,7 @@
                         <td>{{ joining.production or '' }}</td>
                         <td>{{ joining.product_description or '' }}</td>
                         <td>{{ joining.units_per_bag if joining.units_per_bag is not none else '' }}</td>
+                        <td>{{ joining.weekly_average if joining.weekly_average is not none else '' }}</td>
                         <td>{{ joining.allergens | map(attribute='name') | join(', ') or 'None' }}</td>
                         <td>
                             <a href="{{ url_for('joining.joining_edit', id=joining.id) }}" class="btn btn-warning btn-sm">Edit</a>
@@ -178,6 +180,9 @@
         width: 10%;
     }
     .col-units-per-bag {
+        width: 8%;
+    }
+    .col-weekly-average {
         width: 8%;
     }
     .col-actions {
@@ -283,7 +288,7 @@
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="16" class="no-results">Error fetching joinings: ${response.error}</td>
+                            <td colspan="17" class="no-results">Error fetching joinings: ${response.error}</td>
                         </tr>
                     `);
                     return;
@@ -312,6 +317,7 @@
                                     <td>${joining.production || ''}</td>
                                     <td>${joining.product_description || ''}</td>
                                     <td>${joining.units_per_bag !== null && joining.units_per_bag !== undefined ? joining.units_per_bag : ''}</td>
+                                    <td>${joining.weekly_average !== null && joining.weekly_average !== undefined ? joining.weekly_average : ''}</td>
                                     <td>${allergens}</td>
                                     <td>
                                         <a href="/joining_edit/${joining.id}" class="btn btn-warning btn-sm">Edit</a>
@@ -326,7 +332,7 @@
                 } else {
                     tableBody.append(`
                         <tr>
-                            <td colspan="16">
+                            <td colspan="17">
                                 <div class="no-results">
                                     <p>No joinings found for FG Code: ${fgCode}</p>
                                     <button class="add-joining-btn" onclick="addJoining('${fgCode}')">
@@ -343,7 +349,7 @@
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="16" class="no-results">Error fetching joinings.</td>
+                        <td colspan="17" class="no-results">Error fetching joinings.</td>
                     </tr>
                 `);
             }
