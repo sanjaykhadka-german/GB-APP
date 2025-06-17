@@ -382,7 +382,7 @@ def packing_create():
             flash(f'Error creating packing entry: {str(e)}', 'danger')
             logger.error(f"Error creating packing entry: {str(e)}")
 
-    products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
+    products = Joining.query.order_by(Joining.fg_code).all()
     machinery = Machinery.query.all()
     return render_template('packing/create.html', products=products, machinery=machinery, current_page="packing")
 
@@ -552,7 +552,7 @@ def packing_edit(id):
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
     # Fetch machinery, products, and related data
-    products = SOH.query.order_by(SOH.week_commencing.desc(), SOH.fg_code).all()
+    products = Joining.query.order_by(Joining.fg_code).all()
     machinery = Machinery.query.all()
     
     logger.debug(f"Machinery records: {[m.__dict__ for m in machinery]}")
