@@ -167,12 +167,13 @@ def get_search_recipes():
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
     
-    # Join with item_master to get the raw material name
+    # Join with item_master to get the raw material code and name
     recipes_query = db.session.query(
-        RecipeMaster, 
+        RecipeMaster,
+        ItemMaster.item_code.label('raw_material_code'),  # Add item_code
         ItemMaster.description.label('raw_material_name')
     ).join(
-        ItemMaster, 
+        ItemMaster,
         RecipeMaster.raw_material_id == ItemMaster.id
     )
     
@@ -187,6 +188,7 @@ def get_search_recipes():
             "id": recipe.RecipeMaster.id,
             "recipe_code": recipe.RecipeMaster.recipe_code,
             "description": recipe.RecipeMaster.description,
+            "raw_material_code": recipe.raw_material_code,  # Add raw_material_code
             "raw_material": recipe.raw_material_name,
             "raw_material_id": recipe.RecipeMaster.raw_material_id,
             "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch) if recipe.RecipeMaster.kg_per_batch else 0.00,

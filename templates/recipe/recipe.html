@@ -135,6 +135,7 @@
                     <thead>
                         <tr>
                             <th>Recipe Code</th>
+                            <th>Raw Material Code</th>
                             <th>Description</th>
                             <th>Raw Material</th>
                             <th>KG per Batch</th>
@@ -295,36 +296,39 @@
         }
     }
 
-    function fetchRecipes() {
-        const recipe_code = document.getElementById('search-input').value;
-        const description = document.getElementById('search_description').value;
-        
-        fetch(`/get_search_recipes?recipe_code=${encodeURIComponent(recipe_code)}&description=${encodeURIComponent(description)}`)
-            .then(response => response.json())
-            .then(recipes => {
-                const tbody = document.querySelector('#search-results-table tbody');
-                tbody.innerHTML = '';
-                
-                recipes.forEach(recipe => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${recipe.recipe_code}</td>
-                        <td>${recipe.raw_material}</td>
-                        <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
-                        <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
-                        <td>
-                            <button class="btn btn-secondary btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while fetching recipes');
+
+function fetchRecipes() {
+    const recipe_code = document.getElementById('search-input').value;
+    const description = document.getElementById('search_description').value;
+    
+    fetch(`/get_search_recipes?recipe_code=${encodeURIComponent(recipe_code)}&description=${encodeURIComponent(description)}`)
+        .then(response => response.json())
+        .then(recipes => {
+            const tbody = document.querySelector('#search-results-table tbody');
+            tbody.innerHTML = '';
+            
+            recipes.forEach(recipe => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${recipe.recipe_code}</td>
+                    <td>${recipe.raw_material_code}</td> <!-- Add raw_material_code -->
+                    <td>${recipe.raw_material}</td>
+                    <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
+                    <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
+                    <td>
+                        <button class="btn btn-secondary btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
             });
-    }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while fetching recipes');
+        });
+}
+
 
     function openAddRecipePopup(recipeCode = '') {
         document.getElementById('addRecipePopup').classList.add('active');
