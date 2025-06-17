@@ -352,6 +352,7 @@ def packing_create():
                 ).first()
 
                 if existing_filling:
+                    
                     existing_filling.kilo_per_size += requirement_kg
                     existing_filling.description = joining.filling_description
                     existing_filling.week_commencing = week_commencing
