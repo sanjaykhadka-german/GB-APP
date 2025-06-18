@@ -1,11 +1,30 @@
-from flask import Blueprint
-from flask import flash, request, redirect, url_for
-from models import Department
+from flask import Blueprint, request, jsonify
+from flask import flash, redirect, url_for
+from models.department import Department
 from database import db
 import sqlalchemy
 
 department_bp = Blueprint('department', __name__)
 
+@department_bp.route('/department', methods=['GET'])
+def department_list():
+    departments = Department.query.all()
+    return jsonify([{'departmentName': dept.departmentName, 'id': dept.department_id} for dept in departments])
+
+@department_bp.route('/department', methods=['POST'])
+def department_save():
+    try:
+        data = request.get_json()
+        new_department = Department(departmentName=data['departmentName'])
+        db.session.add(new_department)
+        db.session.commit()
+        return jsonify({'message': 'Department saved successfully!', 'id': new_department.department_id}), 200
+    except sqlalchemy.exc.IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'Department name already exists'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @department_bp.route('/add_department', methods=['POST'])
 def add_department():

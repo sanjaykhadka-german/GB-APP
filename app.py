@@ -55,6 +55,8 @@ def create_app():
     from controllers.machinery_controller import machinery_bp
     from controllers.category_controller import category_bp
     from controllers.item_master_controller import item_master_bp
+    from controllers.item_type_controller import item_type_bp
+    from controllers.uom_controller import uom_bp
 
     app.register_blueprint(joining_bp)
     app.register_blueprint(soh_bp)
@@ -70,6 +72,8 @@ def create_app():
     app.register_blueprint(machinery_bp)    
     app.register_blueprint(category_bp)
     app.register_blueprint(item_master_bp)
+    app.register_blueprint(item_type_bp)
+    app.register_blueprint(uom_bp)
 
     # Import models
     from models import soh, finished_goods, item_master, recipe_master, usage_report

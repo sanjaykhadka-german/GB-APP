@@ -16,5 +16,5 @@ from .allergen import Allergen
 from .joining_allergen import JoiningAllergen
 from .inventory import Inventory
 from .usage_report import UsageReport
-
+from .item_type import ItemType
 # from .packing_plan import PackingPlan

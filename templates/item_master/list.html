@@ -29,8 +29,9 @@
                         <label for="search-type" class="form-label">Type</label>
                         <select id="search-type" class="form-select">
                             <option value="">All</option>
-                            <option value="raw_material">Raw Material</option>
-                            <option value="finished_good">Finished Good</option>
+                            {% for item_type in item_types %}
+                                <option value="{{ item_type.type_name }}">{{ item_type.type_name }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                 </div>
@@ -160,13 +161,18 @@ function searchItems() {
         .then(items => {
             const tbody = document.querySelector('#items-table tbody');
             tbody.innerHTML = '';
+
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No items found</td></tr>';
+                return;
+            }
             
             items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.description}</td>
-                    <td>${item.item_type === 'raw_material' ? 'Raw Material' : 'Finished Good'}</td>
+                    <td>${item.item_type}</td>
                     <td>${item.category || ''}</td>
                     <td>${item.department || ''}</td>
                     <td>${item.uom || ''}</td>
@@ -190,7 +196,7 @@ function searchItems() {
             });
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Error fetching items:', error);
             alert('An error occurred while fetching items');
         });
 }

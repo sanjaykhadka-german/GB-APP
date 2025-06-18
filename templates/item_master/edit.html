@@ -29,15 +29,21 @@
                     </div>
                     <div class="col-md-4">
                         <div class="form-group">
-                            <label for="item_type" class="form-label">Item Type *</label>
-                            <select id="item_type" name="item_type" class="form-select" required>
-                                <option value="raw_material" {{ 'selected' if item and item.item_type == 'raw_material' else '' }}>
-                                    Raw Material
-                                </option>
-                                <option value="finished_good" {{ 'selected' if item and item.item_type == 'finished_good' else '' }}>
-                                    Finished Good
-                                </option>
-                            </select>
+                            <label for="item-type" class="form-label">Item Type</label>
+                            <div class="input-group">
+                                <select id="item-type" name="item-type" class="form-select" required>
+                                    <option value="">Select Item Type</option>
+                                    {% for item_type in item_types %}
+                                        <option value="{{ item_type.type_name }}" 
+                                                {% if item and item.item_type == item_type.type_name %}selected{% endif %}>
+                                            {{ item_type.type_name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newItemTypeModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -46,43 +52,58 @@
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="category_id" class="form-label">Category</label>
-                            <select id="category_id" name="category_id" class="form-select">
-                                <option value="">Select Category</option>
-                                {% for category in categories %}
-                                <option value="{{ category.id }}" 
-                                        {{ 'selected' if item and item.category_id == category.id else '' }}>
-                                    {{ category.name }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select id="category_id" name="category_id" class="form-select">
+                                    <option value="">Select Category</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.id }}" 
+                                            {{ 'selected' if item and item.category_id == category.id else '' }}>
+                                        {{ category.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newCategoryModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="department_id" class="form-label">Department</label>
-                            <select id="department_id" name="department_id" class="form-select">
-                                <option value="">Select Department</option>
-                                {% for department in departments %}
-                                <option value="{{ department.id }}" 
-                                        {{ 'selected' if item and item.department_id == department.id else '' }}>
-                                    {{ department.departmentName }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select id="department_id" name="department_id" class="form-select">
+                                    <option value="">Select Department</option>
+                                    {% for department in departments %}
+                                    <option value="{{ department.department_id }}" 
+                                            {{ 'selected' if item and item.department_id == department.department_id else '' }}>
+                                        {{ department.departmentName }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newDepartmentModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="uom_id" class="form-label">UOM</label>
-                            <select id="uom_id" name="uom_id" class="form-select">
-                                <option value="">Select UOM</option>
-                                {% for uom in uoms %}
-                                <option value="{{ uom.id }}" 
-                                        {{ 'selected' if item and item.uom_id == uom.id else '' }}>
-                                    {{ uom.UOMName }}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select id="uom_id" name="uom_id" class="form-select">
+                                    <option value="">Select UOM</option>
+                                    {% for uom in uoms %}
+                                    <option value="{{ uom.UOMID }}" 
+                                            {{ 'selected' if item and item.uom_id == uom.UOMID else '' }}>
+                                        {{ uom.UOMName }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newUOMModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -113,6 +134,8 @@
                     </div>
                 </div>
 
+                
+
                 <!-- Raw Material Specific Fields -->
                 <div id="raw-material-fields">
                     <div class="row mb-3">
@@ -133,15 +156,20 @@
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label for="machinery_id" class="form-label">Machinery</label>
-                                <select id="machinery_id" name="machinery_id" class="form-select">
-                                    <option value="">Select Machinery</option>
-                                    {% for machine in machinery %}
-                                    <option value="{{ machine.id }}" 
-                                            {{ 'selected' if item and item.machinery_id == machine.id else '' }}>
-                                        {{ machine.machineryName }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="input-group">
+                                    <select id="machinery_id" name="machinery_id" class="form-select">
+                                        <option value="">Select Machinery</option>
+                                        {% for machine in machinery %}
+                                        <option value="{{ machine.machineID }}" 
+                                                {{ 'selected' if item and item.machinery_id == machine.machineID else '' }}>
+                                            {{ machine.machineryName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newMachineryModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -214,6 +242,126 @@
     </div>
 </div>
 
+<!-- New Item Type Modal -->
+<div class="modal fade" id="newItemTypeModal" tabindex="-1" aria-labelledby="newItemTypeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newItemTypeModalLabel">Add New Item Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-item-type-form">
+                    <div class="form-group">
+                        <label for="new-item-type-name" class="form-label">Type Name *</label>
+                        <input type="text" id="new-item-type-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-item-type">Save Item Type</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Category Modal -->
+<div class="modal fade" id="newCategoryModal" tabindex="-1" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newCategoryModalLabel">Add New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-category-form">
+                    <div class="form-group">
+                        <label for="new-category-name" class="form-label">Category Name *</label>
+                        <input type="text" id="new-category-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-category">Save Category</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Department Modal -->
+<div class="modal fade" id="newDepartmentModal" tabindex="-1" aria-labelledby="newDepartmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newDepartmentModalLabel">Add New Department</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-department-form">
+                    <div class="form-group">
+                        <label for="new-department-name" class="form-label">Department Name *</label>
+                        <input type="text" id="new-department-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-department">Save Department</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New UOM Modal -->
+<div class="modal fade" id="newUOMModal" tabindex="-1" aria-labelledby="newUOMModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newUOMModalLabel">Add New UOM</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-uom-form">
+                    <div class="form-group">
+                        <label for="new-uom-name" class="form-label">UOM Name *</label>
+                        <input type="text" id="new-uom-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-uom">Save UOM</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Machinery Modal -->
+<div class="modal fade" id="newMachineryModal" tabindex="-1" aria-labelledby="newMachineryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newMachineryModalLabel">Add New Machinery</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-machinery-form">
+                    <div class="form-group">
+                        <label for="new-machinery-name" class="form-label">Machinery Name *</label>
+                        <input type="text" id="new-machinery-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-machinery">Save Machinery</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .card {
     box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
@@ -263,12 +411,40 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const itemTypeSelect = document.getElementById('item_type');
+    const itemTypeSelect = document.getElementById('item-type');
     const rawMaterialFields = document.getElementById('raw-material-fields');
     const finishedGoodFields = document.getElementById('finished-good-fields');
+    
+    // Modal elements
+    const newItemTypeModal = document.getElementById('newItemTypeModal');
+    const newCategoryModal = document.getElementById('newCategoryModal');
+    const newDepartmentModal = document.getElementById('newDepartmentModal');
+    const newUOMModal = document.getElementById('newUOMModal');
+    const newMachineryModal = document.getElementById('newMachineryModal');
+    
+    // Form elements
+    const newItemTypeForm = document.getElementById('new-item-type-form');
+    const newCategoryForm = document.getElementById('new-category-form');
+    const newDepartmentForm = document.getElementById('new-department-form');
+    const newUOMForm = document.getElementById('new-uom-form');
+    const newMachineryForm = document.getElementById('new-machinery-form');
+    
+    // Input elements
+    const newItemTypeName = document.getElementById('new-item-type-name');
+    const newCategoryName = document.getElementById('new-category-name');
+    const newDepartmentName = document.getElementById('new-department-name');
+    const newUOMName = document.getElementById('new-uom-name');
+    const newMachineryName = document.getElementById('new-machinery-name');
+    
+    // Button elements
+    const saveNewItemTypeBtn = document.getElementById('save-new-item-type');
+    const saveNewCategoryBtn = document.getElementById('save-new-category');
+    const saveNewDepartmentBtn = document.getElementById('save-new-department');
+    const saveNewUOMBtn = document.getElementById('save-new-uom');
+    const saveNewMachineryBtn = document.getElementById('save-new-machinery');
 
     function toggleFields() {
-        if (itemTypeSelect.value === 'raw_material') {
+        if (itemTypeSelect.value === 'Raw Material') {
             rawMaterialFields.style.display = 'block';
             finishedGoodFields.style.display = 'none';
             // Clear finished good fields
@@ -277,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('units_per_bag').value = '';
             document.getElementById('loss_percentage').value = '';
             document.getElementById('is_make_to_order').value = 'False';
-        } else {
+        } else if (itemTypeSelect.value && itemTypeSelect.value !== 'new') {
             rawMaterialFields.style.display = 'none';
             finishedGoodFields.style.display = 'block';
             // Clear raw material fields
@@ -288,7 +464,224 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set initial visibility on page load
     toggleFields();
 
-    itemTypeSelect.addEventListener('change', toggleFields);
+    itemTypeSelect.addEventListener('change', function(){
+        toggleFields();
+    });
+
+    // Handle saving new item type
+    saveNewItemTypeBtn.addEventListener('click', function(){
+        const typeName = newItemTypeName.value.trim();
+        if (typeName){
+            fetch('/item-type', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({type_name: typeName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new item type to the select dynamically 
+                    const newOption = document.createElement('option');
+                    newOption.value = typeName;
+                    newOption.textContent = typeName;
+                    itemTypeSelect.appendChild(newOption);
+                    
+                    // Select the newly created item type
+                    itemTypeSelect.value = typeName;
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newItemTypeModal);
+                    modal.hide();
+                    newItemTypeForm.reset();
+                    
+                    // Toggle fields based on new selection
+                    toggleFields();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the item type');
+            });
+        } else {
+            alert('Please enter a type name');
+        }
+    });
+
+    // Handle saving new category
+    saveNewCategoryBtn.addEventListener('click', function(){
+        const categoryName = newCategoryName.value.trim();
+        if (categoryName){
+            fetch('/category', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({name: categoryName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new category to the select dynamically 
+                    const categorySelect = document.getElementById('category_id');
+                    const newOption = document.createElement('option');
+                    newOption.value = result.id;
+                    newOption.textContent = categoryName;
+                    categorySelect.appendChild(newOption);
+                    
+                    // Select the newly created category
+                    categorySelect.value = result.id;
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newCategoryModal);
+                    modal.hide();
+                    newCategoryForm.reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the category');
+            });
+        } else {
+            alert('Please enter a category name');
+        }
+    });
+
+    // Handle saving new department
+    saveNewDepartmentBtn.addEventListener('click', function(){
+        const departmentName = newDepartmentName.value.trim();
+        if (departmentName){
+            fetch('/department', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({departmentName: departmentName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new department to the select dynamically 
+                    const departmentSelect = document.getElementById('department_id');
+                    const newOption = document.createElement('option');
+                    newOption.value = result.id;
+                    newOption.textContent = departmentName;
+                    departmentSelect.appendChild(newOption);
+                    
+                    // Select the newly created department
+                    departmentSelect.value = result.id;
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newDepartmentModal);
+                    modal.hide();
+                    newDepartmentForm.reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the department');
+            });
+        } else {
+            alert('Please enter a department name');
+        }
+    });
+
+    // Handle saving new UOM
+    saveNewUOMBtn.addEventListener('click', function(){
+        const uomName = newUOMName.value.trim();
+        if (uomName){
+            fetch('/uom', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({UOMName: uomName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new UOM to the select dynamically 
+                    const uomSelect = document.getElementById('uom_id');
+                    const newOption = document.createElement('option');
+                    newOption.value = result.id;
+                    newOption.textContent = uomName;
+                    uomSelect.appendChild(newOption);
+                    
+                    // Select the newly created UOM
+                    uomSelect.value = result.id;
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newUOMModal);
+                    modal.hide();
+                    newUOMForm.reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the UOM');
+            });
+        } else {
+            alert('Please enter a UOM name');
+        }
+    });
+
+    // Handle saving new machinery
+    saveNewMachineryBtn.addEventListener('click', function(){
+        const machineryName = newMachineryName.value.trim();
+        if (machineryName){
+            fetch('/machinery', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({machineryName: machineryName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new machinery to the select dynamically 
+                    const machinerySelect = document.getElementById('machinery_id');
+                    const newOption = document.createElement('option');
+                    newOption.value = result.id;
+                    newOption.textContent = machineryName;
+                    machinerySelect.appendChild(newOption);
+                    
+                    // Select the newly created machinery
+                    machinerySelect.value = result.id;
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newMachineryModal);
+                    modal.hide();
+                    newMachineryForm.reset();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the machinery');
+            });
+        } else {
+            alert('Please enter a machinery name');
+        }
+    });
+
+    // Clear forms when modals are closed
+    [newItemTypeModal, newCategoryModal, newDepartmentModal, newUOMModal, newMachineryModal].forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', function () {
+            const formId = this.querySelector('form').id;
+            document.getElementById(formId).reset();
+        });
+    });
 
     document.getElementById('item-form').addEventListener('submit', function(e) {
         e.preventDefault();

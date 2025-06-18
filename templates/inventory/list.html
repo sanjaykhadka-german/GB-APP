@@ -9,10 +9,7 @@
     <section id="search">
         <h2>Inventory Search</h2>
         <form id="searchForm">
-            <div class="form-group">
-                <label for="search_week_commencing">Week Commencing:</label>
-                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
-            </div>
+            
             <div class="form-group">
                 <label for="search_category">Category:</label>
                 <select id="search_category" name="category">
@@ -20,12 +17,17 @@
                     <!-- Options populated via JavaScript -->
                 </select>
             </div>
+
             <div class="form-group">
                 <label for="search_raw_material">Raw Material:</label>
                 <select id="search_raw_material" name="raw_material">
                     <option value="">All Raw Materials</option>
                     <!-- Options populated via JavaScript -->
                 </select>
+            </div>
+            <div class="form-group">
+                <label for="search_week_commencing">Week Commencing:</label>
+                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
             <button type="button" onclick="fetchInventories()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>

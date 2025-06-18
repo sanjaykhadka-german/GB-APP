@@ -6,6 +6,7 @@ from models.department import Department
 from models.machinery import Machinery
 from models.uom import UOM
 from models.allergen import Allergen
+from models.item_type import ItemType
 from datetime import datetime
 
 item_master_bp = Blueprint('item_master', __name__)
@@ -15,10 +16,11 @@ def item_master_list():
     # Get all lookup data for the filters
     categories = Category.query.all()
     departments = Department.query.all()
-    
+    item_types = ItemType.query.all()
     return render_template('item_master/list.html',
                          categories=categories,
                          departments=departments,
+                         item_types=item_types,
                          current_page='item_master')
 
 @item_master_bp.route('/item-master/create', methods=['GET'])
@@ -29,13 +31,14 @@ def item_master_create():
     machinery = Machinery.query.all()
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
-    
+    item_types = ItemType.query.all()
     return render_template('item_master/edit.html',
                          categories=categories,
                          departments=departments,
                          machinery=machinery,
                          uoms=uoms,
                          allergens=allergens,
+                         item_types=item_types,
                          item=None,
                          current_page='item_master')
 
@@ -50,7 +53,8 @@ def item_master_edit(id):
     machinery = Machinery.query.all()
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
-    
+    item_types = ItemType.query.all()
+
     return render_template('item_master/edit.html',
                          categories=categories,
                          departments=departments,
@@ -58,6 +62,7 @@ def item_master_edit(id):
                          uoms=uoms,
                          allergens=allergens,
                          item=item,
+                         item_types=item_types,
                          current_page='item_master')
 
 @item_master_bp.route('/get_items', methods=['GET'])
@@ -114,7 +119,8 @@ def save_item():
             # For new item, check if item_code already exists
             item_code = data['item_code']
             # Add "RM_" prefix for raw materials
-            if data['item_type'] == 'raw_material':
+            item_type_name = data['item_type']
+            if item_type_name == 'Raw Material':
                 item_code = f"RM_{item_code}"
             if ItemMaster.query.filter_by(item_code=item_code).first():
                 return jsonify({'error': 'Item code already exists'}), 400
@@ -133,7 +139,7 @@ def save_item():
         item.is_active = data['is_active']
         
         # Update type-specific fields
-        if data['item_type'] == 'raw_material':
+        if data['item_type'] == 'Raw Material':
             item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
             # Clear finished good fields
             item.is_make_to_order = False

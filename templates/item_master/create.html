@@ -92,6 +92,30 @@
                     </div>
                 </div>
 
+                <!-- Modal for Adding New Item Type -->
+                <div class="modal fade" id="newItemTypeModal" tabindex="-1" aria-labelledby="newItemTypeModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="newItemTypeModalLabel">Add New Item Type</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="new-item-type-form">
+                                    <div class="form-group">
+                                        <label for="new-item-type-name" class="form-label">Type Name</label>
+                                        <input type="text" id="new-item-type-name" class="form-control" required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="save-new-item-type">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Raw Material Specific Fields -->
                 <div id="raw-material-fields" style="display: none;">
                     <div class="row mb-3">
