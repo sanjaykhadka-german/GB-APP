@@ -120,12 +120,19 @@ def save_item():
         item_type_name = data.get('item_type')
         if not item_type_name:
             return jsonify({'error': 'item_type is required'}), 400
+        
+        # Get item_code for both new and existing items
+        item_code = data['item_code']
+        
         # For new item, check if item_code already exists
         if data.get('id'):
             item = ItemMaster.query.get_or_404(data['id'])
+            # For existing items, check if item_code is being changed and if new code already exists
+            if item.item_code != item_code:
+                if ItemMaster.query.filter_by(item_code=item_code).first():
+                    return jsonify({'error': 'Item code already exists'}), 400
         else:
-            item_code = data['item_code']
-            # Add "RM_" prefix for raw materials
+            # Add "RM_" prefix for raw materials (only for new items)
             if item_type_name == 'Raw Material':
                 item_code = f"{item_code}"
             if ItemMaster.query.filter_by(item_code=item_code).first():
