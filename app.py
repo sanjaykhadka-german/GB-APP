@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from dotenv import load_dotenv
 import os
 import sqlalchemy.exc
@@ -56,6 +56,7 @@ def create_app():
     from controllers.item_master_controller import item_master_bp
     from controllers.item_type_controller import item_type_bp
     from controllers.uom_controller import uom_bp
+    from controllers.login_controller import login_bp
 
     app.register_blueprint(joining_bp)
     app.register_blueprint(soh_bp)
@@ -72,6 +73,7 @@ def create_app():
     app.register_blueprint(item_master_bp)
     app.register_blueprint(item_type_bp)
     app.register_blueprint(uom_bp)
+    app.register_blueprint(login_bp)
 
     # Import models
     from models import soh, finished_goods, item_master, recipe_master, usage_report
@@ -81,6 +83,19 @@ def create_app():
     @app.template_filter('format_date')
     def format_date(value):
         return value.strftime('%Y-%m-%d') if value else ''
+    
+    # Authentication middleware
+    @app.before_request
+    def require_login():
+        # Allow access to login, register, and static files without authentication
+        allowed_routes = ['login.login', 'login.register', 'login.check_username', 'login.check_email', 'static']
+        
+        if request.endpoint in allowed_routes:
+            return
+        
+        # Check if user is logged in
+        if 'user_id' not in session:
+            return redirect(url_for('login.login'))
     
     # Define routes
     @app.route('/') 
