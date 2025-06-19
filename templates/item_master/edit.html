@@ -234,6 +234,11 @@
                                     </label>
                                 </div>
                                 {% endfor %}
+                                <div class="form-check form-check-inline">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#newAllergenModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -374,6 +379,30 @@
     </div>
 </div>
 
+<!-- New Allergen Modal -->
+<div class="modal fade" id="newAllergenModal" tabindex="-1" aria-labelledby="newAllergenModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newAllergenModalLabel">Add New Allergen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-allergen-form">
+                    <div class="form-group">
+                        <label for="new-allergen-name" class="form-label">Allergen Name *</label>
+                        <input type="text" id="new-allergen-name" class="form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="save-new-allergen">Save Allergen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .card {
     box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
@@ -432,7 +461,7 @@
     background-size: contain;
     border: 1px solid rgba(0, 0, 0, 0.25);
     appearance: none;
-    color-adjust: exact;
+    print-color-adjust: exact;
 }
 
 .form-check-input:checked {
@@ -452,7 +481,7 @@
 }
 
 .form-check-label {
-    margin-left: 0.5rem;
+    margin-left: 0.01rem;        
     font-weight: 500;
 }
 
@@ -481,37 +510,36 @@
 .allergen-checkboxes {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    padding: 15px;
+    gap: 5px;
+    padding: 5px;
     border: 1px solid #d1d3e2;
     border-radius: 0.35rem;
     background-color: #f8f9fa;
-    min-height: 60px;
+    min-height: 20px;
     align-items: flex-start;
     align-content: flex-start;
 }
 
 .form-check-inline {
     margin-right: 0;
-    margin-bottom: 8px;
-    min-width: auto;
+    margin-bottom: 2px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .allergen-checkbox {
-    width: 1.25em !important;
-    height: 1.25em !important;
-    margin-top: 0.125em;
-    vertical-align: top;
+    width: 1.2em !important;
+    height: 1.2em !important;
+    margin-top: 0;
+    vertical-align: middle;
     background-color: #fff;
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
     border: 1px solid #adb5bd;
     appearance: none;
-    color-adjust: exact;
+    print-color-adjust: exact;
     border-radius: 0.25em;
 }
 
@@ -533,7 +561,7 @@
 }
 
 .allergen-checkboxes .form-check-label {
-    margin-left: 0;
+    margin-left: 0.5rem;
     font-size: 0.875rem;
     color: #495057;
     cursor: pointer;
@@ -565,6 +593,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const newDepartmentModal = document.getElementById('newDepartmentModal');
     const newUOMModal = document.getElementById('newUOMModal');
     const newMachineryModal = document.getElementById('newMachineryModal');
+    const newAllergenModal = document.getElementById('newAllergenModal');
     
     // Form elements
     const newItemTypeForm = document.getElementById('new-item-type-form');
@@ -572,6 +601,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const newDepartmentForm = document.getElementById('new-department-form');
     const newUOMForm = document.getElementById('new-uom-form');
     const newMachineryForm = document.getElementById('new-machinery-form');
+    const newAllergenForm = document.getElementById('new-allergen-form');
     
     // Input elements
     const newItemTypeName = document.getElementById('new-item-type-name');
@@ -579,6 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const newDepartmentName = document.getElementById('new-department-name');
     const newUOMName = document.getElementById('new-uom-name');
     const newMachineryName = document.getElementById('new-machinery-name');
+    const newAllergenName = document.getElementById('new-allergen-name');
     
     // Button elements
     const saveNewItemTypeBtn = document.getElementById('save-new-item-type');
@@ -586,6 +617,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveNewDepartmentBtn = document.getElementById('save-new-department');
     const saveNewUOMBtn = document.getElementById('save-new-uom');
     const saveNewMachineryBtn = document.getElementById('save-new-machinery');
+    const saveNewAllergenBtn = document.getElementById('save-new-allergen');
 
     // Status toggle handler
     statusToggle.addEventListener('change', function() {
@@ -830,8 +862,56 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Handle saving new allergen
+    saveNewAllergenBtn.addEventListener('click', function(){
+        const allergenName = newAllergenName.value.trim();
+        if (allergenName){
+            fetch('/allergen', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({name: allergenName})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.error) {
+                    alert(result.error);
+                } else {
+                    // Add new checkbox to allergen section
+                    const allergenContainer = document.querySelector('.allergen-checkboxes');
+                    const newCheckboxDiv = document.createElement('div');
+                    newCheckboxDiv.className = 'form-check form-check-inline';
+                    newCheckboxDiv.innerHTML = `
+                        <input class="form-check-input allergen-checkbox" type="checkbox" 
+                               id="allergen_${result.id}" 
+                               name="allergen_ids" 
+                               value="${result.id}"
+                               checked>
+                        <label class="form-check-label" for="allergen_${result.id}">
+                            ${allergenName}
+                        </label>
+                    `;
+                    allergenContainer.appendChild(newCheckboxDiv);
+                    
+                    // Close modal and clear form
+                    const modal = bootstrap.Modal.getInstance(newAllergenModal);
+                    modal.hide();
+                    newAllergenForm.reset();
+                    alert('Allergen added successfully!');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while saving the allergen');
+            });
+        } else {
+            alert('Please enter an allergen name');
+        }
+    });
+
     // Clear forms when modals are closed
-    [newItemTypeModal, newCategoryModal, newDepartmentModal, newUOMModal, newMachineryModal].forEach(modal => {
+    [newItemTypeModal, newCategoryModal, newDepartmentModal, newUOMModal, newMachineryModal, newAllergenModal].forEach(modal => {
         modal.addEventListener('hidden.bs.modal', function () {
             const formId = this.querySelector('form').id;
             document.getElementById(formId).reset();

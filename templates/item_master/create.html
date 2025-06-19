@@ -36,23 +36,33 @@
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="category_id" class="form-label">Category</label>
-                            <select id="category_id" name="category_id" class="form-select">
-                                <option value="">Select Category</option>
-                                {% for category in categories %}
-                                <option value="{{ category.id }}">{{ category.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select id="category_id" name="category_id" class="form-select">
+                                    <option value="">Select Category</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newCategoryModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="department_id" class="form-label">Department</label>
-                            <select id="department_id" name="department_id" class="form-select">
-                                <option value="">Select Department</option>
-                                {% for department in departments %}
-                                <option value="{{ department.id }}">{{ department.departmentName }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select id="department_id" name="department_id" class="form-select">
+                                    <option value="">Select Department</option>
+                                    {% for department in departments %}
+                                    <option value="{{ department.id }}">{{ department.departmentName }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newDepartmentModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -113,6 +123,54 @@
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                                 <button type="button" class="btn btn-primary" id="save-new-item-type">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal for Adding New Category -->
+                <div class="modal fade" id="newCategoryModal" tabindex="-1" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="newCategoryModalLabel">Add New Category</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="new-category-form">
+                                    <div class="form-group">
+                                        <label for="new-category-name" class="form-label">Category Name</label>
+                                        <input type="text" id="new-category-name" class="form-control" required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="save-new-category">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal for Adding New Department -->
+                <div class="modal fade" id="newDepartmentModal" tabindex="-1" aria-labelledby="newDepartmentModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="newDepartmentModalLabel">Add New Department</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="new-department-form">
+                                    <div class="form-group">
+                                        <label for="new-department-name" class="form-label">Department Name</label>
+                                        <input type="text" id="new-department-name" class="form-control" required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="save-new-department">Save</button>
                             </div>
                         </div>
                     </div>
@@ -195,6 +253,35 @@
                                     </label>
                                 </div>
                                 {% endfor %}
+                                <div class="form-check form-check-inline">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#newAllergenModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal for Adding New Allergen -->
+                <div class="modal fade" id="newAllergenModal" tabindex="-1" aria-labelledby="newAllergenModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="newAllergenModalLabel">Add New Allergen</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="new-allergen-form">
+                                    <div class="form-group">
+                                        <label for="new-allergen-name" class="form-label">Allergen Name</label>
+                                        <input type="text" id="new-allergen-name" class="form-control" required>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="save-new-allergen">Save</button>
                             </div>
                         </div>
                     </div>
@@ -273,7 +360,7 @@
     background-size: contain;
     border: 1px solid rgba(0, 0, 0, 0.25);
     appearance: none;
-    color-adjust: exact;
+    print-color-adjust: exact;
 }
 
 .form-check-input:checked {
@@ -293,7 +380,7 @@
 }
 
 .form-check-label {
-    margin-left: 0.5rem;
+    margin-left: 0.01rem;        
     font-weight: 500;
 }
 
@@ -334,11 +421,11 @@
 
 .form-check-inline {
     margin-right: 0;
-    margin-bottom: 8px;
+    margin-bottom: 2px;
     min-width: auto;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .allergen-checkbox {
@@ -352,7 +439,7 @@
     background-size: contain;
     border: 1px solid #adb5bd;
     appearance: none;
-    color-adjust: exact;
+    print-color-adjust: exact;
     border-radius: 0.25em;
 }
 
@@ -374,7 +461,7 @@
 }
 
 .allergen-checkboxes .form-check-label {
-    margin-left: 0;
+    margin-left: 0.5rem;
     font-size: 0.875rem;
     color: #495057;
     cursor: pointer;
@@ -480,6 +567,134 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error:', error);
             alert('An error occurred while saving the item');
+        });
+    });
+
+    // Category modal functionality
+    document.getElementById('save-new-category').addEventListener('click', function() {
+        const categoryName = document.getElementById('new-category-name').value.trim();
+        if (!categoryName) {
+            alert('Please enter a category name');
+            return;
+        }
+
+        fetch('/category', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: categoryName})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new option to select
+                const select = document.getElementById('category_id');
+                const option = document.createElement('option');
+                option.value = result.id;
+                option.textContent = categoryName;
+                select.appendChild(option);
+                select.value = result.id;
+                
+                // Close modal and reset form
+                bootstrap.Modal.getInstance(document.getElementById('newCategoryModal')).hide();
+                document.getElementById('new-category-form').reset();
+                alert('Category added successfully!');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the category');
+        });
+    });
+
+    // Department modal functionality
+    document.getElementById('save-new-department').addEventListener('click', function() {
+        const departmentName = document.getElementById('new-department-name').value.trim();
+        if (!departmentName) {
+            alert('Please enter a department name');
+            return;
+        }
+
+        fetch('/department', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({departmentName: departmentName})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new option to select
+                const select = document.getElementById('department_id');
+                const option = document.createElement('option');
+                option.value = result.id;
+                option.textContent = departmentName;
+                select.appendChild(option);
+                select.value = result.id;
+                
+                // Close modal and reset form
+                bootstrap.Modal.getInstance(document.getElementById('newDepartmentModal')).hide();
+                document.getElementById('new-department-form').reset();
+                alert('Department added successfully!');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the department');
+        });
+    });
+
+    // Allergen modal functionality
+    document.getElementById('save-new-allergen').addEventListener('click', function() {
+        const allergenName = document.getElementById('new-allergen-name').value.trim();
+        if (!allergenName) {
+            alert('Please enter an allergen name');
+            return;
+        }
+
+        fetch('/allergen', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: allergenName})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new checkbox to allergen section
+                const allergenContainer = document.querySelector('.allergen-checkboxes');
+                const newCheckboxDiv = document.createElement('div');
+                newCheckboxDiv.className = 'form-check form-check-inline';
+                newCheckboxDiv.innerHTML = `
+                    <input class="form-check-input allergen-checkbox" type="checkbox" 
+                           id="allergen_${result.id}" 
+                           name="allergen_ids" 
+                           value="${result.id}"
+                           checked>
+                    <label class="form-check-label" for="allergen_${result.id}">
+                        ${allergenName}
+                    </label>
+                `;
+                allergenContainer.appendChild(newCheckboxDiv);
+                
+                // Close modal and reset form
+                bootstrap.Modal.getInstance(document.getElementById('newAllergenModal')).hide();
+                document.getElementById('new-allergen-form').reset();
+                alert('Allergen added successfully!');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the allergen');
         });
     });
 });
