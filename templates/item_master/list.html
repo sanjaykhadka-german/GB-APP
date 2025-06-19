@@ -5,11 +5,43 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Item Master</h4>
-            <button class="btn btn-primary" onclick="window.location.href='/item-master/create'">
-                <i class="fas fa-plus"></i> Add New Item
-            </button>
+            <div class="d-flex gap-2">
+                <!-- Upload Excel Button -->
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-upload"></i> Upload Excel
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="document.getElementById('excel-upload').click()">
+                            <i class="fas fa-upload"></i> Upload Excel File
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="downloadTemplate()">
+                            <i class="fas fa-download"></i> Download Template
+                        </a></li>
+                    </ul>
+                </div>
+                <!-- Download Excel Button -->
+                <button class="btn btn-info" onclick="downloadExcel()">
+                    <i class="fas fa-download"></i> Download Excel
+                </button>
+                <button class="btn btn-primary" onclick="window.location.href='/item-master/create'">
+                    <i class="fas fa-plus"></i> Add New Item
+                </button>
+            </div>
         </div>
+        
+        <!-- Hidden file input for Excel upload -->
+        <input type="file" id="excel-upload" accept=".xlsx,.xls" style="display: none;" onchange="uploadExcel()">
+        
         <div class="card-body">
+            <!-- Upload Progress Bar -->
+            <div id="upload-progress" class="progress mb-3" style="display: none;">
+                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+            
+            <!-- Upload Status Message -->
+            <div id="upload-message" class="alert" style="display: none;"></div>
+
             <!-- Search Section -->
             <div class="row mb-4">
                 <div class="col-md-3">
@@ -119,6 +151,25 @@
 .btn-secondary {
     background-color: #858796;
     border-color: #858796;
+}
+
+.btn-success {
+    background-color: #1cc88a;
+    border-color: #1cc88a;
+}
+
+.btn-info {
+    background-color: #36b9cc;
+    border-color: #36b9cc;
+}
+
+.progress {
+    height: 1rem;
+    background-color: #f8f9fc;
+}
+
+.progress-bar {
+    background-color: #4e73df;
 }
 
 .table {
@@ -235,6 +286,119 @@ function resetFilters() {
 //         alert('An error occurred while deleting the item');
 //     });
 // }
+
+function uploadExcel() {
+    const fileInput = document.getElementById('excel-upload');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        return;
+    }
+    
+    // Show progress bar
+    const progressContainer = document.getElementById('upload-progress');
+    const progressBar = progressContainer.querySelector('.progress-bar');
+    const messageContainer = document.getElementById('upload-message');
+    
+    progressContainer.style.display = 'block';
+    messageContainer.style.display = 'none';
+    progressBar.style.width = '0%';
+    
+    const formData = new FormData();
+    formData.append('excel_file', file);
+    
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += 10;
+        progressBar.style.width = progress + '%';
+        if (progress >= 90) {
+            clearInterval(progressInterval);
+        }
+    }, 200);
+    
+    fetch('/item-master/upload-excel', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+        
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+            messageContainer.style.display = 'block';
+            
+            if (result.error) {
+                messageContainer.className = 'alert alert-danger';
+                messageContainer.innerHTML = `<strong>Error:</strong> ${result.error}`;
+            } else {
+                messageContainer.className = 'alert alert-success';
+                messageContainer.innerHTML = `<strong>Success:</strong> ${result.message}`;
+                // Refresh the table
+                searchItems();
+            }
+            
+            // Hide message after 5 seconds
+            setTimeout(() => {
+                messageContainer.style.display = 'none';
+            }, 5000);
+        }, 500);
+    })
+    .catch(error => {
+        clearInterval(progressInterval);
+        progressContainer.style.display = 'none';
+        messageContainer.style.display = 'block';
+        messageContainer.className = 'alert alert-danger';
+        messageContainer.innerHTML = `<strong>Error:</strong> Failed to upload file. Please try again.`;
+        console.error('Upload error:', error);
+        
+        setTimeout(() => {
+            messageContainer.style.display = 'none';
+        }, 5000);
+    });
+    
+    // Reset file input
+    fileInput.value = '';
+}
+
+function downloadExcel() {
+    // Get current search parameters
+    const code = document.getElementById('search-code').value;
+    const description = document.getElementById('search-description').value;
+    const type = document.getElementById('search-type').value;
+    
+    // Build query string
+    const params = new URLSearchParams();
+    if (code) params.append('item_code', code);
+    if (description) params.append('description', description);
+    if (type) params.append('item_type', type);
+    
+    // Create download link
+    const url = `/item-master/download-excel?${params.toString()}`;
+    
+    // Create temporary link element and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'item_master.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadTemplate() {
+    // Create download link for template
+    const url = '/item-master/download-template';
+    
+    // Create temporary link element and trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'item_master_template.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 // Initial load
 document.addEventListener('DOMContentLoaded', function() {

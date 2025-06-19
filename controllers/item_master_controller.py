@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
 from database import db
 from models.item_master import ItemMaster
 from models.category import Category
@@ -8,6 +8,11 @@ from models.uom import UOM
 from models.allergen import Allergen
 from models.item_type import ItemType
 from datetime import datetime
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+import io
+import os
+from werkzeug.utils import secure_filename
 
 item_master_bp = Blueprint('item_master', __name__)
 
@@ -180,3 +185,325 @@ def delete_item(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@item_master_bp.route('/item-master/upload-excel', methods=['POST'])
+def upload_excel():
+    try:
+        if 'excel_file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['excel_file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({'error': 'Please upload a valid Excel file (.xlsx or .xls)'}), 400
+        
+        # Read the Excel file
+        workbook = openpyxl.load_workbook(file)
+        sheet = workbook.active
+        
+        # Expected columns: Item Code, Description, Type, Category, Department, UOM, Min Level, Max Level, Price Per Kg, Is Make To Order, Kg Per Unit, Units Per Bag, Loss Percentage, Is Active
+        headers = []
+        for cell in sheet[1]:
+            if cell.value:
+                headers.append(str(cell.value).strip())
+        
+        # Validate required headers
+        required_headers = ['Item Code', 'Description', 'Type']
+        missing_headers = [h for h in required_headers if h not in headers]
+        if missing_headers:
+            return jsonify({'error': f'Missing required columns: {", ".join(missing_headers)}'}), 400
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        # Process each row (skip header)
+        for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            try:
+                if not any(row):  # Skip empty rows
+                    continue
+                
+                # Create dictionary from row data
+                row_data = dict(zip(headers, row))
+                
+                # Skip if required fields are empty
+                if not row_data.get('Item Code') or not row_data.get('Description') or not row_data.get('Type'):
+                    error_count += 1
+                    errors.append(f'Row {row_num}: Missing required fields')
+                    continue
+                
+                item_code = str(row_data['Item Code']).strip()
+                description = str(row_data['Description']).strip()
+                item_type = str(row_data['Type']).strip()
+                
+                # Check if item already exists
+                existing_item = ItemMaster.query.filter_by(item_code=item_code).first()
+                if existing_item:
+                    error_count += 1
+                    errors.append(f'Row {row_num}: Item code {item_code} already exists')
+                    continue
+                
+                # Validate item type
+                valid_item_type = ItemType.query.filter_by(type_name=item_type).first()
+                if not valid_item_type:
+                    error_count += 1
+                    errors.append(f'Row {row_num}: Invalid item type "{item_type}"')
+                    continue
+                
+                # Create new item
+                item = ItemMaster()
+                item.item_code = item_code
+                item.description = description
+                item.item_type = item_type
+                
+                # Optional fields
+                if row_data.get('Category'):
+                    category = Category.query.filter_by(name=str(row_data['Category']).strip()).first()
+                    if category:
+                        item.category_id = category.id
+                
+                if row_data.get('Department'):
+                    department = Department.query.filter_by(departmentName=str(row_data['Department']).strip()).first()
+                    if department:
+                        item.department_id = department.id
+                
+                if row_data.get('UOM'):
+                    uom = UOM.query.filter_by(UOMName=str(row_data['UOM']).strip()).first()
+                    if uom:
+                        item.uom_id = uom.id
+                
+                # Numeric fields
+                try:
+                    if row_data.get('Min Level'):
+                        item.min_level = float(row_data['Min Level'])
+                    if row_data.get('Max Level'):
+                        item.max_level = float(row_data['Max Level'])
+                    if row_data.get('Price Per Kg'):
+                        item.price_per_kg = float(row_data['Price Per Kg'])
+                    if row_data.get('Kg Per Unit'):
+                        item.kg_per_unit = float(row_data['Kg Per Unit'])
+                    if row_data.get('Units Per Bag'):
+                        item.units_per_bag = int(row_data['Units Per Bag'])
+                    if row_data.get('Loss Percentage'):
+                        item.loss_percentage = float(row_data['Loss Percentage'])
+                except (ValueError, TypeError):
+                    # If conversion fails, skip the numeric field
+                    pass
+                
+                # Boolean fields
+                if row_data.get('Is Make To Order'):
+                    value = str(row_data['Is Make To Order']).strip().lower()
+                    item.is_make_to_order = value in ['true', '1', 'yes', 'y']
+                
+                if row_data.get('Is Active'):
+                    value = str(row_data['Is Active']).strip().lower()
+                    item.is_active = value in ['true', '1', 'yes', 'y']
+                else:
+                    item.is_active = True  # Default to active
+                
+                db.session.add(item)
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                errors.append(f'Row {row_num}: {str(e)}')
+        
+        db.session.commit()
+        
+        message = f'Upload completed: {success_count} items added successfully'
+        if error_count > 0:
+            message += f', {error_count} errors occurred'
+            if len(errors) <= 5:  # Show first 5 errors
+                message += f'. Errors: {"; ".join(errors)}'
+        
+        return jsonify({'message': message}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to process Excel file: {str(e)}'}), 500
+
+@item_master_bp.route('/item-master/download-excel', methods=['GET'])
+def download_excel():
+    try:
+        # Get search parameters
+        search_code = request.args.get('item_code', '').strip()
+        search_description = request.args.get('description', '').strip()
+        search_type = request.args.get('item_type', '').strip()
+        
+        # Build query with same logic as get_items
+        query = ItemMaster.query
+        
+        if search_code:
+            query = query.filter(ItemMaster.item_code.ilike(f"%{search_code}%"))
+        if search_description:
+            query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
+        if search_type:
+            query = query.filter(ItemMaster.item_type == search_type)
+        
+        items = query.all()
+        
+        # Create workbook
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Item Master"
+        
+        # Define headers
+        headers = [
+            'Item Code', 'Description', 'Type', 'Category', 'Department', 
+            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Is Make To Order',
+            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
+        ]
+        
+        # Add headers with styling
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # Add data
+        for row, item in enumerate(items, 2):
+            sheet.cell(row=row, column=1, value=item.item_code)
+            sheet.cell(row=row, column=2, value=item.description)
+            sheet.cell(row=row, column=3, value=item.item_type)
+            sheet.cell(row=row, column=4, value=item.category.name if item.category else '')
+            sheet.cell(row=row, column=5, value=item.department.departmentName if item.department else '')
+            sheet.cell(row=row, column=6, value=item.uom.UOMName if item.uom else '')
+            sheet.cell(row=row, column=7, value=item.min_level)
+            sheet.cell(row=row, column=8, value=item.max_level)
+            sheet.cell(row=row, column=9, value=item.price_per_kg)
+            sheet.cell(row=row, column=10, value='Yes' if item.is_make_to_order else 'No')
+            sheet.cell(row=row, column=11, value=item.kg_per_unit)
+            sheet.cell(row=row, column=12, value=item.units_per_bag)
+            sheet.cell(row=row, column=13, value=item.loss_percentage)
+            sheet.cell(row=row, column=14, value='Yes' if item.is_active else 'No')
+        
+        # Auto-adjust column widths
+        for column in sheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            sheet.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save to BytesIO
+        output = io.BytesIO()
+        workbook.save(output)
+        output.seek(0)
+        
+        filename = f'item_master_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate Excel file: {str(e)}'}), 500
+
+@item_master_bp.route('/item-master/download-template', methods=['GET'])
+def download_template():
+    try:
+        # Create workbook with template structure
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Item Master Template"
+        
+        # Define headers with descriptions
+        headers = [
+            'Item Code', 'Description', 'Type', 'Category', 'Department', 
+            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Is Make To Order',
+            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
+        ]
+        
+        # Add headers with styling
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # Add sample data row
+        sample_data = [
+            'ITEM001', 'Sample Item Description', 'Raw Material', 'Category Name', 'Department Name',
+            'KG', '10', '100', '5.50', 'No', '', '', '', 'Yes'
+        ]
+        
+        for col, value in enumerate(sample_data, 1):
+            sheet.cell(row=2, column=col, value=value)
+        
+        # Add instructions in a separate sheet
+        instructions_sheet = workbook.create_sheet("Instructions")
+        instructions = [
+            "ITEM MASTER UPLOAD INSTRUCTIONS",
+            "",
+            "Required Columns:",
+            "- Item Code: Unique identifier for the item",
+            "- Description: Item description",
+            "- Type: Must match existing item types in the system",
+            "",
+            "Optional Columns:",
+            "- Category: Must match existing categories",
+            "- Department: Must match existing departments",
+            "- UOM: Unit of measure (must match existing UOMs)",
+            "- Min Level: Minimum stock level (numeric)",
+            "- Max Level: Maximum stock level (numeric)",
+            "- Price Per Kg: Price per kilogram (numeric, for Raw Materials)",
+            "- Is Make To Order: Yes/No (for Finished Goods)",
+            "- Kg Per Unit: Kilograms per unit (numeric, for Finished Goods)",
+            "- Units Per Bag: Units per bag (numeric, for Finished Goods)",
+            "- Loss Percentage: Loss percentage (numeric, for Finished Goods)",
+            "- Is Active: Yes/No (defaults to Yes if not specified)",
+            "",
+            "Notes:",
+            "- Do not modify the header row",
+            "- Empty rows will be skipped",
+            "- Items with duplicate codes will be rejected",
+            "- Invalid references (category, department, etc.) will be ignored",
+            "- Boolean fields accept: Yes/No, True/False, 1/0, Y/N"
+        ]
+        
+        for row, instruction in enumerate(instructions, 1):
+            cell = instructions_sheet.cell(row=row, column=1, value=instruction)
+            if row == 1:  # Title
+                cell.font = Font(bold=True, size=14)
+            elif instruction.endswith(":"):  # Section headers
+                cell.font = Font(bold=True)
+        
+        # Auto-adjust column widths for both sheets
+        for sheet_obj in [sheet, instructions_sheet]:
+            for column in sheet_obj.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 80)
+                sheet_obj.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save to BytesIO
+        output = io.BytesIO()
+        workbook.save(output)
+        output.seek(0)
+        
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name='item_master_template.xlsx',
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate template: {str(e)}'}), 500
