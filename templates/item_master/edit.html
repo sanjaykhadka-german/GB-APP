@@ -220,15 +220,21 @@
                 <div class="row mb-3">
                     <div class="col-md-12">
                         <div class="form-group">
-                            <label for="allergen_ids" class="form-label">Allergens</label>
-                            <select id="allergen_ids" name="allergen_ids" class="form-select" multiple>
+                            <label class="form-label">Allergens</label>
+                            <div class="allergen-checkboxes">
                                 {% for allergen in allergens %}
-                                <option value="{{ allergen.allergens_id }}" 
-                                        {{ 'selected' if item and allergen in item.allergens else '' }}>
-                                    {{ allergen.name }}
-                                </option>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input allergen-checkbox" type="checkbox" 
+                                           id="allergen_{{ allergen.allergens_id }}" 
+                                           name="allergen_ids" 
+                                           value="{{ allergen.allergens_id }}"
+                                           {{ 'checked' if item and allergen in item.allergens else '' }}>
+                                    <label class="form-check-label" for="allergen_{{ allergen.allergens_id }}">
+                                        {{ allergen.name }}
+                                    </label>
+                                </div>
                                 {% endfor %}
-                            </select>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -469,6 +475,77 @@
 
 .form-check-input:not(:checked) + .form-check-label #mto-label {
     color: #5a5c69;
+}
+
+/* Allergen Checkbox Styles */
+.allergen-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 15px;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.35rem;
+    background-color: #f8f9fa;
+    min-height: 60px;
+    align-items: flex-start;
+    align-content: flex-start;
+}
+
+.form-check-inline {
+    margin-right: 0;
+    margin-bottom: 8px;
+    min-width: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.allergen-checkbox {
+    width: 1.25em !important;
+    height: 1.25em !important;
+    margin-top: 0.125em;
+    vertical-align: top;
+    background-color: #fff;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    border: 1px solid #adb5bd;
+    appearance: none;
+    color-adjust: exact;
+    border-radius: 0.25em;
+}
+
+.allergen-checkbox:checked {
+    background-color: #4e73df;
+    border-color: #4e73df;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+}
+
+.allergen-checkbox:focus {
+    border-color: #bac8f3;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+}
+
+.allergen-checkbox:checked:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+}
+
+.allergen-checkboxes .form-check-label {
+    margin-left: 0;
+    font-size: 0.875rem;
+    color: #495057;
+    cursor: pointer;
+}
+
+.allergen-checkboxes .form-check-label:hover {
+    color: #4e73df;
+}
+
+.allergen-checkbox:checked + .form-check-label {
+    color: #4e73df;
+    font-weight: 500;
 }
 </style>
 
@@ -766,6 +843,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const formData = new FormData(this);
         const data = {};
+        
+        // Handle regular form fields
         formData.forEach((value, key) => {
             if (key === 'allergen_ids') {
                 if (!data[key]) data[key] = [];
@@ -778,6 +857,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Handle checkbox values for toggles
         data.is_active = statusToggle.checked;
         data.is_make_to_order = mtoToggle.checked;
+
+        // Handle allergen checkboxes manually since FormData may not capture unchecked boxes correctly
+        const allergenCheckboxes = document.querySelectorAll('.allergen-checkbox:checked');
+        data.allergen_ids = Array.from(allergenCheckboxes).map(cb => cb.value);
 
         fetch('/item-master', {
             method: 'POST',
