@@ -54,6 +54,60 @@
     .dropdown-menu.show {
         display: block !important;
     }
+    
+    /* Navigation dropdown styles */
+    nav .dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    
+    nav .dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background-color: #444;
+        border: none;
+        border-radius: 4px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        min-width: 180px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    nav .dropdown-menu.show {
+        display: block !important;
+    }
+    
+    nav .dropdown-item {
+        display: block;
+        padding: 8px 16px;
+        color: #fff;
+        text-decoration: none;
+        transition: background-color 0.3s ease;
+    }
+    
+    nav .dropdown-item:hover {
+        background-color: #555;
+        color: #fff;
+        transform: none;
+    }
+    
+    nav .dropdown-toggle {
+        color: #fff;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    
+    nav .dropdown-toggle:hover {
+        color: #fff;
+        text-decoration: none;
+    }
+    
+    nav .dropdown-toggle::after {
+        content: ' ▼';
+        font-size: 0.8em;
+        margin-left: 5px;
+    }
     </style>
 </head>
 <body>
@@ -114,8 +168,16 @@
                     <a href="{{ url_for('joining.joining_list') }}">Joining</a>
                 </li>
                 <li
-                    class="{% if current_page == 'soh' %}active{% endif %}">
-                    <a href="{{ url_for('soh.soh_list') }}">SOH</a>
+                    class="{% if current_page == 'soh' or current_page == 'ingredients' %}active{% endif %}">
+                    <div class="dropdown">
+                        <a href="#" class="dropdown-toggle" id="sohDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            SOH & Ingredients
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="sohDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('soh.soh_list') }}">SOH (Finished Goods)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('ingredients.ingredients_list') }}">Ingredients</a></li>
+                        </ul>
+                    </div>
                 </li>
                 <li class="{% if current_page == 'packing' %}active{% endif %}">
                 <a href="{{ url_for('packing.packing_list') }}">Packing</a>
@@ -160,6 +222,25 @@
             return new bootstrap.Dropdown(dropdownToggleEl);
         });
         
+        // Handle navigation dropdown (SOH & Ingredients)
+        const sohDropdown = document.getElementById('sohDropdown');
+        if (sohDropdown) {
+            sohDropdown.addEventListener('click', function(e) {
+                e.preventDefault();
+                const dropdownMenu = this.nextElementSibling;
+                
+                // Close other dropdowns first
+                document.querySelectorAll('nav .dropdown-menu.show').forEach(menu => {
+                    if (menu !== dropdownMenu) {
+                        menu.classList.remove('show');
+                    }
+                });
+                
+                // Toggle the dropdown
+                dropdownMenu.classList.toggle('show');
+            });
+        }
+        
         // Add click event for user dropdown as fallback
         const userDropdown = document.getElementById('userDropdown');
         if (userDropdown) {
@@ -167,12 +248,17 @@
                 e.preventDefault();
                 const dropdownMenu = this.nextElementSibling;
                 
+                // Close navigation dropdowns first
+                document.querySelectorAll('nav .dropdown-menu.show').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+                
                 // Toggle the dropdown
                 if (dropdownMenu.classList.contains('show')) {
                     dropdownMenu.classList.remove('show');
                 } else {
-                    // Close other dropdowns first
-                    document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                    // Close other user dropdowns first
+                    document.querySelectorAll('.user-info .dropdown-menu.show').forEach(menu => {
                         menu.classList.remove('show');
                     });
                     dropdownMenu.classList.add('show');

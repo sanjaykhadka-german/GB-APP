@@ -43,6 +43,7 @@ def create_app():
     # Register Blueprints
     from controllers.joining_controller import joining_bp
     from controllers.soh_controller import soh_bp
+    from controllers.ingredients_controller import ingredients_bp
     from controllers.packing_controller import packing
     from controllers.filling_controller import filling_bp
     from controllers.production_controller import production_bp
@@ -60,6 +61,7 @@ def create_app():
 
     app.register_blueprint(joining_bp)
     app.register_blueprint(soh_bp)
+    app.register_blueprint(ingredients_bp)
     app.register_blueprint(packing)
     app.register_blueprint(filling_bp)
     app.register_blueprint(production_bp)
