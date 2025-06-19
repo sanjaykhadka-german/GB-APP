@@ -6,10 +6,11 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster, Joining 
+from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.production import Production
+from models.joining import Joining
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 
@@ -140,8 +141,8 @@ def recipe_page():
     edit_id = request.args.get('edit_id')
     
     # Get all raw materials and finished goods for the dropdowns
-    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'raw_material').order_by(ItemMaster.item_code).all()
-    finished_goods = ItemMaster.query.filter(ItemMaster.item_type == 'finished_good').order_by(ItemMaster.item_code).all()
+    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').order_by(ItemMaster.item_code).all()
+    finished_goods = ItemMaster.query.filter(ItemMaster.item_type == 'Finished Good').order_by(ItemMaster.item_code).all()
 
     
     return render_template('recipe/recipe.html', 

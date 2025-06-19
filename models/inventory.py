@@ -2,7 +2,7 @@
 from database import db
 from datetime import datetime
 from models.category import Category
-from models.raw_materials import RawMaterials
+from models.item_master import ItemMaster
 
 class Inventory(db.Model):
     __tablename__ = 'inventory'
@@ -10,7 +10,7 @@ class Inventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     week_commencing = db.Column(db.Date, nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
-    raw_material_id = db.Column(db.Integer, db.ForeignKey('raw_materials.id'), nullable=False)
+    raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
     price_per_kg = db.Column(db.Float, nullable=False)
     total_required = db.Column(db.Float, nullable=False)
     soh = db.Column(db.Float, nullable=False)
@@ -28,7 +28,7 @@ class Inventory(db.Model):
 
     # Relationships
     category = db.relationship('Category', backref='inventories')
-    raw_material = db.relationship('RawMaterials', backref='inventories')
+    raw_material = db.relationship('ItemMaster', backref='inventories')
 
     @property
     def value_soh(self):

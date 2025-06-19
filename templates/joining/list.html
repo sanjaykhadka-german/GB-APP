@@ -17,8 +17,46 @@
             </div>
 
             <button type="button" onclick="fetchJoinings()">Search</button>
+            <button type="button" onclick="resetFilters()" class="btn btn-secondary">Reset Filter</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
+    </section>
+
+    <!-- Column Visibility Toggle Section -->
+    <section id="column-toggle">
+        <h3>Column Visibility</h3>
+        <div class="column-toggle">
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="1" onchange="toggleColumn(1)"> ID</label>
+                <label><input type="checkbox" checked data-col-index="2" onchange="toggleColumn(2)"> FG Code</label>
+                <label><input type="checkbox" checked data-col-index="3" onchange="toggleColumn(3)"> Description</label>
+                <label><input type="checkbox" checked data-col-index="4" onchange="toggleColumn(4)"> FW</label>
+                <label><input type="checkbox" checked data-col-index="5" onchange="toggleColumn(5)"> M.T.O</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="6" onchange="toggleColumn(6)"> Min Level</label>
+                <label><input type="checkbox" checked data-col-index="7" onchange="toggleColumn(7)"> Max Level</label>
+                <label><input type="checkbox" checked data-col-index="8" onchange="toggleColumn(8)"> kg/unit</label>
+                <label><input type="checkbox" data-col-index="9" onchange="toggleColumn(9)"> Loss</label>
+                <label><input type="checkbox" checked data-col-index="10" onchange="toggleColumn(10)"> Filling Code</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" data-col-index="11" onchange="toggleColumn(11)"> Filling Description</label>
+                <label><input type="checkbox" data-col-index="12" onchange="toggleColumn(12)"> Production</label>
+                <label><input type="checkbox" data-col-index="13" onchange="toggleColumn(13)"> Product Description</label>
+                <label><input type="checkbox" data-col-index="14" onchange="toggleColumn(14)"> Units_per_box</label>
+                <label><input type="checkbox" checked data-col-index="15" onchange="toggleColumn(15)"> Weekly Average</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="16" onchange="toggleColumn(16)"> Allergens</label>
+                <label><input type="checkbox" checked data-col-index="17" onchange="toggleColumn(17)"> Actions</label>
+            </div>
+            <div class="toggle-actions">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showAllColumns()">Show All</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="resetToDefault()">Reset to Default</button>
+            </div>
+        </div>
     </section>
 
     <!-- Joining List Section -->
@@ -41,23 +79,23 @@
             <table class="table table-bordered" id="joiningListTable">
                 <thead>
                     <tr>
-                        <th class="col-id">ID</th>
-                        <th class="col-fg-code">FG Code</th>
-                        <th class="col-description">Description</th>
-                        <th class="col-fw">FW</th>
-                        <th class="col-make-to-order">M.T.O</th>
-                        <th class="col-min-level">Min Level</th>
-                        <th class="col-max-level">Max Level</th>
-                        <th class="col-kg-unit">kg/unit</th>
-                        <th class="col-loss">Loss</th>
-                        <th class="col-filling-code">Filling Code</th>
-                        <th class="col-filling-description">Filling Description</th>
-                        <th class="col-production">Production</th>
-                        <th class="col-product-description">Product Description</th>
-                        <th class="col-units-per-bag">Units_per_box</th>
-                        <th class="col-weekly-average">Weekly Average</th>
-                        <th class="col-allergens">Allergens</th>
-                        <th class="col-actions">Actions</th>
+                        <th class="col-id" data-col-index="1">ID</th>
+                        <th class="col-fg-code" data-col-index="2">FG Code</th>
+                        <th class="col-description" data-col-index="3">Description</th>
+                        <th class="col-fw" data-col-index="4">FW</th>
+                        <th class="col-make-to-order" data-col-index="5">M.T.O</th>
+                        <th class="col-min-level" data-col-index="6">Min Level</th>
+                        <th class="col-max-level" data-col-index="7">Max Level</th>
+                        <th class="col-kg-unit" data-col-index="8">kg/unit</th>
+                        <th class="col-loss" data-col-index="9">Loss</th>
+                        <th class="col-filling-code" data-col-index="10">Filling Code</th>
+                        <th class="col-filling-description" data-col-index="11">Filling Description</th>
+                        <th class="col-production" data-col-index="12">Production</th>
+                        <th class="col-product-description" data-col-index="13">Product Description</th>
+                        <th class="col-units-per-bag" data-col-index="14">Units_per_box</th>
+                        <th class="col-weekly-average" data-col-index="15">Weekly Average</th>
+                        <th class="col-allergens" data-col-index="16">Allergens</th>
+                        <th class="col-actions" data-col-index="17">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -121,21 +159,110 @@
     .form-group {
         margin-bottom: 15px;
     }
+    
+    /* Column Toggle Styles */
+    #column-toggle {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #dee2e6;
+    }
+    
+    #column-toggle h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #495057;
+        font-size: 1.1rem;
+    }
+    
+    .column-toggle {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 5px;
+    }
+    
+    .column-toggle label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 0.9rem;
+        min-width: 150px;
+        padding: 2px 0;
+    }
+    
+    .column-toggle input[type="checkbox"] {
+        margin-right: 6px;
+        transform: scale(1.1);
+    }
+    
+    .toggle-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    /* Responsive breakpoints for column toggle */
+    @media (max-width: 1400px) {
+        .toggle-row {
+            flex-direction: column;
+            gap: 5px;
+        }
+        .column-toggle label {
+            min-width: auto;
+        }
+    }
+    
     .table-container {
         width: 100%;
+        overflow-x: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-top: 0;
     }
     .table {
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
+        font-size: 12px;
+        margin: 0;
     }
+    
+    .table th,
+    .table td {
+        border: 1px solid #ddd;
+        padding: 6px 8px;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .table th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        font-size: 11px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+    
     .no-results {
         text-align: center;
         padding: 20px;
     }
     .add-joining-btn {
         background-color: #007bff;
-        color: rgb(16, 173, 63);
+        color: white;
         padding: 8px 16px;
         border: none;
         border-radius: 4px;
@@ -154,6 +281,7 @@
         margin-top: 10px;
         margin-bottom: 10px;
     }
+    
     /* Column width adjustments */
     .col-id {
         width: 4%;
@@ -188,18 +316,41 @@
     .col-actions {
         width: 8%;
     }
-    /* Allow text wrapping for long content */
-    th, td {
-        white-space: normal;
-        word-wrap: break-word;
-
-        padding: 8px;
-        text-align: left;
+    
+    /* Responsive table styles */
+    @media (max-width: 1600px) {
+        .table {
+            font-size: 11px;
+        }
+        .table th,
+        .table td {
+            padding: 4px 6px;
+        }
+    }
+    
+    @media (max-width: 1400px) {
+        .table {
+            font-size: 10px;
+        }
+        .table th,
+        .table td {
+            padding: 3px 4px;
+        }
+    }
+    
+    @media (max-width: 1200px) {
+        .table {
+            font-size: 9px;
+        }
+        .table th,
+        .table td {
+            padding: 2px 3px;
+        }
     }
 
     .search-btn {
         background-color: #28a745; /* Green background */
-        color: rgb(14, 219, 48); /* White text for contrast */
+        color: white; /* White text for contrast */
         padding: 8px 16px; /* Consistent padding */
         border: none; /* Remove default border */
         border-radius: 4px; /* Rounded corners */
@@ -208,22 +359,14 @@
     .search-btn:hover {
         background-color: #218838; /* Darker green on hover */
     }
-
-    /* Existing styles continue... */
-    .suggestion-list {
-        position: absolute;
-        background: white;
-        border: 1px solid #ccc;
-        max-height: 200px;
-        overflow-y: auto;
-        width: 100%;
-        z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+    // Track column visibility (true = visible, false = hidden)
+    // Default visible columns: ID, FG Code, Description, FW, M.T.O, Min Level, Max Level, kg/unit, Filling Code, Weekly Average, Allergens, Actions
+    let columnVisibility = [true, true, true, true, true, true, true, true, false, true, false, false, false, false, true, true, true]; // 17 columns total
+
     $(document).ready(function() {
         // Autocomplete for FG Code
         $("#search_fg_code").keyup(function() {
@@ -264,7 +407,73 @@
                 $("#fg_code_suggestions").empty();
             }
         });
+
+        // Apply initial column visibility
+        applyColumnVisibility();
     });
+
+    // Apply column visibility based on the columnVisibility array
+    function applyColumnVisibility() {
+        for (let i = 1; i <= 17; i++) {
+            const selector = `#joiningListTable th[data-col-index="${i}"], #joiningListTable tbody td:nth-child(${i})`;
+            if (!columnVisibility[i - 1]) {
+                $(selector).hide();
+            } else {
+                $(selector).show();
+            }
+        }
+    }
+
+    // Column toggle functions
+    function toggleColumn(colIndex) {
+        columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
+        applyColumnVisibility();
+    }
+
+    function showEssentialColumns() {
+        // Show only essential columns: ID, FG Code, Description, Actions
+        const essentialColumns = [1, 2, 3, 17];
+        columnVisibility = Array(17).fill(false);
+        essentialColumns.forEach(idx => {
+            columnVisibility[idx - 1] = true;
+        });
+        applyColumnVisibility();
+        updateCheckboxes();
+    }
+
+    function showAllColumns() {
+        columnVisibility = Array(17).fill(true);
+        applyColumnVisibility();
+        $('#column-toggle input[type="checkbox"]').prop('checked', true);
+    }
+
+    function resetToDefault() {
+        // Reset to default visible columns
+        columnVisibility = [true, true, true, true, true, true, true, true, false, true, false, false, false, false, true, true, true];
+        applyColumnVisibility();
+        updateCheckboxes();
+    }
+
+    function updateCheckboxes() {
+        $('#column-toggle input[type="checkbox"]').each(function() {
+            let idx = parseInt($(this).attr('data-col-index'));
+            $(this).prop('checked', columnVisibility[idx - 1]);
+        });
+    }
+
+    // Reset filters function
+    function resetFilters() {
+        $("#search_fg_code").val('');
+        $("#search_description").val('');
+        $("#fg_code_suggestions").empty();
+        
+        // Reset to show all joinings
+        var tableBody = $("#joiningListTable tbody");
+        tableBody.empty();
+        
+        // Re-populate with all joinings from server
+        window.location.reload();
+    }
 
     // Function to add a new joining
     function addJoining(fgCode) {
@@ -343,6 +552,9 @@
                         </tr>
                     `);
                 }
+
+                // Apply column visibility after populating the table
+                applyColumnVisibility();
             },
             error: function() {
                 var tableBody = $("#joiningListTable tbody");
@@ -352,6 +564,7 @@
                         <td colspan="17" class="no-results">Error fetching joinings.</td>
                     </tr>
                 `);
+                applyColumnVisibility();
             }
         });
     }

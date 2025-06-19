@@ -31,13 +31,17 @@
             <select class="form-control" id="raw_material_id" name="raw_material_id" required>
                 <option value="">Select Raw Material</option>
                 {% for material in raw_materials %}
-                    <option value="{{ material.id }}">{{ material.raw_material }}</option>
+                    <option value="{{ material.id }}">{{ material.description or material.item_code }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="form-group">
             <label for="price_per_kg">$/kg</label>
             <input type="number" step="0.01" class="form-control" id="price_per_kg" name="price_per_kg" required>
+        </div>
+        <div class="form-group">
+            <label for="total_required">Total Required</label>
+            <input type="number" step="0.01" class="form-control" id="total_required" name="total_required" required>
         </div>
         <div class="form-group">
             <label for="soh">SOH</label>
@@ -84,7 +88,7 @@
             <input type="number" step="0.01" class="form-control" id="friday2" name="friday2" required>
         </div>
         <button type="submit" class="btn btn-primary">Create</button>
-        <a href="{{ url_for('inventory.list_inventory') }}" class="btn btn-secondary">Cancel</a>
+        <a href="{{ url_for('inventory.inventory_page') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 {% endblock %}

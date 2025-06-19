@@ -25,8 +25,8 @@
                         <div class="form-group">
                             <label for="item_type" class="form-label">Item Type *</label>
                             <select id="item_type" name="item_type" class="form-select" required>
-                                <option value="raw_material">Raw Material</option>
-                                <option value="finished_good">Finished Good</option>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Finished Good">Finished Good</option>
                             </select>
                         </div>
                     </div>
@@ -83,11 +83,13 @@
                     </div>
                     <div class="col-md-4">
                         <div class="form-group">
-                            <label for="is_active" class="form-label">Status</label>
-                            <select id="is_active" name="is_active" class="form-select">
-                                <option value="True">Active</option>
-                                <option value="False">Inactive</option>
-                            </select>
+                            <label class="form-label">Status</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
+                                <label class="form-check-label" for="is_active">
+                                    <span id="status-label">Active</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -164,11 +166,13 @@
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
-                                <label for="is_make_to_order" class="form-label">Make to Order</label>
-                                <select id="is_make_to_order" name="is_make_to_order" class="form-select">
-                                    <option value="False">No</option>
-                                    <option value="True">Yes</option>
-                                </select>
+                                <label class="form-label">Make to Order</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="is_make_to_order" name="is_make_to_order">
+                                    <label class="form-check-label" for="is_make_to_order">
+                                        <span id="mto-label">No</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -248,6 +252,63 @@
     background-color: #858796;
     border-color: #858796;
 }
+
+/* Toggle Switch Styles */
+.form-check-input {
+    width: 2em;
+    height: 1em;
+    margin-top: 0.25em;
+    vertical-align: top;
+    background-color: #dee2e6;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    appearance: none;
+    color-adjust: exact;
+}
+
+.form-check-input:checked {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.form-check-input:focus {
+    border-color: #bac8f3;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+}
+
+.form-check-input:checked:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+}
+
+.form-check-label {
+    margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+#status-label, #mto-label {
+    color: #5a5c69;
+    font-weight: 600;
+}
+
+.form-check-input:checked + .form-check-label #status-label {
+    color: #1cc88a;
+}
+
+.form-check-input:not(:checked) + .form-check-label #status-label {
+    color: #e74a3b;
+}
+
+.form-check-input:checked + .form-check-label #mto-label {
+    color: #1cc88a;
+}
+
+.form-check-input:not(:checked) + .form-check-label #mto-label {
+    color: #5a5c69;
+}
 </style>
 
 <script>
@@ -255,9 +316,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemTypeSelect = document.getElementById('item_type');
     const rawMaterialFields = document.getElementById('raw-material-fields');
     const finishedGoodFields = document.getElementById('finished-good-fields');
+    const statusToggle = document.getElementById('is_active');
+    const statusLabel = document.getElementById('status-label');
+    const mtoToggle = document.getElementById('is_make_to_order');
+    const mtoLabel = document.getElementById('mto-label');
+
+    // Status toggle handler
+    statusToggle.addEventListener('change', function() {
+        statusLabel.textContent = this.checked ? 'Active' : 'Inactive';
+    });
+
+    // Make to Order toggle handler
+    mtoToggle.addEventListener('change', function() {
+        mtoLabel.textContent = this.checked ? 'Yes' : 'No';
+    });
 
     function toggleFields() {
-        if (itemTypeSelect.value === 'raw_material') {
+        if (itemTypeSelect.value === 'Raw Material') {
             rawMaterialFields.style.display = 'block';
             finishedGoodFields.style.display = 'none';
             // Clear finished good fields
@@ -265,8 +340,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('kg_per_unit').value = '';
             document.getElementById('units_per_bag').value = '';
             document.getElementById('loss_percentage').value = '';
-            document.getElementById('is_make_to_order').value = 'False';
-        } else if (itemTypeSelect.value === 'finished_good') {
+            mtoToggle.checked = false;
+            mtoLabel.textContent = 'No';
+        } else if (itemTypeSelect.value === 'Finished Good') {
             rawMaterialFields.style.display = 'none';
             finishedGoodFields.style.display = 'block';
             // Clear raw material fields
@@ -278,6 +354,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     itemTypeSelect.addEventListener('change', toggleFields);
+    
+    // Initialize toggle states
+    toggleFields();
 
     document.getElementById('item-form').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -293,9 +372,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Convert boolean strings to actual booleans
-        data.is_active = data.is_active === 'True';
-        data.is_make_to_order = data.is_make_to_order === 'True';
+        // Handle checkbox values for toggles
+        data.is_active = statusToggle.checked;
+        data.is_make_to_order = mtoToggle.checked;
 
         fetch('/item-master', {
             method: 'POST',

@@ -82,8 +82,8 @@
                             <td>
                                 <select name="finished_good_id" required>
                                     <option value="">Select Finished Good</option>
-                                    {% for finished_good in finished_goods %}
-                                    <option value="{{ finished_good.id }}">{{ finished_good.item_code }} - {{ finished_good.description }}</option>
+                                    {% for fg in finished_goods %}
+                                    <option value="{{ fg.id }}">{{ fg.item_code }} - {{ fg.description }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -122,6 +122,21 @@
                 <button type="submit" class="btn btn-success">Update Recipe</button>
             </form>
         </div>
+    </div>
+
+    <!-- Hidden templates for raw materials and finished goods -->
+    <div id="raw-material-options" style="display: none;">
+        <option value="">Select Raw Material</option>
+        {% for material in raw_materials %}
+        <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
+        {% endfor %}
+    </div>
+
+    <div id="finished-good-options" style="display: none;">
+        <option value="">Select Finished Good</option>
+        {% for fg in finished_goods %}
+        <option value="{{ fg.id }}">{{ fg.item_code }} - {{ fg.description }}</option>
+        {% endfor %}
     </div>
 </div>
 
@@ -217,6 +232,33 @@
 </style>
 
 <script>
+// Get the raw material and finished good options from the hidden templates
+function getRawMaterialOptions(selectedId = "") {
+    const template = document.getElementById('raw-material-options');
+    const options = Array.from(template.children);
+    let html = '';
+    
+    options.forEach(option => {
+        const isSelected = option.value === selectedId ? ' selected' : '';
+        html += `<option value="${option.value}"${isSelected}>${option.textContent}</option>`;
+    });
+    
+    return html;
+}
+
+function getFinishedGoodOptions(selectedId = "") {
+    const template = document.getElementById('finished-good-options');
+    const options = Array.from(template.children);
+    let html = '';
+    
+    options.forEach(option => {
+        const isSelected = option.value === selectedId ? ' selected' : '';
+        html += `<option value="${option.value}"${isSelected}>${option.textContent}</option>`;
+    });
+    
+    return html;
+}
+
 $(document).ready(function() {
     $("#search-input").keyup(function () {
         var recipeCode = $(this).val().trim();
@@ -291,6 +333,8 @@ function fetchRecipes() {
 function openAddRecipePopup(recipeCode = '') {
     document.getElementById('addRecipePopup').classList.add('active');
     document.getElementById('add-recipe-form').reset();
+    
+    // Reset the table body and add a fresh row with populated dropdowns
     const tableBody = document.getElementById('addRecipeTable').getElementsByTagName('tbody')[0];
     tableBody.innerHTML = `
         <tr>
@@ -298,24 +342,19 @@ function openAddRecipePopup(recipeCode = '') {
             <td><input type="text" name="description" required></td>
             <td>
                 <select name="raw_material_id" required>
-                    <option value="">Select Raw Material</option>
-                    {% for material in raw_materials %}
-                    <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
-                    {% endfor %}
+                    ${getRawMaterialOptions()}
                 </select>
             </td>
             <td>
                 <select name="finished_good_id" required>
-                    <option value="">Select Finished Good</option>
-                    {% for finished_good in finished_goods %}
-                    <option value="{{ finished_good.id }}">{{ finished_good.item_code }} - {{ finished_good.description }}</option>
-                    {% endfor %}
+                    ${getFinishedGoodOptions()}
                 </select>
             </td>
             <td><input type="number" name="kg_per_batch" step="0.001" min="0" required></td>
             <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
         </tr>
     `;
+    
     // Ensure no recipe ID is set for new recipes
     tableBody.querySelector('input[name="recipe_code"]').removeAttribute('data-recipe-id');
 }
@@ -343,26 +382,18 @@ function openEditRecipePopup(recipeId) {
                     <td><input type="text" name="description" value="${recipe.description}" required></td>
                     <td>
                         <select name="raw_material_id" required>
-                            <option value="">Select Raw Material</option>
-                            {% for material in raw_materials %}
-                            <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
-                            {% endfor %}
+                            ${getRawMaterialOptions(recipe.raw_material_id.toString())}
                         </select>
                     </td>
                     <td>
                         <select name="finished_good_id" required>
-                            <option value="">Select Finished Good</option>
-                            {% for finished_good in finished_goods %}
-                            <option value="{{ finished_good.id }}">{{ finished_good.item_code }} - {{ finished_good.description }}</option>
-                            {% endfor %}
+                            ${getFinishedGoodOptions(recipe.finished_good_id.toString())}
                         </select>
                     </td>
                     <td><input type="number" name="kg_per_batch" value="${recipe.kg_per_batch}" step="0.001" min="0" required></td>
                     <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
                 `;
                 row.querySelector('input[name="recipe_code"]').dataset.recipeId = recipe.id;
-                row.querySelector('select[name="raw_material_id"]').value = recipe.raw_material_id;
-                row.querySelector('select[name="finished_good_id"]').value = recipe.finished_good_id;
                 tableBody.appendChild(row);
             });
             
@@ -387,29 +418,18 @@ function addRecipeRow(tableId, recipe = null) {
         <td><input type="text" name="description" value="${existingDescription || (recipe ? recipe.description : '')}" required></td>
         <td>
             <select name="raw_material_id" required>
-                <option value="">Select Raw Material</option>
-                {% for material in raw_materials %}
-                <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
-                {% endfor %}
+                ${getRawMaterialOptions(recipe ? recipe.raw_material_id.toString() : "")}
             </select>
         </td>
         <td>
             <select name="finished_good_id" required>
-                <option value="">Select Finished Good</option>
-                {% for finished_good in finished_goods %}
-                <option value="{{ finished_good.id }}">{{ finished_good.item_code }} - {{ finished_good.description }}</option>
-                {% endfor %}
+                ${getFinishedGoodOptions(recipe ? recipe.finished_good_id.toString() : "")}
             </select>
         </td>
         <td><input type="number" name="kg_per_batch" step="0.001" min="0" value="${recipe ? recipe.kg_per_batch : ''}" required></td>
         <td><button type="button" class="delete-row-btn" onclick="deleteRecipeRow(this)">Delete</button></td>
     `;
-    if (recipe && recipe.raw_material_id) {
-        newRow.querySelector('select[name="raw_material_id"]').value = recipe.raw_material_id;
-    }
-    if (recipe && recipe.finished_good_id) {
-        newRow.querySelector('select[name="finished_good_id"]').value = recipe.finished_good_id;
-    }
+    
     if (recipe && recipe.id) {
         newRow.querySelector('input[name="recipe_code"]').dataset.recipeId = recipe.id;
     }

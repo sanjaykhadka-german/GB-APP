@@ -49,7 +49,6 @@ def create_app():
     from controllers.recipe_controller import recipe_bp
     from controllers.production_plan_controller import production_plan_bp
     from controllers.inject_products_controller import injected_products_bp
-    from controllers.raw_materials_controller import raw_materials_bp
     from controllers.inventory_controller import inventory_bp
     from controllers.department_controller import department_bp
     from controllers.machinery_controller import machinery_bp
@@ -66,7 +65,6 @@ def create_app():
     app.register_blueprint(recipe_bp)
     app.register_blueprint(production_plan_bp, url_prefix='/production_plan')
     app.register_blueprint(injected_products_bp)
-    app.register_blueprint(raw_materials_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(department_bp)
     app.register_blueprint(machinery_bp)    
@@ -78,7 +76,6 @@ def create_app():
     # Import models
     from models import soh, finished_goods, item_master, recipe_master, usage_report
     from models import machinery, department, category, production, packing, filling, allergen, joining_allergen
-    from models import RawMaterials
     
 
     @app.template_filter('format_date')

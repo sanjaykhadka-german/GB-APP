@@ -10,7 +10,6 @@ from .packing import Packing
 from .filling import Filling
 from .production import Production 
 from .raw_material_report import RawMaterialReport
-from .raw_materials import RawMaterials
 #from .finished_goods import FinishedGoods
 from .allergen import Allergen
 from .joining_allergen import JoiningAllergen

@@ -112,16 +112,17 @@ def save_item():
     try:
         data = request.get_json()
         
-        # For edit case
+        item_type_name = data.get('item_type')
+        if not item_type_name:
+            return jsonify({'error': 'item_type is required'}), 400
+        # For new item, check if item_code already exists
         if data.get('id'):
             item = ItemMaster.query.get_or_404(data['id'])
         else:
-            # For new item, check if item_code already exists
             item_code = data['item_code']
             # Add "RM_" prefix for raw materials
-            item_type_name = data['item_type']
             if item_type_name == 'Raw Material':
-                item_code = f"RM_{item_code}"
+                item_code = f"{item_code}"
             if ItemMaster.query.filter_by(item_code=item_code).first():
                 return jsonify({'error': 'Item code already exists'}), 400
             item = ItemMaster()
@@ -129,7 +130,7 @@ def save_item():
         # Update basic fields
         item.item_code = item_code
         item.description = data['description']
-        item.item_type = data['item_type']
+        item.item_type = item_type_name
         item.category_id = data['category_id'] if data['category_id'] else None
         item.department_id = data['department_id'] if data['department_id'] else None
         item.machinery_id = data['machinery_id'] if data['machinery_id'] else None
@@ -139,7 +140,7 @@ def save_item():
         item.is_active = data['is_active']
         
         # Update type-specific fields
-        if data['item_type'] == 'Raw Material':
+        if item_type_name == 'Raw Material':
             item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
             # Clear finished good fields
             item.is_make_to_order = False

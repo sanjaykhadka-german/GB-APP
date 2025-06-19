@@ -44,10 +44,10 @@ class RawMaterialReport(db.Model):
     raw_material = Column(String(255), nullable=False)
     meat_required = Column(Float, nullable=False)
     created_at = Column(DateTime)
-    raw_material_id = Column(Integer, ForeignKey('raw_materials.id'))
+    raw_material_id = Column(Integer, ForeignKey('item_master.id'))
 
     # Relationship
-    raw_material_ref = relationship('RawMaterials', backref='raw_material_reports')
+    raw_material_ref = relationship('ItemMaster', backref='raw_material_reports')
 
     def __repr__(self):
         return f'<RawMaterialReport {self.raw_material} - {self.production_date}>'
