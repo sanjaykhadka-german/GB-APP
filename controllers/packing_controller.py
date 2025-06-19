@@ -5,6 +5,7 @@ from models.production import Production
 from models.soh import SOH
 from models.filling import Filling
 from models.joining import Joining
+from models.allergen import Allergen
 from datetime import date, datetime, timedelta
 from database import db
 from sqlalchemy.sql import text
@@ -384,7 +385,8 @@ def packing_create():
 
     products = Joining.query.order_by(Joining.fg_code).all()
     machinery = Machinery.query.all()
-    return render_template('packing/create.html', products=products, machinery=machinery, current_page="packing")
+    allergens = Allergen.query.all()
+    return render_template('packing/create.html', products=products, machinery=machinery, allergens=allergens, current_page="packing")
 
 
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])

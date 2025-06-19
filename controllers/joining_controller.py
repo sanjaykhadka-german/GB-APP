@@ -52,7 +52,7 @@ def joining_create():
         production = request.form.get('production')
         units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') else None
         weekly_average = float(request.form['weekly_average']) if request.form.get('weekly_average') else None
-        allergens = request.form.getlist('allergens')
+        allergen_ids = request.form.getlist('allergen_ids')
 
         new_joining = Joining(
             fg_code=fg_code,
@@ -73,9 +73,8 @@ def joining_create():
         db.session.flush()  # Flush to get the new joining ID
 
          # Associate selected allergens
-
-        if allergens:
-            selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergens)).all()
+        if allergen_ids:
+            selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergen_ids)).all()
             new_joining.allergens = selected_allergens
 
 
@@ -113,11 +112,14 @@ def joining_edit(id):
             joining.production = request.form.get('production')
             joining.units_per_bag = float(request.form['units_per_bag']) if request.form.get('units_per_bag') and request.form['units_per_bag'].strip() else None
             joining.weekly_average = float(request.form['weekly_average']) if request.form.get('weekly_average') and request.form['weekly_average'].strip() else None
-            allergens = request.form.getlist('allergens')
+            allergen_ids = request.form.getlist('allergen_ids')
 
             # update allergens
-            selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergens)).all()
-            joining.allergens = selected_allergens
+            if allergen_ids:
+                selected_allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergen_ids)).all()
+                joining.allergens = selected_allergens
+            else:
+                joining.allergens = []
 
             print("Joining object before commit:", joining.__dict__)  # Debug: Log object state
             db.session.commit()
