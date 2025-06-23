@@ -37,14 +37,13 @@ def item_master_create():
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
-    return render_template('item_master/edit.html',
+    return render_template('item_master/create.html',
                          categories=categories,
                          departments=departments,
                          machinery=machinery,
                          uoms=uoms,
                          allergens=allergens,
                          item_types=item_types,
-                         item=None,
                          current_page='item_master')
 
 @item_master_bp.route('/item-master/edit/<int:id>', methods=['GET'])

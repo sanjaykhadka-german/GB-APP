@@ -1,12 +1,17 @@
-
 from database import db
 
 class SOH(db.Model):
     __tablename__ = 'soh'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     week_commencing = db.Column(db.Date, nullable=True)
-    fg_code = db.Column(db.String(50), nullable=False)
+    
+    # Foreign key to ItemMaster instead of fg_code string
+    item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
+    
+    # Keep fg_code temporarily for migration compatibility (will be removed later)
+    fg_code = db.Column(db.String(50), nullable=True)
     description = db.Column(db.String(255))
+    
     soh_dispatch_boxes = db.Column(db.Float, default=0.0)
     soh_dispatch_units = db.Column(db.Float, default=0.0)
     soh_packing_boxes = db.Column(db.Float, default=0.0)
@@ -15,6 +20,14 @@ class SOH(db.Model):
     soh_total_units = db.Column(db.Float, default=0.0)
     edit_date = db.Column(db.DateTime, default=db.func.current_timestamp())
 
+    # Relationships
+    item = db.relationship('ItemMaster', backref='soh_records')
+
     __table_args__ = (
-        db.UniqueConstraint('week_commencing', 'fg_code', name='uix_soh_week_commencing_fg_code'),
+        db.UniqueConstraint('week_commencing', 'item_id', name='uix_soh_week_commencing_item_id'),
+        # Keep old constraint temporarily for migration
+        db.Index('idx_soh_fg_code', 'fg_code'),
     )
+
+    def __repr__(self):
+        return f"<SOH {self.item.item_code if self.item else self.fg_code} - {self.week_commencing}>"

@@ -711,11 +711,15 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('loss_percentage').value = '';
             mtoToggle.checked = false;
             mtoLabel.textContent = 'No';
-        } else if (itemTypeSelect.value && itemTypeSelect.value !== 'new') {
+        } else if (itemTypeSelect.value === 'Finished Good' || itemTypeSelect.value === 'WIPF' || itemTypeSelect.value === 'WIP') {
             rawMaterialFields.style.display = 'none';
             finishedGoodFields.style.display = 'block';
             // Clear raw material fields
             document.getElementById('price_per_kg').value = '';
+        } else if (itemTypeSelect.value && itemTypeSelect.value !== 'new') {
+            // For any other item types, hide both sections
+            rawMaterialFields.style.display = 'none';
+            finishedGoodFields.style.display = 'none';
         }
     }
 
