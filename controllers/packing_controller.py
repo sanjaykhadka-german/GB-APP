@@ -4,7 +4,7 @@ from models.packing import Packing
 from models.production import Production
 from models.soh import SOH
 from models.filling import Filling
-from models.joining import Joining
+from models.item_master import ItemMaster
 from models.allergen import Allergen
 from datetime import date, datetime, timedelta
 from database import db
@@ -42,11 +42,11 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         if not soh:
             return False, f"No SOH entry found for fg_code {fg_code} and week_commencing {week_commencing}"
 
-        # Fetch avg_weight_per_unit from Joining table
-        joining = Joining.query.filter_by(fg_code=fg_code).first()
-        if not joining:
-            return False, f"No Joining entry found for fg_code {fg_code}"
-        avg_weight_per_unit = avg_weight_per_unit or joining.kg_per_unit or 0.0  # Fetch from Joining
+        # Fetch avg_weight_per_unit from Item Master table
+        item = ItemMaster.query.filter_by(item_code=fg_code).first()
+        if not item:
+            return False, f"No item found for fg_code {fg_code}"
+        avg_weight_per_unit = avg_weight_per_unit or item.kg_per_unit or 0.0  # Fetch from Item Master
 
         # Use provided weekly_average or fetch from existing Packing entry
         packing = Packing.query.filter_by(
@@ -70,10 +70,10 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
         weekly_average = weekly_average if weekly_average is not None else (packing.weekly_average if packing else 0.0)
 
-        # Calculate soh_requirement_units_week based on SOH and Joining
+        # Calculate soh_requirement_units_week based on SOH and Item Master
         soh_units = soh.soh_total_units if soh else 0
-        min_level = joining.min_level or 0.0
-        max_level = joining.max_level or 0.0
+        min_level = item.min_level or 0.0
+        max_level = item.max_level or 0.0
         soh_requirement_units_week = soh_requirement_units_week if soh_requirement_units_week is not None else (
             int(max_level - soh_units) if soh_units < min_level else 0
         )
@@ -114,31 +114,37 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         db.session.commit()
 
         # Update Filling and Production entries
-        joining = Joining.query.filter_by(fg_code=fg_code).first()
-        if joining:
-            filling = Filling.query.filter_by(
-                filling_date=packing.packing_date,
-                fill_code=joining.filling_code
-            ).first()
-
-            if filling:
-                filling.kilo_per_size = packing.requirement_kg
-                filling.description = joining.filling_description
-                filling.week_commencing = week_commencing
-            else:
-                filling = Filling(
+        if item and item.filling_code:
+            # Find the WIPF item for filling
+            wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code, item_type='WIPF').first()
+            if wipf_item:
+                filling = Filling.query.filter_by(
                     filling_date=packing.packing_date,
-                    fill_code=joining.filling_code,
-                    description=joining.filling_description,
-                    kilo_per_size=packing.requirement_kg,
-                    week_commencing=week_commencing
-                )
-                db.session.add(filling)
-            db.session.commit()
+                    fill_code=item.filling_code
+                ).first()
 
-            update_production_entry(packing.packing_date, joining.filling_code, joining, week_commencing=week_commencing)
+                if filling:
+                    filling.kilo_per_size = packing.requirement_kg
+                    filling.description = wipf_item.description
+                    filling.week_commencing = week_commencing
+                else:
+                    filling = Filling(
+                        filling_date=packing.packing_date,
+                        fill_code=item.filling_code,
+                        description=wipf_item.description,
+                        kilo_per_size=packing.requirement_kg,
+                        week_commencing=week_commencing
+                    )
+                    db.session.add(filling)
+                db.session.commit()
+
+                # For production entry, find the WIP item
+                if item.production_code:
+                    wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
+                    if wip_item:
+                        update_production_entry(packing.packing_date, item.filling_code, item, week_commencing=week_commencing)
         else:
-            logger.warning(f"No Joining record found for product code {fg_code}. Filling entry not updated.")
+            logger.warning(f"No item record or filling_code found for product code {fg_code}. Filling entry not updated.")
 
         return True, "Packing entry updated successfully"
     except Exception as e:
@@ -204,9 +210,9 @@ def packing_list():
         soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
         soh_units = soh.soh_total_units if soh else 0
 
-        # Get Joining data for avg_weight_per_unit
-        joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-        avg_weight_per_unit = joining.kg_per_unit if joining else 0.0
+        # Get Item Master data for avg_weight_per_unit
+        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+        avg_weight_per_unit = item.kg_per_unit if item else 0.0
 
         # Calculate special order unit
         special_order_unit = round(packing.special_order_kg / avg_weight_per_unit) if packing.special_order_kg and avg_weight_per_unit else 0
@@ -296,12 +302,12 @@ def packing_create():
                     flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
                     return redirect(url_for('packing.packing_create'))
 
-            # Fetch Joining data for avg_weight_per_unit
-            joining = Joining.query.filter_by(fg_code=product_code).first()
-            if not joining:
-                flash(f"No Joining record found for product code {product_code}.", 'danger')
+            # Fetch Item Master data for avg_weight_per_unit
+            item = ItemMaster.query.filter_by(item_code=product_code).first()
+            if not item:
+                flash(f"No item record found for product code {product_code}.", 'danger')
                 return redirect(url_for('packing.packing_create'))
-            avg_weight_per_unit = joining.kg_per_unit or 0.0
+            avg_weight_per_unit = item.kg_per_unit or 0.0
 
             # Fetch SOH data and calculate soh_requirement_units_week
             soh = SOH.query.filter_by(fg_code=product_code, week_commencing=week_commencing).first()
@@ -309,8 +315,8 @@ def packing_create():
                 flash(f"No SOH entry found for product code {product_code} and week commencing {week_commencing}.", 'danger')
                 return redirect(url_for('packing.packing_create'))
             soh_units = soh.soh_total_units if soh else 0
-            min_level = joining.min_level or 0.0
-            max_level = joining.max_level or 0.0
+            min_level = item.min_level or 0.0
+            max_level = item.max_level or 0.0
             soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
             # Perform calculations
@@ -346,31 +352,35 @@ def packing_create():
             db.session.commit()
 
             # Update Filling and Production
-            if joining:
-                existing_filling = Filling.query.filter_by(
-                    filling_date=packing_date,
-                    fill_code=joining.filling_code
-                ).first()
-
-                if existing_filling:
-                    
-                    existing_filling.kilo_per_size += requirement_kg
-                    existing_filling.description = joining.filling_description
-                    existing_filling.week_commencing = week_commencing
-                else:
-                    new_filling = Filling(
+            if item and item.filling_code:
+                # Find the WIPF item for filling
+                wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code, item_type='WIPF').first()
+                if wipf_item:
+                    existing_filling = Filling.query.filter_by(
                         filling_date=packing_date,
-                        fill_code=joining.filling_code,
-                        description=joining.filling_description,
-                        kilo_per_size=requirement_kg,
-                        week_commencing=week_commencing
-                    )
-                    db.session.add(new_filling)
-                db.session.commit()
+                        fill_code=item.filling_code
+                    ).first()
 
-                update_production_entry(packing_date, joining.filling_code, joining, week_commencing)
+                    if existing_filling:
+                        existing_filling.kilo_per_size += requirement_kg
+                        existing_filling.description = wipf_item.description
+                        existing_filling.week_commencing = week_commencing
+                    else:
+                        new_filling = Filling(
+                            filling_date=packing_date,
+                            fill_code=item.filling_code,
+                            description=wipf_item.description,
+                            kilo_per_size=requirement_kg,
+                            week_commencing=week_commencing
+                        )
+                        db.session.add(new_filling)
+                    db.session.commit()
+
+                    # For production entry, find the WIP item
+                    if item.production_code:
+                        update_production_entry(packing_date, item.filling_code, item, week_commencing)
             else:
-                flash(f"No Joining record found for product code {product_code}. Filling entry not created.", 'warning')
+                flash(f"No item record or filling_code found for product code {product_code}. Filling entry not created.", 'warning')
 
             flash('Packing entry created successfully!', 'success')
             return redirect(url_for('packing.packing_list'))
@@ -383,7 +393,7 @@ def packing_create():
             flash(f'Error creating packing entry: {str(e)}', 'danger')
             logger.error(f"Error creating packing entry: {str(e)}")
 
-    products = Joining.query.order_by(Joining.fg_code).all()
+    products = ItemMaster.query.filter(ItemMaster.item_type.in_(['FG', 'WIPF'])).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     allergens = Allergen.query.all()
     return render_template('packing/create.html', products=products, machinery=machinery, allergens=allergens, current_page="packing")
@@ -424,19 +434,19 @@ def packing_edit(id):
                     flash(f'Invalid machinery ID {packing.machinery}. Please select a valid machinery.', 'danger')
                     return redirect(url_for('packing.packing_edit', id=id))
 
-            # Fetch avg_weight_per_unit from Joining
-            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-            if not joining:
-                flash(f"No Joining record found for {packing.product_code}.", 'danger')
+            # Fetch avg_weight_per_unit from Item Master
+            item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            if not item:
+                flash(f"No item record found for {packing.product_code}.", 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
-            avg_weight_per_unit = joining.kg_per_unit or 0.0
+            avg_weight_per_unit = item.kg_per_unit or 0.0
             packing.avg_weight_per_unit = avg_weight_per_unit
 
             # Calculate soh_requirement_units_week
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
-            min_level = joining.min_level or 0.0
-            max_level = joining.max_level or 0.0
+            min_level = item.min_level or 0.0
+            max_level = item.max_level or 0.0
             packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
             # Recalculate fields
@@ -463,9 +473,9 @@ def packing_edit(id):
             # Group Packing entries by fill_code
             fill_code_to_packing = {}
             for p in related_packings:
-                j = Joining.query.filter_by(fg_code=p.product_code).first()
-                if j:
-                    fill_code = j.filling_code
+                item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if item and item.filling_code:
+                    fill_code = item.filling_code
                     if fill_code not in fill_code_to_packing:
                         fill_code_to_packing[fill_code] = []
                     fill_code_to_packing[fill_code].append(p)
@@ -473,9 +483,9 @@ def packing_edit(id):
             # Update or consolidate Filling entries
             for fill_code, packings in fill_code_to_packing.items():
                 total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
-                j = Joining.query.filter_by(filling_code=fill_code).first()
-                if not j:
-                    logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+                wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type="WIPF").first()
+                if not wipf_item:
+                    logger.warning(f"No WIPF item found for fill_code {fill_code}. Skipping Filling update.")
                     continue
 
                 # Find existing Filling entry using the *original* packing_date
@@ -488,7 +498,7 @@ def packing_edit(id):
                 if existing_filling:
                     # Update the existing filling entry with the new packing_date
                     existing_filling.filling_date = packing.packing_date
-                    existing_filling.description = j.filling_description
+                    existing_filling.description = wipf_item.description
                     existing_filling.kilo_per_size = total_requirement_kg
                     existing_filling.week_commencing = packing.week_commencing
                     db.session.add(existing_filling)
@@ -498,17 +508,17 @@ def packing_edit(id):
                         filling = Filling(
                             filling_date=packing.packing_date,
                             fill_code=fill_code,
-                            description=j.filling_description,
+                            description=wipf_item.description,
                             kilo_per_size=total_requirement_kg,
                             week_commencing=packing.week_commencing
                         )
                         db.session.add(filling)
 
-            # Update or consolidate Production entry
-            production_code = joining.production if joining else None
+            # Update or consolidate Production entry  
+            production_code = item.production_code if item else None
             if production_code:
                 # Calculate batches
-                batch_size = joining.batch_size or 100.0  # Replace with actual batch_size
+                batch_size = 100.0  # Default batch size
                 batches = total_requirement_kg / batch_size if batch_size > 0 else 0
 
                 # Find existing Production entry using the *original* packing_date
@@ -521,7 +531,8 @@ def packing_edit(id):
                 if existing_production:
                     # Update the existing production entry with the new packing_date
                     existing_production.production_date = packing.packing_date
-                    existing_production.description = joining.production_description or f"{production_code} - WIP"
+                    wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+                    existing_production.description = wip_item.description if wip_item else f"{production_code} - WIP"
                     existing_production.batches = batches
                     existing_production.total_kg = total_requirement_kg
                     existing_production.week_commencing = packing.week_commencing
@@ -529,10 +540,11 @@ def packing_edit(id):
                 else:
                     # Create a new production entry if none exists
                     if total_requirement_kg > 0:
+                        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
                         production = Production(
                             production_date=packing.packing_date,
                             production_code=production_code,
-                            description=joining.production_description or f"{production_code} - WIP",
+                            description=wip_item.description if wip_item else f"{production_code} - WIP",
                             batches=batches,
                             total_kg=total_requirement_kg,
                             week_commencing=packing.week_commencing
@@ -554,7 +566,7 @@ def packing_edit(id):
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
     # Fetch machinery, products, and related data
-    products = Joining.query.order_by(Joining.fg_code).all()
+    products = ItemMaster.query.filter(ItemMaster.item_type.in_(["FG", "WIPF"])).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     
     logger.debug(f"Machinery records: {[m.__dict__ for m in machinery]}")
@@ -569,15 +581,24 @@ def packing_edit(id):
         Packing.week_commencing == packing.week_commencing,
         Packing.product_code.ilike(f"{recipe_code_prefix}%")
     ).all()
-    related_fillings = Filling.query.join(Joining, Filling.fill_code == Joining.filling_code).filter(
+    # Get related fillings by finding items with matching filling codes
+    related_items = ItemMaster.query.filter(
+        ItemMaster.item_code.ilike(f"{recipe_code_prefix}%"),
+        ItemMaster.filling_code.isnot(None)
+    ).all()
+    filling_codes = [item.filling_code for item in related_items if item.filling_code]
+    related_fillings = Filling.query.filter(
         Filling.week_commencing == packing.week_commencing,
-        Joining.fg_code.ilike(f"{recipe_code_prefix}%")
-    ).all()
+        Filling.fill_code.in_(filling_codes)
+    ).all() if filling_codes else []
     total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in related_fillings)
-    related_productions = Production.query.join(Joining, Production.production_code == Joining.production).filter(
+    
+    # Get related productions by finding items with matching production codes
+    production_codes = [item.production_code for item in related_items if item.production_code]
+    related_productions = Production.query.filter(
         Production.week_commencing == packing.week_commencing,
-        Joining.fg_code.ilike(f"{recipe_code_prefix}%")
-    ).all()
+        Production.production_code.in_(production_codes)
+    ).all() if production_codes else []
     total_production_kg = sum(production.total_kg or 0 for production in related_productions) if related_productions else 0
 
     return render_template('packing/edit.html',
@@ -598,11 +619,11 @@ def packing_delete(id):
     packing = Packing.query.get_or_404(id)
     try:
         # Adjust corresponding Filling entry
-        joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-        if joining:
+        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+        if item and item.filling_code:
             filling = Filling.query.filter_by(
                 filling_date=packing.packing_date,
-                fill_code=joining.filling_code
+                fill_code=item.filling_code
             ).first()
             if filling:
                 filling.kilo_per_size -= packing.requirement_kg
@@ -611,7 +632,7 @@ def packing_delete(id):
                 else:
                     db.session.commit()
                 # Update corresponding Production entry
-                update_production_entry(packing.packing_date, joining.filling_code, joining, packing.week_commencing)
+                update_production_entry(packing.packing_date, item.filling_code, item, packing.week_commencing)
 
         db.session.delete(packing)
         db.session.commit()
@@ -630,9 +651,11 @@ def autocomplete_packing():
         return jsonify([])
 
     try:
-        query = text("SELECT fg_code, description FROM joining WHERE fg_code LIKE :search LIMIT 10")
-        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
-        suggestions = [{"fg_code": row[0], "description": row[1]} for row in results]
+        results = ItemMaster.query.filter(
+            ItemMaster.item_code.ilike(f"{search}%"),
+            ItemMaster.item_type.in_(['FG', 'WIPF'])
+        ).limit(10).all()
+        suggestions = [{"fg_code": item.item_code, "description": item.description} for item in results]
         return jsonify(suggestions)
     except Exception as e:
         logger.error("Error fetching packing autocomplete suggestions:", e)
@@ -764,18 +787,18 @@ def bulk_edit():
                 if not machinery_exists:
                     return jsonify({'success': False, 'message': f'Invalid machinery ID {packing.machinery} for packing ID {packing_id}.'})
 
-            # Fetch avg_weight_per_unit from Joining
-            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-            if not joining:
+            # Fetch avg_weight_per_unit from ItemMaster
+            item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            if not item:
                 continue
-            avg_weight_per_unit = joining.kg_per_unit or 0.0
+            avg_weight_per_unit = item.kg_per_unit or 0.0
             packing.avg_weight_per_unit = avg_weight_per_unit
 
             # Calculate soh_requirement_units_week
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
-            min_level = joining.min_level or 0.0
-            max_level = joining.max_level or 0.0
+            min_level = item.min_level or 0.0
+            max_level = item.max_level or 0.0
             packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
             # Recalculate fields
@@ -802,9 +825,9 @@ def bulk_edit():
             # Group Packing entries by fill_code
             fill_code_to_packing = {}
             for p in related_packings:
-                j = Joining.query.filter_by(fg_code=p.product_code).first()
-                if j:
-                    fill_code = j.filling_code
+                item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if item and item.filling_code:
+                    fill_code = item.filling_code
                     if fill_code not in fill_code_to_packing:
                         fill_code_to_packing[fill_code] = []
                     fill_code_to_packing[fill_code].append(p)
@@ -818,9 +841,9 @@ def bulk_edit():
                     week_commencing=packings[0].week_commencing
                 ).first()
 
-                j = Joining.query.filter_by(filling_code=fill_code).first()
-                if not j:
-                    logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+                wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type="WIPF").first()
+                if not wipf_item:
+                    logger.warning(f"No WIPF item found for fill_code {fill_code}. Skipping Filling update.")
                     continue
 
                 if filling:
@@ -832,7 +855,7 @@ def bulk_edit():
                         filling = Filling(
                             filling_date=packings[0].packing_date,
                             fill_code=fill_code,
-                            description=j.filling_description,
+                            description=wipf_item.description,
                             kilo_per_size=total_requirement_kg,
                             week_commencing=packings[0].week_commencing
                         )
@@ -840,7 +863,10 @@ def bulk_edit():
                 db.session.commit()
 
                 # Update Production entry
-                update_production_entry(packings[0].packing_date, fill_code, j, packings[0].week_commencing)
+                # Find the original finished good item to get its production code
+                original_fg_item = ItemMaster.query.filter_by(item_code=packings[0].product_code).first()
+                if original_fg_item:
+                    update_production_entry(packings[0].packing_date, fill_code, original_fg_item, packings[0].week_commencing)
 
         return jsonify({'success': True, 'message': 'Packing entries updated successfully!'})
     except Exception as e:
@@ -904,10 +930,10 @@ def export_packings():
             week_commencing = packing.week_commencing or get_monday_of_week(packing.packing_date)
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
-            joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-            avg_weight_per_unit = joining.kg_per_unit if joining else 0.0
-            min_level = joining.min_level or 0.0 if joining else 0.0
-            max_level = joining.max_level or 0.0 if joining else 0.0
+            item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            avg_weight_per_unit = item.kg_per_unit if item else 0.0
+            min_level = item.min_level or 0.0 if item else 0.0
+            max_level = item.max_level or 0.0 if item else 0.0
             soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
             special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
@@ -961,12 +987,17 @@ def export_packings():
         flash(f"Error exporting to Excel: {str(e)}", 'danger')
         return redirect(url_for('packing.packing_list'))
 
-def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
+def update_production_entry(filling_date, fill_code, item, week_commencing=None):
     """Helper function to create or update a Production entry."""
     try:
-        # Get production_code and description from Joining
-        production_code = joining.production
-        product_description = joining.product_description
+        # Get production_code and description from Item Master
+        production_code = item.production_code
+        if not production_code:
+            return  # No production code, nothing to update
+            
+        # Get WIP item for production description
+        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+        product_description = wip_item.description if wip_item else f"{production_code} - WIP"
 
         fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
         if len(fill_code_prefix) > 1:
@@ -1054,19 +1085,19 @@ def update_cell():
         setattr(packing, field, value)
 
         # Recalculate dependent fields
-        joining = Joining.query.filter_by(fg_code=packing.product_code).first()
-        if not joining:
-            return jsonify({"success": False, "message": f"No Joining record found for {packing.product_code}."}), 400
+        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+        if not item:
+            return jsonify({"success": False, "message": f"No item record found for {packing.product_code}."}), 400
 
-        avg_weight_per_unit = joining.kg_per_unit or 0.0
+        avg_weight_per_unit = item.kg_per_unit or 0.0
         packing.avg_weight_per_unit = avg_weight_per_unit
 
         # Fetch SOH data
         soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
         soh_units = soh.soh_total_units if soh else 0
 
-        min_level = joining.min_level or 0.0
-        max_level = joining.max_level or 0.0
+        min_level = item.min_level or 0.0
+        max_level = item.max_level or 0.0
         packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
         # Update calculated fields
@@ -1092,9 +1123,9 @@ def update_cell():
         # Group Packing entries by fill_code
         fill_code_to_packing = {}
         for p in related_packings:
-            j = Joining.query.filter_by(fg_code=p.product_code).first()
-            if j:
-                fill_code = j.filling_code
+            item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+            if item and item.filling_code:
+                fill_code = item.filling_code
                 if fill_code not in fill_code_to_packing:
                     fill_code_to_packing[fill_code] = []
                 fill_code_to_packing[fill_code].append(p)
@@ -1108,9 +1139,9 @@ def update_cell():
                 week_commencing=packing.week_commencing
             ).first()
 
-            j = Joining.query.filter_by(filling_code=fill_code).first()
-            if not j:
-                logger.warning(f"No Joining record found for fill_code {fill_code}. Skipping Filling update.")
+            wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type="WIPF").first()
+            if not wipf_item:
+                logger.warning(f"No WIPF item found for fill_code {fill_code}. Skipping Filling update.")
                 continue
 
             if filling:
@@ -1122,7 +1153,7 @@ def update_cell():
                     filling = Filling(
                         filling_date=packing.packing_date,
                         fill_code=fill_code,
-                        description=j.filling_description,
+                        description=wipf_item.description,
                         kilo_per_size=total_requirement_kg,
                         week_commencing=packing.week_commencing
                     )
@@ -1130,7 +1161,10 @@ def update_cell():
             db.session.commit()
 
             # Update Production entry
-            update_production_entry(packing.packing_date, fill_code, j, packing.week_commencing)
+            # Find the original finished good item to get its production code
+            original_fg_item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            if original_fg_item:
+                update_production_entry(packing.packing_date, fill_code, original_fg_item, packing.week_commencing)
 
         return jsonify({"success": True, "message": "Cell updated successfully"})
     except Exception as e:

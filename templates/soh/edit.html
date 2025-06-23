@@ -5,7 +5,7 @@
     <form method="POST" action="{{ url_for('soh.soh_edit', id=soh.id) }}">
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
-            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ soh.week_commencing | format_date if soh.week_commencing else '' }}">
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ soh.week_commencing_str if soh.week_commencing_str else '' }}">
             
         </div>
         <div class="form-group">

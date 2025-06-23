@@ -1,360 +1,270 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="mb-0">Add New Ingredient</h2>
+<div class="container">
+    <h2>Add Ingredient to Stock Management</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="POST" action="{{ url_for('ingredients.ingredients_create') }}" id="ingredientForm">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="week_commencing">Week Commencing</label>
+                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" required>
                 </div>
-                <div class="card-body">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="stocktake_type">Stocktake Type</label>
+                    <select class="form-control" id="stocktake_type" name="stocktake_type" required>
+                        <option value="">Select Stocktake Type</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="annual">Annual</option>
+                        <option value="obsolete">Obsolete</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="user">User</label>
+            <input type="text" class="form-control" id="user" name="user" required placeholder="Enter username">
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="item_code_select">Item Code</label>
+                    <select class="form-control" id="item_code_select" name="item_code" required onchange="updateFormFromSelection()">
+                        <option value="">Select Item Code</option>
+                        {% for item in existing_items %}
+                            {% if item.item_type == 'RM' %}
+                            <option value="{{ item.item_code }}" 
+                                    data-description="{{ item.description or '' }}"
+                                    data-department="{{ item.department.department_name if item.department else '' }}"
+                                    data-uom="{{ item.uom.UOM if item.uom else '' }}"
+                                    data-min-level="{{ item.min_level or 0 }}"
+                                    data-max-level="{{ item.max_level or 0 }}"
+                                    data-price-kg="{{ item.price_per_kg or 0 }}"
+                                    data-active="{{ 'true' if item.is_active else 'false' }}">
+                                {{ item.item_code }}
+                            </option>
+                            {% endif %}
                         {% endfor %}
-                    {% endif %}
-                    {% endwith %}
-
-                    <form method="post" id="ingredientForm">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="item_code" class="form-label">Item Code <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="item_code" name="item_code" required 
-                                           value="{{ request.args.get('item_code', '') }}">
-                                    <div class="form-text">Unique identifier for the ingredient (e.g., RM0001)</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="description" class="form-label">Description <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" id="description" name="description" required>
-                                    <div class="form-text">Full name of the ingredient</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="category_id" class="form-label">Category</label>
-                                    <select class="form-select" id="category_id" name="category_id">
-                                        <option value="">Select Category</option>
-                                        {% for category in categories %}
-                                            <option value="{{ category.id }}">{{ category.category_name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="department_id" class="form-label">Department</label>
-                                    <select class="form-select" id="department_id" name="department_id">
-                                        <option value="">Select Department</option>
-                                        {% for department in departments %}
-                                            <option value="{{ department.department_id }}">{{ department.department_name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="uom_id" class="form-label">Unit of Measure</label>
-                                    <select class="form-select" id="uom_id" name="uom_id">
-                                        <option value="">Select UOM</option>
-                                        {% for uom in uoms %}
-                                            <option value="{{ uom.UOMID }}">{{ uom.UOM }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="min_level" class="form-label">Min Level <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" class="form-control" id="min_level" name="min_level" value="0" required>
-                                    <div class="form-text">Minimum stock level</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="max_level" class="form-label">Max Level <span class="text-danger">*</span></label>
-                                    <input type="number" step="0.01" class="form-control" id="max_level" name="max_level" value="0" required>
-                                    <div class="form-text">Maximum stock level</div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="price_per_kg" class="form-label">Price per KG <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <span class="input-group-text">$</span>
-                                        <input type="number" step="0.01" class="form-control" id="price_per_kg" name="price_per_kg" value="0" required>
-                                    </div>
-                                    <div class="form-text">Cost per kilogram</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Allergens Section -->
-                        <div class="mb-4">
-                            <label class="form-label">Allergens</label>
-                            <div class="allergen-section">
-                                <div class="row">
-                                    {% for allergen in allergens %}
-                                        <div class="col-md-4 col-sm-6">
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="checkbox" 
-                                                       id="allergen_{{ allergen.id }}" 
-                                                       name="allergen_ids" 
-                                                       value="{{ allergen.id }}">
-                                                <label class="form-check-label" for="allergen_{{ allergen.id }}">
-                                                    {{ allergen.allergen_name }}
-                                                </label>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                                
-                                <div class="mt-3">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAllergenModal">
-                                        <i class="fas fa-plus"></i> Add New Allergen
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" checked>
-                                <label class="form-check-label" for="is_active">
-                                    Active
-                                </label>
-                                <div class="form-text">Uncheck to deactivate this ingredient</div>
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-between">
-                            <div>
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-save"></i> Save Ingredient
-                                </button>
-                                <a href="{{ url_for('ingredients.ingredients_list') }}" class="btn btn-secondary">
-                                    <i class="fas fa-arrow-left"></i> Back to List
-                                </a>
-                            </div>
-                        </div>
-                    </form>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <input type="text" class="form-control" id="description" name="description" readonly>
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- Add Allergen Modal -->
-<div class="modal fade" id="addAllergenModal" tabindex="-1" aria-labelledby="addAllergenModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addAllergenModalLabel">Add New Allergen</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="uom">UOM</label>
+                    <input type="text" class="form-control" id="uom" name="uom" readonly>
+                </div>
             </div>
-            <div class="modal-body">
-                <form id="addAllergenForm">
-                    <div class="mb-3">
-                        <label for="new_allergen_name" class="form-label">Allergen Name</label>
-                        <input type="text" class="form-control" id="new_allergen_name" name="allergen_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="new_allergen_description" class="form-label">Description</label>
-                        <textarea class="form-control" id="new_allergen_description" name="description" rows="3"></textarea>
-                    </div>
-                </form>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <input type="text" class="form-control" id="department" name="department" readonly>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveNewAllergen()">Save Allergen</button>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="current_stock">Current Stock</label>
+                    <input type="number" step="0.01" class="form-control" id="current_stock" name="current_stock" value="0" required onchange="calculateStockValue()">
+                </div>
             </div>
         </div>
-    </div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="min_level">Min Level</label>
+                    <input type="number" step="0.01" class="form-control" id="min_level" name="min_level" value="0" readonly>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="max_level">Max Level</label>
+                    <input type="number" step="0.01" class="form-control" id="max_level" name="max_level" value="0" readonly>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="price_uom">$/UOM</label>
+                    <input type="number" step="0.01" class="form-control" id="price_uom" name="price_uom" value="0" onchange="calculateStockValue()">
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="price_kg">$/KG</label>
+                    <input type="number" step="0.01" class="form-control" id="price_kg" name="price_kg" value="0" readonly>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="stock_value">Stock Value</label>
+                    <input type="number" step="0.01" class="form-control" id="stock_value" name="stock_value" value="0" readonly>
+                    <small class="form-text text-muted">Auto-calculated: Current Stock × $/UOM</small>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Additional notes"></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" id="submitButton">Add to Stock Management</button>
+        <a href="{{ url_for('ingredients.ingredients_list') }}" class="btn btn-secondary">Cancel</a>
+    </form>
 </div>
+
+
 
 <style>
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.allergen-section {
-    background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    border: 1px solid #dee2e6;
-}
-
-.form-check-input:checked {
-    background-color: #0d6efd;
-    border-color: #0d6efd;
-}
-
-.form-check-label {
-    font-weight: 500;
-}
-
-.text-danger {
-    color: #dc3545 !important;
-}
-
-.btn {
-    border-radius: 0.375rem;
-}
-
-.btn-lg {
-    padding: 0.5rem 1rem;
-    font-size: 1.125rem;
-}
-
-.input-group-text {
-    background-color: #e9ecef;
-    border-color: #ced4da;
-}
-
-.form-text {
-    color: #6c757d;
-    font-size: 0.875rem;
-}
-
-.modal-content {
-    border-radius: 0.5rem;
-}
-
-.modal-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.modal-footer {
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-}
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .alert-info {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+        color: #0c5460;
+    }
+    
+    .readonly-field {
+        background-color: #f8f9fa;
+    }
 </style>
 
 <script>
-// Form validation
-document.getElementById('ingredientForm').addEventListener('submit', function(e) {
-    var itemCode = document.getElementById('item_code').value.trim();
-    var description = document.getElementById('description').value.trim();
-    var minLevel = parseFloat(document.getElementById('min_level').value);
-    var maxLevel = parseFloat(document.getElementById('max_level').value);
-    var pricePerKg = parseFloat(document.getElementById('price_per_kg').value);
+// Set default week commencing to current Monday
+function setDefaultWeekCommencing() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysToMonday = dayOfWeek === 0 ? -6 : -dayOfWeek + 1; // Adjust to Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + daysToMonday);
     
-    if (!itemCode || !description) {
-        e.preventDefault();
-        alert('Item Code and Description are required fields.');
-        return;
-    }
-    
-    if (minLevel < 0 || maxLevel < 0 || pricePerKg < 0) {
-        e.preventDefault();
-        alert('Min Level, Max Level, and Price per KG must be non-negative numbers.');
-        return;
-    }
-    
-    if (maxLevel < minLevel) {
-        e.preventDefault();
-        alert('Max Level must be greater than or equal to Min Level.');
-        return;
-    }
-});
-
-// Auto-generate item code suggestion
-document.getElementById('description').addEventListener('blur', function() {
-    var description = this.value.trim();
-    var itemCodeField = document.getElementById('item_code');
-    
-    if (description && !itemCodeField.value.trim()) {
-        // Generate a simple code based on first letters of words
-        var words = description.split(' ');
-        var code = 'RM';
-        words.forEach(function(word) {
-            if (word.length > 0) {
-                code += word.charAt(0).toUpperCase();
-            }
-        });
-        
-        // Add random number for uniqueness
-        code += Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        
-        itemCodeField.value = code;
-    }
-});
-
-// Save new allergen function
-function saveNewAllergen() {
-    var allergenName = document.getElementById('new_allergen_name').value.trim();
-    var allergenDescription = document.getElementById('new_allergen_description').value.trim();
-    
-    if (!allergenName) {
-        alert('Allergen name is required.');
-        return;
-    }
-    
-    // Here you would typically make an AJAX call to save the allergen
-    // For now, we'll just simulate adding it to the list
-    var allergenSection = document.querySelector('.allergen-section .row');
-    var newAllergenId = 'new_' + Date.now(); // Temporary ID
-    
-    var newAllergenHtml = `
-        <div class="col-md-4 col-sm-6">
-            <div class="form-check mb-2">
-                <input class="form-check-input" type="checkbox" 
-                       id="allergen_${newAllergenId}" 
-                       name="allergen_ids" 
-                       value="${newAllergenId}" checked>
-                <label class="form-check-label" for="allergen_${newAllergenId}">
-                    ${allergenName}
-                </label>
-            </div>
-        </div>
-    `;
-    
-    allergenSection.insertAdjacentHTML('beforeend', newAllergenHtml);
-    
-    // Clear the form and close modal
-    document.getElementById('addAllergenForm').reset();
-    var modal = bootstrap.Modal.getInstance(document.getElementById('addAllergenModal'));
-    modal.hide();
-    
-    // Show success message
-    var alertHtml = `
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            Allergen "${allergenName}" added successfully!
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    `;
-    
-    var cardBody = document.querySelector('.card-body');
-    cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+    const year = monday.getFullYear();
+    const month = String(monday.getMonth() + 1).padStart(2, '0');
+    const day = String(monday.getDate()).padStart(2, '0');
+    document.getElementById('week_commencing').value = `${year}-${month}-${day}`;
 }
 
-// Auto-dismiss alerts after 5 seconds
+// Calculate stock value
+function calculateStockValue() {
+    const currentStock = parseFloat(document.getElementById('current_stock').value) || 0;
+    const priceUom = parseFloat(document.getElementById('price_uom').value) || 0;
+    const stockValue = currentStock * priceUom;
+    document.getElementById('stock_value').value = stockValue.toFixed(2);
+}
+
+// Form validation
+document.getElementById('ingredientForm').addEventListener('submit', function(e) {
+    var itemCode = document.getElementById('item_code_select').value.trim();
+    var weekCommencing = document.getElementById('week_commencing').value.trim();
+    var stocktakeType = document.getElementById('stocktake_type').value.trim();
+    var user = document.getElementById('user').value.trim();
+    var currentStock = parseFloat(document.getElementById('current_stock').value);
+    var priceUom = parseFloat(document.getElementById('price_uom').value);
+    
+    if (!itemCode) {
+        e.preventDefault();
+        alert('Please select an item code.');
+        return;
+    }
+    
+    if (!weekCommencing) {
+        e.preventDefault();
+        alert('Please select week commencing date.');
+        return;
+    }
+    
+    if (!stocktakeType) {
+        e.preventDefault();
+        alert('Please select stocktake type.');
+        return;
+    }
+    
+    if (!user) {
+        e.preventDefault();
+        alert('Please enter user name.');
+        return;
+    }
+    
+    if (currentStock < 0 || priceUom < 0) {
+        e.preventDefault();
+        alert('Stock levels and prices must be non-negative numbers.');
+        return;
+    }
+});
+
+// Update form fields when item is selected from dropdown
+function updateFormFromSelection() {
+    const itemSelect = document.getElementById('item_code_select');
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    
+    if (selectedOption && selectedOption.value !== "") {
+        // Auto-populate read-only fields from selected item
+        document.getElementById('description').value = selectedOption.getAttribute('data-description') || '';
+        document.getElementById('uom').value = selectedOption.getAttribute('data-uom') || '';
+        document.getElementById('department').value = selectedOption.getAttribute('data-department') || '';
+        document.getElementById('min_level').value = selectedOption.getAttribute('data-min-level') || '0';
+        document.getElementById('max_level').value = selectedOption.getAttribute('data-max-level') || '0';
+        document.getElementById('price_kg').value = selectedOption.getAttribute('data-price-kg') || '0';
+        
+        // Focus on current stock field for user input
+        document.getElementById('current_stock').focus();
+        
+        // Calculate stock value when item is selected
+        calculateStockValue();
+    } else {
+        // Clear fields when no item is selected
+        document.getElementById('description').value = '';
+        document.getElementById('uom').value = '';
+        document.getElementById('department').value = '';
+        document.getElementById('min_level').value = '0';
+        document.getElementById('max_level').value = '0';
+        document.getElementById('price_kg').value = '0';
+        document.getElementById('current_stock').value = '0';
+        document.getElementById('price_uom').value = '0';
+        document.getElementById('stock_value').value = '0';
+        document.getElementById('notes').value = '';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Set default week commencing
+    setDefaultWeekCommencing();
+    
+    // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {
         var alerts = document.querySelectorAll('.alert');
         alerts.forEach(function(alert) {
-            var bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
+            if (alert.classList.contains('alert-dismissible')) {
+                var bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }
         });
     }, 5000);
 });

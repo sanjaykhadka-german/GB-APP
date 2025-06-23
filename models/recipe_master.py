@@ -5,36 +5,40 @@ class RecipeMaster(db.Model):
     __tablename__ = 'recipe_master'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    recipe_code = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String(255))
-    raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='CASCADE'), nullable=False)
+    
+    # The item being produced/assembled (e.g., Frankfurter WIP, WIPF, or Finished Good)
     finished_good_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='CASCADE'), nullable=False)
-    kg_per_batch = db.Column(db.Float)
+    
+    # A component needed to produce the assembly (e.g., Raw Material, WIP, or WIPF)
+    raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='CASCADE'), nullable=False)
+    
+    # How much of the component is needed to make one "unit" or "batch" of the assembly
+    kg_per_batch = db.Column(db.Float, nullable=False)
+    
+    # Percentage of this component in the total recipe (calculated field)
     percentage = db.Column(db.Float)
+    
+    # Optional: UOM for the quantity if different units are mixed
+    quantity_uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID'), nullable=True)
+    
+    # Metadata
+    recipe_code = db.Column(db.String(100))  # Optional grouping identifier
+    description = db.Column(db.String(255))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    # Relationships
-    raw_material = db.relationship('ItemMaster', foreign_keys=[raw_material_id], backref='recipes_as_raw_material')
-    finished_good = db.relationship('ItemMaster', foreign_keys=[finished_good_id], backref='recipes_as_finished_good')
+    # Prevent duplicate component-assembly pairs
+    __table_args__ = (
+        db.UniqueConstraint('finished_good_id', 'raw_material_id', name='uix_finished_good_raw_material'),
+    )
 
     def __repr__(self):
-        return f'<RecipeMaster {self.recipe_code}>'
+        return f'<Recipe: {self.raw_material.item_code} -> {self.finished_good.item_code}>'
 
-# Add validation before insert or update
-# Temporarily commenting out validation to debug add/edit issues
+# Validation can be added later if needed
 # @event.listens_for(RecipeMaster, 'before_insert')
 # @event.listens_for(RecipeMaster, 'before_update')
-# def validate_item_types(mapper, connection, target):
-#     from models.item_master import ItemMaster  # Import here to avoid circular import
-#     
-#     # Check raw material type
-#     raw_material = db.session.get(ItemMaster, target.raw_material_id)
-#     if not raw_material or raw_material.item_type != 'raw_material':
-#         raise ValueError("raw_material_id must reference an item of type 'raw_material'")
-#     
-#     # Check finished good type
-#     finished_good = db.session.get(ItemMaster, target.finished_good_id)
-#     if not finished_good or finished_good.item_type != 'finished_good':
-#         raise ValueError("finished_good_id must reference an item of type 'finished_good'")
+# def validate_recipe_logic(mapper, connection, target):
+#     # Add any business logic validation here
+#     pass

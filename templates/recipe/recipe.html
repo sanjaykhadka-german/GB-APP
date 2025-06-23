@@ -74,16 +74,16 @@
                             <td>
                                 <select name="raw_material_id" required>
                                     <option value="">Select Raw Material</option>
-                                    {% for material in raw_materials %}
-                                    <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
+                                    {% for item in all_items %}
+                                    <option value="{{ item.id }}">{{ item.item_code }} - {{ item.description }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
                             <td>
                                 <select name="finished_good_id" required>
                                     <option value="">Select Finished Good</option>
-                                    {% for fg in finished_goods %}
-                                    <option value="{{ fg.id }}">{{ fg.item_code }} - {{ fg.description }}</option>
+                                    {% for item in all_items %}
+                                    <option value="{{ item.id }}">{{ item.item_code }} - {{ item.description }}</option>
                                     {% endfor %}
                                 </select>
                             </td>
@@ -127,15 +127,15 @@
     <!-- Hidden templates for raw materials and finished goods -->
     <div id="raw-material-options" style="display: none;">
         <option value="">Select Raw Material</option>
-        {% for material in raw_materials %}
-        <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
+        {% for item in all_items %}
+        <option value="{{ item.id }}">{{ item.item_code }} - {{ item.description }}</option>
         {% endfor %}
     </div>
 
     <div id="finished-good-options" style="display: none;">
         <option value="">Select Finished Good</option>
-        {% for fg in finished_goods %}
-        <option value="{{ fg.id }}">{{ fg.item_code }} - {{ fg.description }}</option>
+        {% for item in all_items %}
+        <option value="{{ item.id }}">{{ item.item_code }} - {{ item.description }}</option>
         {% endfor %}
     </div>
 </div>

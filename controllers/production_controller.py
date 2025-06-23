@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from database import db  
 from models.production import Production
 from models.filling import Filling
-from models.joining import Joining
+from models.item_master import ItemMaster
 from sqlalchemy.sql import text
 import openpyxl
 from io import BytesIO
@@ -88,10 +88,10 @@ def production_create():
         
             
 
-            # Validate production_code exists in Joining table
-            joining = Joining.query.filter_by(production=production_code).first()
-            if not joining:
-                flash(f"No Joining record found for production code {production_code}.", 'error')
+            # Validate production_code exists in Item Master as WIP
+            wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type='WIP').first()
+            if not wip_item:
+                flash(f"No WIP item found for production code {production_code}.", 'error')
                 return render_template('production/create.html',current_page="production")
 
             new_production = Production(
@@ -137,10 +137,10 @@ def production_edit(id):
                 return dt - timedelta(days=dt.weekday())
             production.week_commencing = get_monday_of_week(production.production_date)
 
-            # Validate production_code exists in Joining table
-            joining = Joining.query.filter_by(production=production.production_code).first()
-            if not joining:
-                flash(f"No Joining record found for production code {production.production_code}.", 'error')
+            # Validate production_code exists in Item Master as WIP
+            wip_item = ItemMaster.query.filter_by(item_code=production.production_code, item_type='WIP').first()
+            if not wip_item:
+                flash(f"No WIP item found for production code {production.production_code}.", 'error')
                 return render_template('production/edit.html', production=production,current_page="production")
 
             db.session.commit()

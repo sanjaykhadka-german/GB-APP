@@ -9,7 +9,7 @@
 joining = Joining.query.filter_by(fg_code=product_code).first()
 
 # NEW:
-item = ItemMaster.query.filter_by(item_code=product_code, item_type='Finished Good').first()
+item = ItemMaster.query.filter_by(item_code=product_code, item_type='FG').first()
 ```
 
 ### 2. Update SOH queries

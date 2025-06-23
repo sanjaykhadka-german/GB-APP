@@ -24,7 +24,7 @@
             <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription(); checkDuplicate()">
                 <option value="">Select Product Code</option>
                 {% for product in products %}
-                    <option value="{{ product.fg_code }}" data-description="{{ product.description }}">{{ product.fg_code }} - {{ product.description }}</option>
+                    <option value="{{ product.item_code }}" data-description="{{ product.description }}">{{ product.item_code }} - {{ product.description }}</option>
                 {% endfor %}
             </select>
         </div>

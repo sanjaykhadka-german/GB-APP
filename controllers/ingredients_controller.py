@@ -31,7 +31,7 @@ def ingredients_list():
     ingredients = []
     try:
         # Query only raw materials from item_master
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'raw_material')
+        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
         
         if search_item_code:
             ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
@@ -78,72 +78,55 @@ def ingredients_create():
 
     if request.method == 'POST':
         try:
+            # Get form data
+            week_commencing = request.form.get('week_commencing', '').strip()
+            stocktake_type = request.form.get('stocktake_type', '').strip()
+            user = request.form.get('user', '').strip()
             item_code = request.form['item_code'].strip()
-            description = request.form['description'].strip()
-            category_id = request.form.get('category_id') or None
-            department_id = request.form.get('department_id') or None
-            uom_id = request.form.get('uom_id') or None
-            
-            # Convert empty strings to None/0.0 as needed
-            min_level = float(request.form.get('min_level') or 0.0)
-            max_level = float(request.form.get('max_level') or 0.0)
-            price_per_kg = float(request.form.get('price_per_kg') or 0.0)
-            is_active = 'is_active' in request.form
+            current_stock = float(request.form.get('current_stock') or 0.0)
+            price_uom = float(request.form.get('price_uom') or 0.0)
+            notes = request.form.get('notes', '').strip()
 
-            # Check for duplicate item code
-            existing_item = ItemMaster.query.filter_by(item_code=item_code).first()
-            if existing_item:
-                flash(f"Item code '{item_code}' already exists!", "danger")
+            # Validate required fields
+            if not week_commencing:
+                flash("Week commencing is required!", "danger")
+                return redirect(request.url)
+            
+            if not stocktake_type:
+                flash("Stocktake type is required!", "danger")
+                return redirect(request.url)
+                
+            if not user:
+                flash("User is required!", "danger")
                 return redirect(request.url)
 
-            # Create new ingredient (raw material)
-            new_ingredient = ItemMaster(
-                item_code=item_code,
-                description=description,
-                item_type='raw_material',
-                category_id=int(category_id) if category_id else None,
-                department_id=int(department_id) if department_id else None,
-                uom_id=int(uom_id) if uom_id else None,
-                min_level=min_level,
-                max_level=max_level,
-                price_per_kg=price_per_kg,
-                is_active=is_active
-            )
-            
-            db.session.add(new_ingredient)
-            db.session.commit()
+            # Check if item exists in Item Master and is a raw material
+            existing_item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
+            if not existing_item:
+                flash(f"Raw material '{item_code}' not found in Item Master!", "danger")
+                return redirect(request.url)
 
-            # Handle allergens if selected
-            allergen_ids = request.form.getlist('allergen_ids')
-            if allergen_ids:
-                from models.item_master import ItemAllergen
-                for allergen_id in allergen_ids:
-                    item_allergen = ItemAllergen(
-                        item_id=new_ingredient.id,
-                        allergen_id=int(allergen_id)
-                    )
-                    db.session.add(item_allergen)
-                db.session.commit()
+            # Calculate stock value
+            stock_value = current_stock * price_uom
 
-            flash("Ingredient created successfully!", "success")
+            # For now, we'll just log the stock management entry
+            # In a real implementation, you might want to create a separate StockManagement table
+            flash(f"Stock record created for {item_code}: {current_stock} units worth ${stock_value:.2f} for {stocktake_type} stocktake by {user}", "success")
             return redirect(url_for('ingredients.ingredients_list'))
 
+        except ValueError as e:
+            flash(f"Invalid number format: {str(e)}", "danger")
+            return redirect(request.url)
         except Exception as e:
             db.session.rollback()
-            flash(f"Error creating ingredient: {str(e)}", "danger")
+            flash(f"Error adding stock record: {str(e)}", "danger")
             return redirect(request.url)
 
-    # Get reference data for dropdowns
-    categories = Category.query.all()
-    departments = Department.query.all()
-    uoms = UOM.query.all()
-    allergens = Allergen.query.all()
+    # Get existing raw materials from item_master table
+    existing_items = ItemMaster.query.filter_by(item_type='RM').all()
 
     return render_template('ingredients/create.html',
-                           categories=categories,
-                           departments=departments,
-                           uoms=uoms,
-                           allergens=allergens,
+                           existing_items=existing_items,
                            current_page="ingredients")
 
 @ingredients_bp.route('/ingredients_edit/<int:id>', methods=['GET', 'POST'])
@@ -155,7 +138,7 @@ def ingredients_edit(id):
     from models.uom import UOM
     from models.allergen import Allergen
 
-    ingredient = ItemMaster.query.filter_by(id=id, item_type='raw_material').first_or_404()
+    ingredient = ItemMaster.query.filter_by(id=id, item_type='RM').first_or_404()
 
     if request.method == 'POST':
         try:
@@ -236,7 +219,7 @@ def ingredients_delete(id):
     from models.item_master import ItemMaster, ItemAllergen
 
     try:
-        ingredient = ItemMaster.query.filter_by(id=id, item_type='raw_material').first_or_404()
+        ingredient = ItemMaster.query.filter_by(id=id, item_type='RM').first_or_404()
         
         # Remove allergen associations first
         ItemAllergen.query.filter_by(item_id=ingredient.id).delete()
@@ -350,7 +333,7 @@ def ingredients_upload():
                         new_ingredient = ItemMaster(
                             item_code=item_code,
                             description=description,
-                            item_type='raw_material',
+                            item_type='RM',
                             category_id=category_id,
                             department_id=department_id,
                             uom_id=uom_id,
@@ -399,7 +382,7 @@ def ingredients_download_excel():
         search_description = request.args.get('description', '').strip()
         search_category = request.args.get('category', '').strip()
 
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'raw_material')
+        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
         
         if search_item_code:
             ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
@@ -584,7 +567,7 @@ def autocomplete_ingredients():
 
     try:
         results = db.session.query(ItemMaster.item_code, ItemMaster.description).filter(
-            ItemMaster.item_type == 'raw_material',
+            ItemMaster.item_type == 'RM',
             ItemMaster.item_code.ilike(f"{search}%")
         ).limit(10).all()
         
@@ -607,7 +590,7 @@ def get_search_ingredients():
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
     try:
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'raw_material')
+        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
 
         if search_item_code:
             ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))

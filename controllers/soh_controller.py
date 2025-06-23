@@ -9,7 +9,7 @@ import pytz
 
 from controllers.packing_controller import update_packing_entry
 from controllers.filling_controller import update_production_entry # This import seems unused in this controller
-from models import joining
+from models.item_master import ItemMaster
 from models.packing import Packing
 
 
@@ -24,7 +24,7 @@ def allowed_file(filename):
 def soh_upload():
     from app import db
     from models.soh import SOH
-    from models.joining import Joining
+    from models.item_master import ItemMaster
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -130,9 +130,12 @@ def soh_upload():
                     flash(f"Week Commencing date is missing or invalid for FG Code: {fg_code}. Skipping row.", "danger")
                     continue # Skip if date is still not valid
 
-                fg = Joining.query.filter_by(fg_code=fg_code).first()
-                units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
-                avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+                item = ItemMaster.query.filter_by(item_code=fg_code).first()
+                if not item:
+                    flash(f"No item found for FG Code: {fg_code}. Skipping row.", "danger")
+                    continue
+                units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+                avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
 
                 # Recalculate totals to ensure consistency (ALWAYS recalculate on the backend)
@@ -290,7 +293,7 @@ def soh_list():
 def soh_create():
     from app import db
     from models.soh import SOH
-    from models.joining import Joining
+    from models.item_master import ItemMaster
 
     if request.method == 'POST':
         try:
@@ -312,9 +315,11 @@ def soh_create():
                     flash(f"Invalid Week Commencing date format: {str(e)}. Expected YYYY-MM-DD.", "danger")
                     return redirect(request.url)
 
-            fg = Joining.query.filter_by(fg_code=fg_code).first()
-            units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
-            avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+            item = ItemMaster.query.filter_by(item_code=fg_code).first()
+            if not item:
+                return jsonify({"success": False, "error": f"No item found for FG Code: {fg_code}"}), 400
+            units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
             soh_total_boxes = dispatch_boxes + packing_boxes
             soh_total_units = (
@@ -370,7 +375,7 @@ def soh_create():
 def soh_edit(id):
     from app import db
     from models.soh import SOH
-    from models.joining import Joining
+    from models.item_master import ItemMaster
 
     soh = SOH.query.get_or_404(id)
 
@@ -397,12 +402,12 @@ def soh_edit(id):
                         flash(f"Invalid Week Commencing date format: {str(e)}. Please use YYYY-MM-DD.", "danger")
                         return redirect(request.url)
 
-            fg = Joining.query.filter_by(fg_code=fg_code).first()
-            if not fg:
-                flash(f"FG Code '{fg_code}' not found in Joining table.", "danger")
+            item = ItemMaster.query.filter_by(item_code=fg_code).first()
+            if not item:
+                flash(f"FG Code '{fg_code}' not found in Item Master table.", "danger")
                 return redirect(request.url)
-            units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
-            avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+            units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
             # Recalculate totals
             soh_total_boxes = soh_dispatch_boxes + soh_packing_boxes
@@ -476,7 +481,7 @@ def soh_delete(id):
 @soh_bp.route('/autocomplete_soh', methods=['GET'])
 def autocomplete_soh():
     from app import db
-    from models.joining import Joining
+    from models.item_master import ItemMaster
 
     search = request.args.get('query', '').strip()
 
@@ -485,8 +490,11 @@ def autocomplete_soh():
 
     try:
         # Use SQLAlchemy's ORM for better integration and less raw SQL
-        results = db.session.query(Joining.fg_code, Joining.description).filter(Joining.fg_code.ilike(f"{search}%")).limit(10).all()
-        suggestions = [{"fg_code": row.fg_code, "description": row.description} for row in results]
+        results = db.session.query(ItemMaster.item_code, ItemMaster.description).filter(
+            ItemMaster.item_code.ilike(f"{search}%"),
+            ItemMaster.item_type.in_(['FG', 'WIPF'])
+        ).limit(10).all()
+        suggestions = [{"fg_code": row.item_code, "description": row.description} for row in results]
         return jsonify(suggestions)
     except Exception as e:
         print("Error fetching SOH autocomplete suggestions:", e)
@@ -563,7 +571,7 @@ def get_search_sohs():
 def soh_bulk_edit():
     from app import db
     from models.soh import SOH
-    from models.joining import Joining
+    from models.item_master import ItemMaster
     # from datetime import datetime # Already imported
 
     try:
@@ -617,9 +625,11 @@ def soh_bulk_edit():
             if packing_units_input is not None:
                 soh.soh_packing_units = packing_units_input
 
-            fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
-            units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
-            avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+            item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
+            if not item:
+                return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
+            units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
 
             # Recalculate totals based on potentially updated or existing values
@@ -668,7 +678,7 @@ def soh_bulk_edit():
 def soh_inline_edit():
     from app import db
     from models.soh import SOH
-    from models.joining import Joining
+    from models.item_master import ItemMaster
     # from datetime import datetime, date # Already imported
 
     try:
@@ -710,10 +720,12 @@ def soh_inline_edit():
         else:
             return jsonify({"success": False, "error": f"Invalid field specified: {field}."}), 400
 
-        # Retrieve current fg_code for calculating totals and updating packing
-        fg = Joining.query.filter_by(fg_code=soh.fg_code).first()
-        units_per_bag = fg.units_per_bag if fg and fg.units_per_bag else 1
-        avg_weight_per_unit = fg.kg_per_unit if fg and fg.kg_per_unit else 0.0
+                    # Retrieve current fg_code for calculating totals and updating packing
+            item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
+            if not item:
+                return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
+            units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
         # Recalculate total boxes and units based on potentially updated and existing values
         # Ensure these are treated as 0.0 if they are None for calculation purposes

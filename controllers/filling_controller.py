@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from datetime import datetime, timedelta
 from database import db
 from models.filling import Filling
-from models.joining import Joining
+from models.item_master import ItemMaster
 from models.production import Production
 from sqlalchemy import func
 from sqlalchemy.sql import text
@@ -92,10 +92,10 @@ def filling_create():
                 return dt - timedelta(days=dt.weekday())
             week_commencing = get_monday_of_week(filling_date)
 
-            # Validate fill_code exists in Joining table
-            joining = Joining.query.filter_by(filling_code=fill_code).first()
-            if not joining:
-                flash(f"No Joining record found for fill_code {fill_code}.", 'error')
+            # Validate fill_code exists in Item Master as WIPF
+            wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type='WIPF').first()
+            if not wipf_item:
+                flash(f"No WIPF item found for fill_code {fill_code}.", 'error')
                 return render_template('filling/create.html', current_page="filling")
 
             new_filling = Filling(
@@ -109,7 +109,10 @@ def filling_create():
             db.session.commit()
 
             # Update or create corresponding Production entry
-            update_production_entry(filling_date, fill_code, joining,week_commencing)
+            # Find finished good that uses this filling code
+            fg_item = ItemMaster.query.filter_by(filling_code=fill_code).first()
+            if fg_item:
+                update_production_entry(filling_date, fill_code, fg_item, week_commencing)
 
             flash("Filling entry created successfully!", "success")
             return redirect(url_for('filling.filling_list'))
@@ -143,20 +146,22 @@ def filling_edit(id):
                 return dt - timedelta(days=dt.weekday())
             filling.week_commencing = get_monday_of_week(filling.filling_date)
 
-            # Validate fill_code exists in Joining table
-            joining = Joining.query.filter_by(filling_code=filling.fill_code).first()
-            if not joining:
-                flash(f"No Joining record found for fill_code {filling.fill_code}.", 'error')
+            # Validate fill_code exists in Item Master as WIPF
+            wipf_item = ItemMaster.query.filter_by(item_code=filling.fill_code, item_type='WIPF').first()
+            if not wipf_item:
+                flash(f"No WIPF item found for fill_code {filling.fill_code}.", 'error')
                 return render_template('filling/edit.html', filling=filling, current_page="filling")
 
             db.session.commit()
 
             # Update or create corresponding Production entry for new values
-            update_production_entry(filling.filling_date, filling.fill_code, joining,filling.week_commencing)
+            fg_item = ItemMaster.query.filter_by(filling_code=filling.fill_code).first()
+            if fg_item:
+                update_production_entry(filling.filling_date, filling.fill_code, fg_item, filling.week_commencing)
             # Update Production entry for old values (in case date or fill_code changed)
-            old_joining = Joining.query.filter_by(filling_code=old_fill_code).first()
-            if old_joining and (old_filling_date != filling.filling_date or old_fill_code != filling.fill_code):
-                update_production_entry(old_filling_date, old_fill_code, old_joining,filling.week_commencing)
+            old_fg_item = ItemMaster.query.filter_by(filling_code=old_fill_code).first()
+            if old_fg_item and (old_filling_date != filling.filling_date or old_fill_code != filling.fill_code):
+                update_production_entry(old_filling_date, old_fill_code, old_fg_item, filling.week_commencing)
 
             flash("Filling entry updated successfully!", "success")
             return redirect(url_for('filling.filling_list'))
@@ -181,9 +186,9 @@ def filling_delete(id):
         db.session.commit()
 
         # Update corresponding Production entry
-        joining = Joining.query.filter_by(filling_code=fill_code).first()
-        if joining:
-            update_production_entry(filling_date, fill_code, joining,filling.week_commencing)
+        fg_item = ItemMaster.query.filter_by(filling_code=fill_code).first()
+        if fg_item:
+            update_production_entry(filling_date, fill_code, fg_item, filling.week_commencing)
 
         flash("Filling entry deleted successfully!", "danger")
     except Exception as e:
@@ -337,12 +342,17 @@ def export_fillings_excel():
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('filling.filling_list'))
 
-def update_production_entry(filling_date, fill_code, joining, week_commencing=None):
+def update_production_entry(filling_date, fill_code, fg_item, week_commencing=None):
     """Helper function to create or update a Production entry."""
     try:
-        # Get production_code and description from Joining
-        production_code = joining.production
-        description = joining.description
+        # Get production_code from finished good item
+        production_code = fg_item.production_code if fg_item else None
+        if not production_code:
+            return  # No production code, nothing to update
+            
+        # Get WIP item for description
+        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+        description = wip_item.description if wip_item else f"{production_code} - WIP"
 
         fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
         if len(fill_code_prefix) > 1:

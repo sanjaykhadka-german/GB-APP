@@ -4,28 +4,29 @@ class ItemMaster(db.Model):
     __tablename__ = 'item_master'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    item_code = db.Column(db.String(20), unique=True, nullable=False)  # e.g., RM001, 2006, 2006.56, 2006.1
+    item_code = db.Column(db.String(50), unique=True, nullable=False)  # Can be FG, WIPF, WIP codes
     description = db.Column(db.String(255))
+    item_type = db.Column(db.String(20), nullable=False)  # 'Raw Material', 'Finished Good', 'WIPF', 'WIP'
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id', ondelete='SET NULL'), nullable=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id', ondelete='SET NULL'), nullable=True)
+    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
+    uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID', ondelete='SET NULL'), nullable=True)
     
-    # CRITICAL: Use your ItemType table or an Enum
-    # e.g., 'Raw Material', 'WIP', 'WIPF', 'Finished Good'
-    item_type = db.Column(db.String(20), nullable=False)
-    
-    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
-    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=True)
-    uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID'), nullable=True)  # Unit of Measure (kg, unit, box)
-    
-    # Item Attributes (previously scattered, now centralized)
+    # Common fields for all types
     min_level = db.Column(db.Float)
     max_level = db.Column(db.Float)
-    price_per_kg = db.Column(db.Float)  # For raw materials
-    kg_per_unit = db.Column(db.Float)   # For WIPF/FG
-    units_per_bag = db.Column(db.Float)  # For FG
-    loss_percentage = db.Column(db.Float)  # Production/Filling loss
-    is_make_to_order = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     
-    # Additional fields from joining table migration (can be removed later)
+    # Raw Material specific fields
+    price_per_kg = db.Column(db.Float)
+    
+    # Finished Good/WIP/WIPF specific fields
+    is_make_to_order = db.Column(db.Boolean, default=False)
+    kg_per_unit = db.Column(db.Float)
+    units_per_bag = db.Column(db.Float)
+    loss_percentage = db.Column(db.Float)  # Previously 'loss' in joining
+    
+    # Additional fields from joining table
     fw = db.Column(db.Boolean, default=False)  # FW flag from joining
     weekly_average = db.Column(db.Float)  # Weekly average from joining
     product_description = db.Column(db.String(255))  # Additional description for products
@@ -33,7 +34,6 @@ class ItemMaster(db.Model):
     # Cross-reference fields for migration period (will be removed later)
     filling_code = db.Column(db.String(50))  # Reference to WIPF items
     production_code = db.Column(db.String(50))  # Reference to WIP items
-    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
     
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
@@ -45,11 +45,10 @@ class ItemMaster(db.Model):
     uom = db.relationship('UOM', backref='items')
     allergens = db.relationship('Allergen', secondary='item_allergen', backref='items')
 
-    # This relationship defines what this item is a component OF
-    used_in_recipes = db.relationship('RecipeMaster', foreign_keys='RecipeMaster.raw_material_id', backref='raw_material')
-    
-    # This relationship defines the recipe TO MAKE this item
-    recipe = db.relationship('RecipeMaster', foreign_keys='RecipeMaster.finished_good_id', backref='finished_good')
+    # Recipe relationships (keep existing backref names from recipe_master.py)
+    # These are already defined in RecipeMaster model:
+    # recipes_as_raw_material - when this item is used as a raw material
+    # recipes_as_finished_good - when this item is the finished good being made
 
     def __repr__(self):
         return f'<ItemMaster {self.item_code} - {self.description}>'
@@ -61,22 +60,12 @@ class ItemMaster(db.Model):
     @property 
     def is_wip(self):
         return self.item_type == 'WIP'
-        
-    @property
-    def is_wipf(self):
-        return self.item_type == 'WIPF'
-        
-    @property
-    def is_finished_good(self):
-        return self.item_type == 'Finished Good'
+
+    # ... etc for other types
 
     def get_recipe_components(self):
         """Get all components needed to make this item"""
-        return [recipe.raw_material for recipe in self.recipe if recipe.is_active]
-    
-    def get_used_in_assemblies(self):
-        """Get all assemblies that use this item as a component"""
-        return [recipe.finished_good for recipe in self.used_in_recipes if recipe.is_active]
+        return [recipe.component_item for recipe in self.assembly_recipes if recipe.is_active]
 
 class ItemAllergen(db.Model):
     __tablename__ = 'item_allergen'

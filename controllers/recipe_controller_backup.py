@@ -50,79 +50,81 @@ def recipe_page():
             if len(descriptions) > 1:
                 return jsonify({'error': 'All recipes must have the same description.'}), 400
             
-            # Check for duplicate (recipe_code, assembly_item_id, component_item_id) in the same submission
+            # Check for duplicate (recipe_code, raw_material_id, finished_good_id) in the same submission
             seen = set()
             for recipe_data in recipes_data:
-                key = (recipe_data.get('recipe_code'), recipe_data.get('assembly_item_id'), recipe_data.get('component_item_id'))
+                key = (recipe_data.get('recipe_code'), recipe_data.get('raw_material_id'), recipe_data.get('finished_good_id'))
                 if key in seen:
-                    return jsonify({'error': f"Duplicate entry for recipe code {key[0]} with the same assembly and component in the same submission."}), 400
+                    return jsonify({'error': f"Duplicate entry for recipe code {key[0]} with the same raw material and finished good in the same submission."}), 400
                 seen.add(key)
 
                 recipe_id = recipe_data.get('recipe_id')
                 recipe_code = recipe_data.get('recipe_code')
                 description = recipe_data.get('description')
-                finished_good_id = recipe_data.get('finished_good_id')
                 raw_material_id = recipe_data.get('raw_material_id')
+                finished_good_id = recipe_data.get('finished_good_id')
                 kg_per_batch = recipe_data.get('kg_per_batch')
 
-                if not all([recipe_code, description, finished_good_id, raw_material_id, kg_per_batch]):
+                if not all([recipe_code, description, raw_material_id, finished_good_id, kg_per_batch]):
                     return jsonify({'error': 'Required fields are missing.'}), 400
                 
                 # Validate kg_per_batch is a number
                 try:
                     kg_per_batch = Decimal(kg_per_batch)
                     if kg_per_batch <= 0:
-                        return jsonify({'error': 'Kg per batch cannot be negative or zero.'}), 400
+                        return jsonify({'error': 'KG per batch cannot be negative.'}), 400
                 except (ValueError, TypeError):
-                    return jsonify({'error': 'Invalid kg per batch value.'}), 400
+                    return jsonify({'error': 'Invalid KG per batch value.'}), 400
 
-                # Check if a recipe with the same (finished_good_id, raw_material_id) exists (excluding current recipe if editing)
+                # Check if a recipe with the same (recipe_code, raw_material_id, finished_good_id) exists (excluding current recipe if editing)
                 existing_recipe = RecipeMaster.query.filter(
-                    RecipeMaster.finished_good_id == finished_good_id,
+                    RecipeMaster.recipe_code == recipe_code,
                     RecipeMaster.raw_material_id == raw_material_id,
+                    RecipeMaster.finished_good_id == finished_good_id,
                     RecipeMaster.id != recipe_id if recipe_id else True
                 ).first()
                 if existing_recipe:
-                    return jsonify({'error': f"Recipe for this finished good-raw material combination already exists."}), 400
+                    return jsonify({'error': f"Recipe with code {recipe_code}, raw material, and finished good already exists."}), 400
 
             # Process all recipes
             for recipe_data in recipes_data:
                 recipe_id = recipe_data.get('recipe_id')
                 recipe_code = recipe_data.get('recipe_code')
                 description = recipe_data.get('description')
-                finished_good_id = recipe_data.get('finished_good_id')
                 raw_material_id = recipe_data.get('raw_material_id')
+                finished_good_id = recipe_data.get('finished_good_id')
                 kg_per_batch = Decimal(recipe_data.get('kg_per_batch'))
 
                 if recipe_id:  # Edit case
                     recipe = RecipeMaster.query.get_or_404(recipe_id)
                     recipe.recipe_code = recipe_code
                     recipe.description = description
-                    recipe.finished_good_id = finished_good_id
                     recipe.raw_material_id = raw_material_id
+                    recipe.finished_good_id = finished_good_id
                     recipe.kg_per_batch = kg_per_batch
                 else:  # Add case
                     recipe = RecipeMaster(
                         recipe_code=recipe_code,
                         description=description,
-                        finished_good_id=finished_good_id,
                         raw_material_id=raw_material_id,
-                        kg_per_batch=kg_per_batch
+                        finished_good_id=finished_good_id,
+                        kg_per_batch=kg_per_batch,
+                        percentage=Decimal('0.00')
                     )
                     db.session.add(recipe)
 
                 db.session.flush()
 
-            # Recalculate percentages for all recipes with the same recipe_code
-            recipe_code = recipes_data[0]['recipe_code']
+            # Recalculate percentages for all recipes with the same description
+            description = recipes_data[0]['description']
             recipes_to_update = RecipeMaster.query.filter(
-                RecipeMaster.recipe_code == recipe_code
-            ).all()
+                RecipeMaster.description == description
+                ).all()
 
-            total_quantity = sum(float(r.kg_per_batch) for r in recipes_to_update)
+            total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
             for r in recipes_to_update:
-                r.percentage = Decimal(round((float(r.kg_per_batch) / total_quantity) * 100, 2)) if total_quantity > 0 else Decimal('0.00')
-
+                r.percentage = Decimal(round((float(r.kg_per_batch) / total_kg) * 100, 2)) if total_kg > 0 else Decimal('0.00')
+            
             db.session.commit()
             return jsonify({'message': 'Recipes saved successfully!'}), 200
 
@@ -138,30 +140,33 @@ def recipe_page():
     search_description = request.args.get('description', '')
     edit_id = request.args.get('edit_id')
     
-    # Get all items for dropdowns (any item can be used as component or assembly)
-    all_items = ItemMaster.query.order_by(ItemMaster.item_code).all()
+    # Get all raw materials and finished goods for the dropdowns
+    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').order_by(ItemMaster.item_code).all()
+    finished_goods = ItemMaster.query.filter(ItemMaster.item_type == 'Finished Good').order_by(ItemMaster.item_code).all()
 
+    
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
                          recipes=RecipeMaster.query.all(),
-                         all_items=all_items,
+                         raw_materials=raw_materials,
+                         finished_goods=finished_goods,
                          current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
 def delete_recipe(id):
     try:
         recipe = RecipeMaster.query.get_or_404(id)
-        recipe_code = recipe.recipe_code
+        description = recipe.description
         db.session.delete(recipe)
         db.session.commit()
 
-        # Recalculate percentages for remaining recipes with the same recipe_code
-        recipes_to_update = RecipeMaster.query.filter(RecipeMaster.recipe_code == recipe_code).all()
+        # Recalculate percentages for remaining recipes with the same description
+        recipes_to_update = RecipeMaster.query.filter(RecipeMaster.description == description).all()
         if recipes_to_update:
-            total_quantity = sum(float(r.kg_per_batch) for r in recipes_to_update)
+            total_kg = sum(float(r.kg_per_batch) for r in recipes_to_update)
             for r in recipes_to_update:
-                r.percentage = Decimal(round((float(r.kg_per_batch) / total_quantity) * 100, 2)) if total_quantity > 0 else Decimal('0.00')
+                r.percentage = Decimal(round((float(r.kg_per_batch) / total_kg) * 100, 2)) if total_kg > 0 else Decimal('0.00')
             db.session.commit()
 
         return jsonify({'message': 'Recipe deleted successfully!'}), 200
@@ -171,6 +176,7 @@ def delete_recipe(id):
 
 @recipe_bp.route('/autocomplete_recipe', methods=['GET'])
 def autocomplete_recipe():
+  
     search = request.args.get('query', '').strip()
     if not search:
         return jsonify([])
@@ -188,24 +194,14 @@ def get_search_recipes():
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
     
-    # Create aliases for the two ItemMaster joins
-    from sqlalchemy.orm import aliased
-    RawMaterialItem = aliased(ItemMaster)
-    FinishedGoodItem = aliased(ItemMaster)
-    
-    # Join with both raw material and finished good items
+    # Join with item_master to get the raw material code and name
     recipes_query = db.session.query(
         RecipeMaster,
-        RawMaterialItem.item_code.label('raw_material_code'),
-        RawMaterialItem.description.label('raw_material'),
-        FinishedGoodItem.item_code.label('finished_good_code'),
-        FinishedGoodItem.description.label('finished_good')
+        ItemMaster.item_code.label('raw_material_code'),  # Add item_code
+        ItemMaster.description.label('raw_material_name')
     ).join(
-        RawMaterialItem,
-        RecipeMaster.raw_material_id == RawMaterialItem.id
-    ).join(
-        FinishedGoodItem,
-        RecipeMaster.finished_good_id == FinishedGoodItem.id
+        ItemMaster,
+        RecipeMaster.raw_material_id == ItemMaster.id
     )
     
     if search_recipe_code:
@@ -214,23 +210,20 @@ def get_search_recipes():
         recipes_query = recipes_query.filter(RecipeMaster.description.ilike(f"%{search_description}%"))
     
     recipes = recipes_query.all()
-    
-    recipes_data = []
-    for recipe in recipes:
-        recipes_data.append({
+    recipes_data = [
+        {
             "id": recipe.RecipeMaster.id,
             "recipe_code": recipe.RecipeMaster.recipe_code,
             "description": recipe.RecipeMaster.description,
-            "raw_material_code": recipe.raw_material_code,
-            "raw_material": recipe.raw_material,
+            "raw_material_code": recipe.raw_material_code,  # Add raw_material_code
+            "raw_material": recipe.raw_material_name,
             "raw_material_id": recipe.RecipeMaster.raw_material_id,
-            "finished_good_code": recipe.finished_good_code,
-            "finished_good": recipe.finished_good,
             "finished_good_id": recipe.RecipeMaster.finished_good_id,
             "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch) if recipe.RecipeMaster.kg_per_batch else 0.00,
-            "percentage": float(recipe.RecipeMaster.percentage) if recipe.RecipeMaster.percentage else 0.00,
-            "quantity_uom_id": recipe.RecipeMaster.quantity_uom_id
-        })
+            "percentage": round(float(recipe.RecipeMaster.percentage), 2) if recipe.RecipeMaster.percentage else 0.00
+        }
+        for recipe in recipes
+    ]
     
     return jsonify(recipes_data)
 
@@ -243,13 +236,13 @@ def usage():
     query = db.session.query(
         Production,
         RecipeMaster,
-        ItemMaster.description.label('component_name')
+        ItemMaster.description.label('raw_material_name')
     ).join(
         RecipeMaster,
         Production.production_code == RecipeMaster.recipe_code  # Join Production to RecipeMaster
     ).join(
         ItemMaster,
-        RecipeMaster.raw_material_id == ItemMaster.id  # Join RecipeMaster to ItemMaster for raw material
+        RecipeMaster.raw_material_id == ItemMaster.id  # Join RecipeMaster to ItemMaster
     )
     
     # Apply date filters if provided
@@ -264,7 +257,7 @@ def usage():
     
     # Group data by production date
     grouped_usage_data = {}
-    for production, recipe, component_name in usage_data:
+    for production, recipe, raw_material_name in usage_data:
         date = production.production_date  # production_date is already a date object
         # Calculate the Monday of the week for the production_date
         week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
@@ -277,10 +270,9 @@ def usage():
             'production_date': production.production_date.strftime('%Y-%m-%d'),
             'production_code': production.production_code,
             'recipe_code': recipe.recipe_code,
-            'component_material': component_name,
+            'raw_material': raw_material_name,
             'usage_kg': recipe.kg_per_batch * production.batches,  # Scale by batches
-            'kg_per_batch': recipe.kg_per_batch,
-            'percentage': recipe.percentage if recipe.percentage else 0.0
+            'percentage': recipe.percentage
         })
     
     return render_template('recipe/usage.html',
@@ -297,7 +289,7 @@ def usage_download():
     # Query to get usage data
     query = db.session.query(
         RecipeMaster,
-        ItemMaster.description.label('component_name')
+        ItemMaster.description.label('raw_material_name')
     ).join(
         ItemMaster,
         RecipeMaster.raw_material_id == ItemMaster.id
@@ -315,15 +307,16 @@ def usage_download():
     
     # Create Excel file
     data = []
-    for recipe, component_name in usage_data:
+    for recipe, raw_material_name in usage_data:
         # Calculate the Monday of the week for the created_at date
         week_commencing = get_monday_date(recipe.created_at.date().strftime('%Y-%m-%d'))
         data.append({
             'Week Commencing': week_commencing.strftime('%Y-%m-%d'),
             'Production Date': recipe.created_at.strftime('%Y-%m-%d'),
             'Recipe Code': recipe.recipe_code,
-            'Component Material': component_name,
-            'Kg per Batch': recipe.kg_per_batch
+            'Raw Material': raw_material_name,
+            'Usage (kg)': recipe.kg_per_batch,
+            'Percentage (%)': recipe.percentage
         })
     
     df = pd.DataFrame(data)
@@ -348,12 +341,12 @@ def raw_material_report():
         # Get week commencing filter from request
         week_commencing = request.args.get('week_commencing')
         
-        # Base query for weekly data - using current schema
+        # Base query for weekly data
         raw_material_query = """
         SELECT 
             DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            im.description as component_material,
-            im.id as component_item_id,
+            im.description as raw_material,
+            im.id as raw_material_id,
             SUM(p.total_kg * r.percentage / 100) as total_usage
         FROM production p
         JOIN recipe_master r ON p.production_code = r.recipe_code
@@ -389,8 +382,8 @@ def raw_material_report():
             report = RawMaterialReport(
                 production_date=result.week_commencing,  # Using week_commencing as production_date
                 week_commencing=result.week_commencing,
-                raw_material=result.component_material,
-                raw_material_id=result.component_item_id,
+                raw_material=result.raw_material,
+                raw_material_id=result.raw_material_id,
                 meat_required=float(result.total_usage),
                 created_at=datetime.now()
             )
@@ -402,7 +395,7 @@ def raw_material_report():
         raw_material_data = [
             {
                 'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
-                'raw_material': result.component_material,
+                'raw_material': result.raw_material,
                 'usage': round(float(result.total_usage), 2)
             }
             for result in results
@@ -410,27 +403,27 @@ def raw_material_report():
         
         return render_template('recipe/raw_material_report.html', 
                              raw_material_data=raw_material_data,
-                             week_commencing=week_commencing,
                              current_page='raw_material_report')
-        
+    
     except Exception as e:
-        flash(f"An error occurred: {str(e)}", 'error')
+        db.session.rollback()
+        flash(f"Error generating raw material report: {str(e)}", 'error')
         return render_template('recipe/raw_material_report.html', 
                              raw_material_data=[],
-                             week_commencing=week_commencing,
                              current_page='raw_material_report')
 
 @recipe_bp.route('/raw_material_download', methods=['GET'])
 def raw_material_download():
     try:
+        # Get week commencing filter from request
         week_commencing = request.args.get('week_commencing')
         
-        # Base query for weekly data - using current schema
+        # Base query for weekly data
         raw_material_query = """
         SELECT 
             DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            im.description as component_material,
-            im.id as component_item_id,
+            im.description as raw_material,
+            im.id as raw_material_id,
             SUM(p.total_kg * r.percentage / 100) as total_usage
         FROM production p
         JOIN recipe_master r ON p.production_code = r.recipe_code
@@ -455,61 +448,57 @@ def raw_material_download():
         
         results = db.session.execute(text(raw_material_query), params).fetchall()
         
-        # Convert to list of dictionaries for Excel
-        data = [
-            {
-                'Week Commencing': result.week_commencing.strftime('%d/%m/%Y'),
-                'Component Material': result.component_material,
-                'Total Usage (kg)': round(float(result.total_usage), 2)
-            }
-            for result in results
+        # Create Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Raw Material Report"
+        
+        # Define headers
+        headers = [
+            "Week Commencing",
+            "Raw Material",
+            "Usage (kg)"
         ]
+        ws.append(headers)
         
-        if not data:
-            flash("No data available for the selected week.", 'warning')
-            return redirect(url_for('recipe.raw_material_report'))
+        # Style headers
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
         
-        # Create DataFrame
-        df = pd.DataFrame(data)
+        # Populate data
+        for result in results:
+            ws.append([
+                result.week_commencing.strftime('%d/%m/%Y'),
+                result.raw_material,
+                round(float(result.total_usage), 2)
+            ])
         
-        # Create Excel file
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, sheet_name='Raw Material Report', index=False)
-            
-            # Get the workbook and worksheet objects
-            workbook = writer.book
-            worksheet = writer.sheets['Raw Material Report']
-            
-            # Add formatting
-            header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': True,
-                'valign': 'top',
-                'fg_color': '#D7E4BC',
-                'border': 1
-            })
-            
-            # Write the column headers with the defined format
-            for col_num, value in enumerate(df.columns.values):
-                worksheet.write(0, col_num, value, header_format)
-            
-            # Adjust column widths
-            worksheet.set_column('A:A', 15)  # Week Commencing
-            worksheet.set_column('B:B', 30)  # Component Material
-            worksheet.set_column('C:C', 15)  # Total Usage
+        # Auto-adjust column widths
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column].width = adjusted_width
         
-        output.seek(0)
-        
-        filename = f'raw_material_report_{week_commencing}.xlsx' if week_commencing else 'raw_material_report.xlsx'
+        # Save to BytesIO
+        excel_file = BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
         
         return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            excel_file,
+            download_name=f"raw_material_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
             as_attachment=True,
-            download_name=filename
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        
     except Exception as e:
-        flash(f"Error generating Excel file: {str(e)}", 'error')
-        return redirect(url_for('recipe.raw_material_report')) 
+        print(f"Error in raw_material_download: {str(e)}")
+        flash(f"Error downloading report: {str(e)}", 'error')
+        return redirect(url_for('recipe.raw_material_report'))
