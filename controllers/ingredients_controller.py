@@ -17,6 +17,7 @@ def allowed_file(filename):
 @ingredients_bp.route('/ingredients_list', methods=['GET'])
 def ingredients_list():
     from app import db
+    from models.raw_material_stocktake import RawMaterialStocktake
     from models.item_master import ItemMaster
     from models.category import Category
     from models.department import Department
@@ -28,37 +29,40 @@ def ingredients_list():
     sort_by = request.args.get('sort_by', 'id').strip()
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
-    ingredients = []
+    stocktakes = []
     try:
-        # Query only raw materials from item_master
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
+        # Query stocktake records with item relationships
+        stocktakes_query = RawMaterialStocktake.query.join(ItemMaster, RawMaterialStocktake.item_code == ItemMaster.item_code)
         
         if search_item_code:
-            ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
+            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.item_code.ilike(f"%{search_item_code}%"))
         if search_description:
-            ingredients_query = ingredients_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
+            stocktakes_query = stocktakes_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
         if search_category:
-            ingredients_query = ingredients_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
+            stocktakes_query = stocktakes_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
 
         # Apply sorting
-        if sort_by in ['item_code', 'description', 'price_per_kg', 'min_level', 'max_level']:
+        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'price_uom', 'stock_value']:
             if sort_direction == 'desc':
-                ingredients_query = ingredients_query.order_by(desc(getattr(ItemMaster, sort_by)))
+                stocktakes_query = stocktakes_query.order_by(desc(getattr(RawMaterialStocktake, sort_by)))
             else:
-                ingredients_query = ingredients_query.order_by(asc(getattr(ItemMaster, sort_by)))
+                stocktakes_query = stocktakes_query.order_by(asc(getattr(RawMaterialStocktake, sort_by)))
+        else:
+            # Default sort by most recent
+            stocktakes_query = stocktakes_query.order_by(desc(RawMaterialStocktake.created_at))
 
-        ingredients = ingredients_query.all()
+        stocktakes = stocktakes_query.all()
 
         # Get categories for filter dropdown
         categories = Category.query.all()
 
     except Exception as e:
-        flash(f"Error fetching ingredients list: {str(e)}", "danger")
-        ingredients = []
+        flash(f"Error fetching stocktake records: {str(e)}", "danger")
+        stocktakes = []
         categories = []
 
     return render_template('ingredients/list.html',
-                           ingredients=ingredients,
+                           stocktakes=stocktakes,
                            categories=categories,
                            search_item_code=search_item_code,
                            search_description=search_description,
@@ -75,11 +79,13 @@ def ingredients_create():
     from models.department import Department
     from models.uom import UOM
     from models.allergen import Allergen
+    from models.raw_material_stocktake import RawMaterialStocktake
+    from datetime import datetime, date
 
     if request.method == 'POST':
         try:
             # Get form data
-            week_commencing = request.form.get('week_commencing', '').strip()
+            week_commencing_str = request.form.get('week_commencing', '').strip()
             stocktake_type = request.form.get('stocktake_type', '').strip()
             user = request.form.get('user', '').strip()
             item_code = request.form['item_code'].strip()
@@ -88,7 +94,7 @@ def ingredients_create():
             notes = request.form.get('notes', '').strip()
 
             # Validate required fields
-            if not week_commencing:
+            if not week_commencing_str:
                 flash("Week commencing is required!", "danger")
                 return redirect(request.url)
             
@@ -100,6 +106,13 @@ def ingredients_create():
                 flash("User is required!", "danger")
                 return redirect(request.url)
 
+            # Parse week commencing date
+            try:
+                week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash("Invalid week commencing date format!", "danger")
+                return redirect(request.url)
+
             # Check if item exists in Item Master and is a raw material
             existing_item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
             if not existing_item:
@@ -109,9 +122,22 @@ def ingredients_create():
             # Calculate stock value
             stock_value = current_stock * price_uom
 
-            # For now, we'll just log the stock management entry
-            # In a real implementation, you might want to create a separate StockManagement table
-            flash(f"Stock record created for {item_code}: {current_stock} units worth ${stock_value:.2f} for {stocktake_type} stocktake by {user}", "success")
+            # Create new stocktake record
+            new_stocktake = RawMaterialStocktake(
+                week_commencing=week_commencing,
+                stocktake_type=stocktake_type,
+                user=user,
+                item_code=item_code,
+                current_stock=current_stock,
+                price_uom=price_uom,
+                stock_value=stock_value,
+                notes=notes
+            )
+            
+            db.session.add(new_stocktake)
+            db.session.commit()
+            
+            flash(f"Stocktake record created successfully for {item_code}: {current_stock} units worth ${stock_value:.2f}", "success")
             return redirect(url_for('ingredients.ingredients_list'))
 
         except ValueError as e:
@@ -124,9 +150,15 @@ def ingredients_create():
 
     # Get existing raw materials from item_master table
     existing_items = ItemMaster.query.filter_by(item_type='RM').all()
+    
+    # Get departments and UOMs for dropdowns
+    departments = Department.query.all()
+    uoms = UOM.query.all()
 
     return render_template('ingredients/create.html',
                            existing_items=existing_items,
+                           departments=departments,
+                           uoms=uoms,
                            current_page="ingredients")
 
 @ingredients_bp.route('/ingredients_edit/<int:id>', methods=['GET', 'POST'])
@@ -212,6 +244,88 @@ def ingredients_edit(id):
                            allergens=allergens,
                            current_allergen_ids=current_allergen_ids,
                            current_page="ingredients")
+
+@ingredients_bp.route('/stocktake_edit/<int:id>', methods=['GET', 'POST'])
+def stocktake_edit(id):
+    from app import db
+    from models.raw_material_stocktake import RawMaterialStocktake
+    from models.item_master import ItemMaster
+    from models.department import Department
+    from models.uom import UOM
+
+    stocktake = RawMaterialStocktake.query.get_or_404(id)
+
+    if request.method == 'POST':
+        try:
+            # Get form data
+            week_commencing_str = request.form.get('week_commencing', '').strip()
+            stocktake_type = request.form.get('stocktake_type', '').strip()
+            user = request.form.get('user', '').strip()
+            current_stock = float(request.form.get('current_stock') or 0.0)
+            price_uom = float(request.form.get('price_uom') or 0.0)
+            notes = request.form.get('notes', '').strip()
+
+            # Validate required fields
+            if not week_commencing_str or not stocktake_type or not user:
+                flash("Week commencing, stocktake type, and user are required!", "danger")
+                return redirect(request.url)
+
+            # Parse week commencing date
+            try:
+                week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
+            except ValueError:
+                flash("Invalid week commencing date format!", "danger")
+                return redirect(request.url)
+
+            # Update stocktake record
+            stocktake.week_commencing = week_commencing
+            stocktake.stocktake_type = stocktake_type
+            stocktake.user = user
+            stocktake.current_stock = current_stock
+            stocktake.price_uom = price_uom
+            stocktake.stock_value = current_stock * price_uom
+            stocktake.notes = notes
+            
+            db.session.commit()
+            
+            flash(f"Stocktake record updated successfully for {stocktake.item_code}: {current_stock} units worth ${stocktake.stock_value:.2f}", "success")
+            return redirect(url_for('ingredients.ingredients_list'))
+
+        except ValueError as e:
+            flash(f"Invalid number format: {str(e)}", "danger")
+            return redirect(request.url)
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating stocktake record: {str(e)}", "danger")
+            return redirect(request.url)
+
+    # Get departments and UOMs for dropdowns
+    departments = Department.query.all()
+    uoms = UOM.query.all()
+
+    return render_template('ingredients/stocktake_edit.html',
+                           stocktake=stocktake,
+                           departments=departments,
+                           uoms=uoms,
+                           current_page="ingredients")
+
+@ingredients_bp.route('/stocktake_delete/<int:id>', methods=['POST'])
+def stocktake_delete(id):
+    from app import db
+    from models.raw_material_stocktake import RawMaterialStocktake
+
+    try:
+        stocktake = RawMaterialStocktake.query.get_or_404(id)
+        
+        # Delete stocktake record
+        db.session.delete(stocktake)
+        db.session.commit()
+        flash("Stocktake record deleted successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting stocktake record: {str(e)}", "danger")
+
+    return redirect(url_for('ingredients.ingredients_list'))
 
 @ingredients_bp.route('/ingredients_delete/<int:id>', methods=['POST'])
 def ingredients_delete(id):
@@ -577,9 +691,10 @@ def autocomplete_ingredients():
         print("Error fetching ingredient autocomplete suggestions:", e)
         return jsonify([])
 
-@ingredients_bp.route('/get_search_ingredients', methods=['GET'])
-def get_search_ingredients():
+@ingredients_bp.route('/get_search_stocktakes', methods=['GET'])
+def get_search_stocktakes():
     from app import db
+    from models.raw_material_stocktake import RawMaterialStocktake
     from models.item_master import ItemMaster
     from models.category import Category
 
@@ -590,40 +705,48 @@ def get_search_ingredients():
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
     try:
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
+        stocktakes_query = RawMaterialStocktake.query.join(ItemMaster, RawMaterialStocktake.item_code == ItemMaster.item_code)
 
         if search_item_code:
-            ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
+            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.item_code.ilike(f"%{search_item_code}%"))
         if search_description:
-            ingredients_query = ingredients_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
+            stocktakes_query = stocktakes_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
         if search_category:
-            ingredients_query = ingredients_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
+            stocktakes_query = stocktakes_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
 
         # Apply sorting
-        if sort_by in ['item_code', 'description', 'price_per_kg', 'min_level', 'max_level']:
+        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'price_uom', 'stock_value']:
             if sort_direction == 'desc':
-                ingredients_query = ingredients_query.order_by(desc(getattr(ItemMaster, sort_by)))
+                stocktakes_query = stocktakes_query.order_by(desc(getattr(RawMaterialStocktake, sort_by)))
             else:
-                ingredients_query = ingredients_query.order_by(asc(getattr(ItemMaster, sort_by)))
+                stocktakes_query = stocktakes_query.order_by(asc(getattr(RawMaterialStocktake, sort_by)))
+        else:
+            # Default sort by most recent
+            stocktakes_query = stocktakes_query.order_by(desc(RawMaterialStocktake.created_at))
 
-        ingredients = ingredients_query.all()
+        stocktakes = stocktakes_query.all()
 
-        ingredients_data = []
-        for ingredient in ingredients:
-            ingredients_data.append({
-                "id": ingredient.id,
-                "item_code": ingredient.item_code or "",
-                "description": ingredient.description or "",
-                "category": ingredient.category.category_name if ingredient.category else "",
-                "department": ingredient.department.department_name if ingredient.department else "",
-                "uom": ingredient.uom.UOM if ingredient.uom else "",
-                "min_level": ingredient.min_level if ingredient.min_level is not None else "",
-                "max_level": ingredient.max_level if ingredient.max_level is not None else "",
-                "price_per_kg": ingredient.price_per_kg if ingredient.price_per_kg is not None else "",
-                "is_active": "Yes" if ingredient.is_active else "No"
+        stocktakes_data = []
+        for stocktake in stocktakes:
+            stocktakes_data.append({
+                "id": stocktake.id,
+                "week_commencing": stocktake.week_commencing_str,
+                "stocktake_type": stocktake.stocktake_type or "",
+                "user": stocktake.user or "",
+                "item_code": stocktake.item_code or "",
+                "description": stocktake.item.description if stocktake.item else "",
+                "uom": stocktake.item.uom.UOMName if stocktake.item and stocktake.item.uom else "",
+                "department": stocktake.item.department.departmentName if stocktake.item and stocktake.item.department else "",
+                "current_stock": stocktake.current_stock if stocktake.current_stock is not None else "",
+                "min_level": stocktake.item.min_level if stocktake.item and stocktake.item.min_level is not None else "",
+                "max_level": stocktake.item.max_level if stocktake.item and stocktake.item.max_level is not None else "",
+                "price_uom": stocktake.price_uom if stocktake.price_uom is not None else "",
+                "price_kg": stocktake.item.price_per_kg if stocktake.item and stocktake.item.price_per_kg is not None else "",
+                "stock_value": stocktake.stock_value if stocktake.stock_value is not None else "",
+                "notes": stocktake.notes or ""
             })
 
-        return jsonify(ingredients_data)
+        return jsonify(stocktakes_data)
     except Exception as e:
-        print(f"Error fetching search ingredients: {str(e)}")
+        print(f"Error fetching search stocktakes: {str(e)}")
         return jsonify([]), 500 

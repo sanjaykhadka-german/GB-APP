@@ -47,8 +47,10 @@
                             {% if item.item_type == 'RM' %}
                             <option value="{{ item.item_code }}" 
                                     data-description="{{ item.description or '' }}"
-                                    data-department="{{ item.department.department_name if item.department else '' }}"
-                                    data-uom="{{ item.uom.UOM if item.uom else '' }}"
+                                    data-department-id="{{ item.department_id or '' }}"
+                                    data-department-name="{{ item.department.departmentName if item.department else '' }}"
+                                    data-uom-id="{{ item.uom_id or '' }}"
+                                    data-uom-name="{{ item.uom.UOMName if item.uom else '' }}"
                                     data-min-level="{{ item.min_level or 0 }}"
                                     data-max-level="{{ item.max_level or 0 }}"
                                     data-price-kg="{{ item.price_per_kg or 0 }}"
@@ -71,14 +73,24 @@
         <div class="row">
             <div class="col-md-4">
                 <div class="form-group">
-                    <label for="uom">UOM</label>
-                    <input type="text" class="form-control" id="uom" name="uom" readonly>
+                    <label for="uom_id">UOM</label>
+                    <select class="form-control" id="uom_id" name="uom_id">
+                        <option value="">Select UOM</option>
+                        {% for uom in uoms %}
+                            <option value="{{ uom.UOMID }}">{{ uom.UOMName }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="form-group">
-                    <label for="department">Department</label>
-                    <input type="text" class="form-control" id="department" name="department" readonly>
+                    <label for="department_id">Department</label>
+                    <select class="form-control" id="department_id" name="department_id">
+                        <option value="">Select Department</option>
+                        {% for department in departments %}
+                            <option value="{{ department.department_id }}">{{ department.departmentName }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
             <div class="col-md-4">
@@ -111,16 +123,16 @@
         </div>
         
         <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="form-group">
                     <label for="price_kg">$/KG</label>
                     <input type="number" step="0.01" class="form-control" id="price_kg" name="price_kg" value="0" readonly>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-5">
                 <div class="form-group">
                     <label for="stock_value">Stock Value</label>
-                    <input type="number" step="0.01" class="form-control" id="stock_value" name="stock_value" value="0" readonly>
+                    <input type="number" step="0.01" class="form-control form-control-lg" id="stock_value" name="stock_value" value="0" readonly style="font-size: 1.2rem; font-weight: bold; background-color: #e8f5e8;">
                     <small class="form-text text-muted">Auto-calculated: Current Stock × $/UOM</small>
                 </div>
             </div>
@@ -153,6 +165,41 @@
     
     .readonly-field {
         background-color: #f8f9fa;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    .form-control:read-only {
+        background-color: #f8f9fa;
+        opacity: 1;
+    }
+    
+    .stock-value-highlight {
+        background-color: #e8f5e8 !important;
+        border: 2px solid #28a745 !important;
+        font-weight: bold;
+        color: #155724;
+    }
+    
+    .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+        font-weight: 500;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        font-weight: 500;
     }
 </style>
 
@@ -225,13 +272,31 @@ function updateFormFromSelection() {
     const selectedOption = itemSelect.options[itemSelect.selectedIndex];
     
     if (selectedOption && selectedOption.value !== "") {
-        // Auto-populate read-only fields from selected item
+        // Auto-populate fields from selected item
         document.getElementById('description').value = selectedOption.getAttribute('data-description') || '';
-        document.getElementById('uom').value = selectedOption.getAttribute('data-uom') || '';
-        document.getElementById('department').value = selectedOption.getAttribute('data-department') || '';
         document.getElementById('min_level').value = selectedOption.getAttribute('data-min-level') || '0';
         document.getElementById('max_level').value = selectedOption.getAttribute('data-max-level') || '0';
         document.getElementById('price_kg').value = selectedOption.getAttribute('data-price-kg') || '0';
+        
+        // Set dropdowns based on item data
+        const uomId = selectedOption.getAttribute('data-uom-id') || '';
+        const departmentId = selectedOption.getAttribute('data-department-id') || '';
+        
+        // Set UOM dropdown
+        const uomSelect = document.getElementById('uom_id');
+        if (uomId) {
+            uomSelect.value = uomId;
+        } else {
+            uomSelect.selectedIndex = 0;
+        }
+        
+        // Set Department dropdown
+        const departmentSelect = document.getElementById('department_id');
+        if (departmentId) {
+            departmentSelect.value = departmentId;
+        } else {
+            departmentSelect.selectedIndex = 0;
+        }
         
         // Focus on current stock field for user input
         document.getElementById('current_stock').focus();
@@ -241,8 +306,8 @@ function updateFormFromSelection() {
     } else {
         // Clear fields when no item is selected
         document.getElementById('description').value = '';
-        document.getElementById('uom').value = '';
-        document.getElementById('department').value = '';
+        document.getElementById('uom_id').selectedIndex = 0;
+        document.getElementById('department_id').selectedIndex = 0;
         document.getElementById('min_level').value = '0';
         document.getElementById('max_level').value = '0';
         document.getElementById('price_kg').value = '0';

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-2">
     <section id="search">
-        <h2>Ingredients Search</h2>
+        <h2>Stocktake Search</h2>
         <form id="searchForm" onsubmit="return false;">
             <div class="form-group">
                 <label for="search_item_code">Item Code:</label>
@@ -34,9 +34,9 @@
     </section>
 
     <section id="list">
-        <h2>Ingredients List</h2>
+        <h2>Raw Material Stocktake Records</h2>
         <div class="d-flex gap-2 mb-3">
-            <a href="{{ url_for('ingredients.ingredients_create') }}" class="btn btn-primary">Add New Ingredient</a>
+            <a href="{{ url_for('ingredients.ingredients_create') }}" class="btn btn-primary">Add New Stocktake</a>
             <a href="{{ url_for('ingredients.ingredients_upload') }}" class="btn btn-success">Upload Ingredients</a>
             <a href="{{ url_for('ingredients.ingredients_download_template') }}" class="btn btn-info">Download Template</a>
             <a href="{{ url_for('ingredients.ingredients_download_excel') }}" class="btn btn-warning">Download Excel</a>
@@ -58,35 +58,45 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th class="sortable" data-column="week_commencing">Week Commencing <span class="sort-icon"></span></th>
+                        <th class="sortable" data-column="stocktake_type">Stocktake Type <span class="sort-icon"></span></th>
+                        <th class="sortable" data-column="user">User <span class="sort-icon"></span></th>
                         <th class="sortable" data-column="item_code">Item Code <span class="sort-icon"></span></th>
-                        <th class="sortable" data-column="description">Description <span class="sort-icon"></span></th>
-                        <th>Category</th>
-                        <th>Department</th>
+                        <th>Description</th>
                         <th>UOM</th>
-                        <th class="sortable" data-column="min_level">Min Level <span class="sort-icon"></span></th>
-                        <th class="sortable" data-column="max_level">Max Level <span class="sort-icon"></span></th>
-                        <th class="sortable" data-column="price_per_kg">Price per KG <span class="sort-icon"></span></th>
-                        <th>Active</th>
+                        <th>Department</th>
+                        <th class="sortable" data-column="current_stock">Current Stock <span class="sort-icon"></span></th>
+                        <th>Min Level</th>
+                        <th>Max Level</th>
+                        <th class="sortable" data-column="price_uom">$/UOM <span class="sort-icon"></span></th>
+                        <th>$/KG</th>
+                        <th class="sortable" data-column="stock_value">Stock Value <span class="sort-icon"></span></th>
+                        <th>Notes</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for ingredient in ingredients %}
-                    <tr data-id="{{ ingredient.id }}">
-                        <td>{{ ingredient.id or '' }}</td>
-                        <td>{{ ingredient.item_code or '' }}</td>
-                        <td>{{ ingredient.description or '' }}</td>
-                        <td>{{ ingredient.category.category_name if ingredient.category else '' }}</td>
-                        <td>{{ ingredient.department.department_name if ingredient.department else '' }}</td>
-                        <td>{{ ingredient.uom.UOM if ingredient.uom else '' }}</td>
-                        <td>{{ ingredient.min_level if ingredient.min_level is not none else '' }}</td>
-                        <td>{{ ingredient.max_level if ingredient.max_level is not none else '' }}</td>
-                        <td>{{ "${:.2f}".format(ingredient.price_per_kg) if ingredient.price_per_kg is not none else '' }}</td>
-                        <td>{{ 'Yes' if ingredient.is_active else 'No' }}</td>
+                    {% for stocktake in stocktakes %}
+                    <tr data-id="{{ stocktake.id }}">
+                        <td>{{ stocktake.id or '' }}</td>
+                        <td>{{ stocktake.week_commencing_str }}</td>
+                        <td>{{ stocktake.stocktake_type or '' }}</td>
+                        <td>{{ stocktake.user or '' }}</td>
+                        <td>{{ stocktake.item_code or '' }}</td>
+                        <td>{{ stocktake.item.description if stocktake.item else '' }}</td>
+                        <td>{{ stocktake.item.uom.UOMName if stocktake.item and stocktake.item.uom else '' }}</td>
+                        <td>{{ stocktake.item.department.departmentName if stocktake.item and stocktake.item.department else '' }}</td>
+                        <td>{{ "{:.2f}".format(stocktake.current_stock) if stocktake.current_stock is not none else '' }}</td>
+                        <td>{{ "{:.2f}".format(stocktake.item.min_level) if stocktake.item and stocktake.item.min_level is not none else '' }}</td>
+                        <td>{{ "{:.2f}".format(stocktake.item.max_level) if stocktake.item and stocktake.item.max_level is not none else '' }}</td>
+                        <td>{{ "${:.2f}".format(stocktake.price_uom) if stocktake.price_uom is not none else '' }}</td>
+                        <td>{{ "${:.2f}".format(stocktake.item.price_per_kg) if stocktake.item and stocktake.item.price_per_kg is not none else '' }}</td>
+                        <td class="stock-value-highlight">{{ "${:.2f}".format(stocktake.stock_value) if stocktake.stock_value is not none else '' }}</td>
+                        <td>{{ stocktake.notes or '' }}</td>
                         <td>
-                            <a href="{{ url_for('ingredients.ingredients_edit', id=ingredient.id) }}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
-                            <form action="{{ url_for('ingredients.ingredients_delete', id=ingredient.id) }}" method="post" style="display:inline-block;">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this ingredient?')">Delete</button>
+                            <a href="{{ url_for('ingredients.stocktake_edit', id=stocktake.id) }}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
+                            <form action="{{ url_for('ingredients.stocktake_delete', id=stocktake.id) }}" method="post" style="display:inline-block;">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this stocktake record?')">Delete</button>
                             </form>
                         </td>
                     </tr>
@@ -182,6 +192,12 @@
     #searchForm button:hover {
         background-color: #0056b3;
     }
+    
+    .stock-value-highlight {
+        background-color: #e8f5e8 !important;
+        font-weight: bold;
+        color: #155724;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -245,8 +261,8 @@ $(document).ready(function() {
         fetchIngredients();
     });
 
-    const baseEditUrl = "{{ url_for('ingredients.ingredients_edit', id=0) }}".replace('/0', '');
-    const baseDeleteUrl = "{{ url_for('ingredients.ingredients_delete', id=0) }}".replace('/0', '');
+    const baseEditUrl = "{{ url_for('ingredients.stocktake_edit', id=0) }}".replace('/0', '');
+    const baseDeleteUrl = "{{ url_for('ingredients.stocktake_delete', id=0) }}".replace('/0', '');
 
     function fetchIngredients() {
         var itemCode = $("#search_item_code").val().trim();
@@ -257,7 +273,7 @@ $(document).ready(function() {
         var sortDirection = $('.sortable.sort-asc').length > 0 ? 'asc' : $('.sortable.sort-desc').length > 0 ? 'desc' : '{{ sort_direction | default("asc") }}';
 
         $.ajax({
-            url: "{{ url_for('ingredients.get_search_ingredients') }}",
+            url: "{{ url_for('ingredients.get_search_stocktakes') }}",
             type: "GET",
             data: {
                 item_code: itemCode,
@@ -274,11 +290,11 @@ $(document).ready(function() {
                 if (response.length === 0) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="11">
+                            <td colspan="16">
                                 <div class="no-results">
-                                    <p>No ingredients found for Item Code: ${itemCode || 'Any'}, Description: ${description || 'Any'}</p>
-                                    <button class="add-ingredient-btn" onclick="addIngredient('${itemCode}')">
-                                        Add Ingredient for Item Code ${itemCode || 'New'}
+                                    <p>No stocktake records found for Item Code: ${itemCode || 'Any'}, Description: ${description || 'Any'}</p>
+                                    <button class="add-ingredient-btn" onclick="addStocktake('${itemCode}')">
+                                        Add Stocktake for Item Code ${itemCode || 'New'}
                                     </button>
                                 </div>
                             </td>
@@ -287,27 +303,32 @@ $(document).ready(function() {
                     return;
                 }
 
-                response.forEach(function(ingredient) {
-                    if (ingredient.id !== null && ingredient.id !== undefined) {
-                        const editUrl = `${baseEditUrl}/${ingredient.id}`;
-                        const deleteUrl = `${baseDeleteUrl}/${ingredient.id}`;
+                response.forEach(function(stocktake) {
+                    if (stocktake.id !== null && stocktake.id !== undefined) {
+                        const editUrl = `${baseEditUrl}/${stocktake.id}`;
+                        const deleteUrl = `${baseDeleteUrl}/${stocktake.id}`;
 
                         tableBody.append(`
-                            <tr data-id="${ingredient.id}">
-                                <td>${ingredient.id || ''}</td>
-                                <td>${ingredient.item_code || ''}</td>
-                                <td>${ingredient.description || ''}</td>
-                                <td>${ingredient.category || ''}</td>
-                                <td>${ingredient.department || ''}</td>
-                                <td>${ingredient.uom || ''}</td>
-                                <td>${ingredient.min_level || ''}</td>
-                                <td>${ingredient.max_level || ''}</td>
-                                <td>${ingredient.price_per_kg ? '$' + parseFloat(ingredient.price_per_kg).toFixed(2) : ''}</td>
-                                <td>${ingredient.is_active || ''}</td>
+                            <tr data-id="${stocktake.id}">
+                                <td>${stocktake.id || ''}</td>
+                                <td>${stocktake.week_commencing || ''}</td>
+                                <td>${stocktake.stocktake_type || ''}</td>
+                                <td>${stocktake.user || ''}</td>
+                                <td>${stocktake.item_code || ''}</td>
+                                <td>${stocktake.description || ''}</td>
+                                <td>${stocktake.uom || ''}</td>
+                                <td>${stocktake.department || ''}</td>
+                                <td>${stocktake.current_stock ? parseFloat(stocktake.current_stock).toFixed(2) : ''}</td>
+                                <td>${stocktake.min_level ? parseFloat(stocktake.min_level).toFixed(2) : ''}</td>
+                                <td>${stocktake.max_level ? parseFloat(stocktake.max_level).toFixed(2) : ''}</td>
+                                <td>${stocktake.price_uom ? '$' + parseFloat(stocktake.price_uom).toFixed(2) : ''}</td>
+                                <td>${stocktake.price_kg ? '$' + parseFloat(stocktake.price_kg).toFixed(2) : ''}</td>
+                                <td class="stock-value-highlight">${stocktake.stock_value ? '$' + parseFloat(stocktake.stock_value).toFixed(2) : ''}</td>
+                                <td>${stocktake.notes || ''}</td>
                                 <td>
                                    <a href="${editUrl}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
                                     <form action="${deleteUrl}" method="post" style="display:inline-block;">
-                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this ingredient?')">Delete</button>
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this stocktake record?')">Delete</button>
                                     </form>
                                 </td>
                             </tr>
@@ -321,19 +342,19 @@ $(document).ready(function() {
                 tableBody.empty();
                 tableBody.append(`
                     <tr>
-                        <td colspan="11" class="no-results">Error fetching ingredients: ${xhr.responseText}</td>
+                        <td colspan="16" class="no-results">Error fetching stocktake records: ${xhr.responseText}</td>
                     </tr>
                 `);
             }
         });
     }
 
-    function addIngredient(itemCode) {
+    function addStocktake(itemCode) {
         window.location.href = `{{ url_for('ingredients.ingredients_create') }}?item_code=${itemCode}`;
     }
 
-    // Make addIngredient globally available
-    window.addIngredient = addIngredient;
+    // Make addStocktake globally available
+    window.addStocktake = addStocktake;
 
     // Bind search button click event
     $('#searchForm button[type="button"]').click(function() {

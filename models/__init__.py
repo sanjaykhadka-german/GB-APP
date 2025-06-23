@@ -17,4 +17,5 @@ from .inventory import Inventory
 from .usage_report import UsageReport
 from .item_type import ItemType
 from .user import User
+from .raw_material_stocktake import RawMaterialStocktake
 # from .packing_plan import PackingPlan

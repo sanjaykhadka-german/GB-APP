@@ -63,7 +63,7 @@
                                         {% for department in departments %}
                                             <option value="{{ department.department_id }}" 
                                                     {% if ingredient.department_id == department.department_id %}selected{% endif %}>
-                                                {{ department.department_name }}
+                                                {{ department.departmentName }}
                                             </option>
                                         {% endfor %}
                                     </select>
@@ -77,7 +77,7 @@
                                         {% for uom in uoms %}
                                             <option value="{{ uom.UOMID }}" 
                                                     {% if ingredient.uom_id == uom.UOMID %}selected{% endif %}>
-                                                {{ uom.UOM }}
+                                                {{ uom.UOMName }}
                                             </option>
                                         {% endfor %}
                                     </select>
