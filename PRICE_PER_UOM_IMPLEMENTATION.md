@@ -134,3 +134,21 @@ The price_per_uom feature has been successfully implemented across all layers:
 - ✅ **Database Schema**: Column successfully added to database
 
 The implementation is complete and fully functional. The database column has been successfully added and the application is working without errors. 
+
+In packing calculations:
+total_stock_kg = soh_requirement_kg_week * weekly_average
+requirement_kg = total_stock_kg - soh_kg + special_order_kg
+
+# Uses filling_code from joining/ItemMaster
+if item and item.filling_code:
+    wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code, item_type='WIPF').first()
+    filling = Filling(
+        fill_code=item.filling_code,
+        kilo_per_size=packing.requirement_kg,  # Calculated using weekly_average
+        week_commencing=week_commencing
+    ) 
+
+# Uses production_code relationship
+production_code = fg_item.production_code
+total_kg = sum(filling.kilo_per_size)  # Aggregated from filling entries
+batches = total_kg / 300  # Batch size calculation 
