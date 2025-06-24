@@ -19,6 +19,7 @@ class ItemMaster(db.Model):
     min_level = db.Column(db.Float)
     max_level = db.Column(db.Float)
     price_per_kg = db.Column(db.Float)  # For raw materials
+    price_per_uom = db.Column(db.Float)  # Price per unit of measure
     kg_per_unit = db.Column(db.Float)   # For WIPF/FG
     units_per_bag = db.Column(db.Float)  # For FG
     loss_percentage = db.Column(db.Float)  # Production/Filling loss

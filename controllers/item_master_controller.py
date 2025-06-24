@@ -100,6 +100,7 @@ def get_items():
             "min_level": item.min_level,
             "max_level": item.max_level,
             "price_per_kg": item.price_per_kg,
+            "price_per_uom": item.price_per_uom,
             "is_make_to_order": item.is_make_to_order,
             "kg_per_unit": item.kg_per_unit,
             "units_per_bag": item.units_per_bag,
@@ -148,11 +149,12 @@ def save_item():
         item.uom_id = data['uom_id'] if data['uom_id'] else None
         item.min_level = data['min_level'] if data['min_level'] else None
         item.max_level = data['max_level'] if data['max_level'] else None
+        item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
+        item.price_per_uom = data['price_per_uom'] if data['price_per_uom'] else None
         item.is_active = data['is_active']
         
         # Update type-specific fields
         if item_type_name == 'Raw Material':
-            item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
             # Clear finished good fields
             item.is_make_to_order = False
             item.kg_per_unit = None
@@ -163,8 +165,6 @@ def save_item():
             item.kg_per_unit = data['kg_per_unit'] if data['kg_per_unit'] else None
             item.units_per_bag = data['units_per_bag'] if data['units_per_bag'] else None
             item.loss_percentage = data['loss_percentage'] if data['loss_percentage'] else None
-            # Clear raw material fields
-            item.price_per_kg = None
         
         # Handle allergens
         if 'allergen_ids' in data:

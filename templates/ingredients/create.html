@@ -40,26 +40,11 @@
         <div class="row">
             <div class="col-md-6">
                 <div class="form-group">
-                    <label for="item_code_select">Item Code</label>
-                    <select class="form-control" id="item_code_select" name="item_code" required onchange="updateFormFromSelection()">
-                        <option value="">Select Item Code</option>
-                        {% for item in existing_items %}
-                            {% if item.item_type == 'RM' %}
-                            <option value="{{ item.item_code }}" 
-                                    data-description="{{ item.description or '' }}"
-                                    data-department-id="{{ item.department_id or '' }}"
-                                    data-department-name="{{ item.department.departmentName if item.department else '' }}"
-                                    data-uom-id="{{ item.uom_id or '' }}"
-                                    data-uom-name="{{ item.uom.UOMName if item.uom else '' }}"
-                                    data-min-level="{{ item.min_level or 0 }}"
-                                    data-max-level="{{ item.max_level or 0 }}"
-                                    data-price-kg="{{ item.price_per_kg or 0 }}"
-                                    data-active="{{ 'true' if item.is_active else 'false' }}">
-                                {{ item.item_code }}
-                            </option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
+                    <label for="item_code_input">Item Code</label>
+                    <input type="text" class="form-control" id="item_code_input" name="item_code" required 
+                           placeholder="Type to search item code..." autocomplete="off" onchange="validateItemCode()">
+                    <div id="item_code_suggestions" class="suggestion-list"></div>
+                    <input type="hidden" id="selected_item_code" name="selected_item_code">
                 </div>
             </div>
             <div class="col-md-6">
@@ -201,6 +186,42 @@
         border-color: #6c757d;
         font-weight: 500;
     }
+    
+    .suggestion-list {
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        max-height: 200px;
+        overflow-y: auto;
+        width: 100%;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: none;
+    }
+    
+    .suggestion-list ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .suggestion-list li {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .suggestion-list li:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .suggestion-list li:last-child {
+        border-bottom: none;
+    }
+    
+    .form-group {
+        position: relative;
+    }
 </style>
 
 <script>
@@ -226,18 +247,178 @@ function calculateStockValue() {
     document.getElementById('stock_value').value = stockValue.toFixed(2);
 }
 
+// Autocomplete functionality for Item Code
+let selectedItemData = null;
+
+function setupAutocomplete() {
+    const itemCodeInput = document.getElementById('item_code_input');
+    const suggestionsDiv = document.getElementById('item_code_suggestions');
+    
+    itemCodeInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        if (query.length > 0) {
+            fetchItemSuggestions(query);
+        } else {
+            hideSuggestions();
+            clearFormFields();
+        }
+    });
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('#item_code_input') && !event.target.closest('#item_code_suggestions')) {
+            hideSuggestions();
+        }
+    });
+}
+
+function fetchItemSuggestions(query) {
+    fetch(`{{ url_for('ingredients.autocomplete_ingredients') }}?query=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+            displaySuggestions(data);
+        })
+        .catch(error => {
+            console.error('Error fetching suggestions:', error);
+            hideSuggestions();
+        });
+}
+
+function displaySuggestions(items) {
+    const suggestionsDiv = document.getElementById('item_code_suggestions');
+    
+    if (items.length === 0) {
+        hideSuggestions();
+        return;
+    }
+    
+    const ul = document.createElement('ul');
+    items.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = `${item.item_code} - ${item.description}`;
+        li.dataset.itemCode = item.item_code;
+        li.dataset.description = item.description;
+        
+        li.addEventListener('click', function() {
+            selectItem(item.item_code, item.description);
+        });
+        
+        ul.appendChild(li);
+    });
+    
+    suggestionsDiv.innerHTML = '';
+    suggestionsDiv.appendChild(ul);
+    suggestionsDiv.style.display = 'block';
+}
+
+function hideSuggestions() {
+    const suggestionsDiv = document.getElementById('item_code_suggestions');
+    suggestionsDiv.style.display = 'none';
+    suggestionsDiv.innerHTML = '';
+}
+
+function selectItem(itemCode, description) {
+    document.getElementById('item_code_input').value = `${itemCode} - ${description}`;
+    document.getElementById('selected_item_code').value = itemCode;
+    hideSuggestions();
+    
+    // Fetch full item data and populate form
+    fetchItemData(itemCode);
+}
+
+function fetchItemData(itemCode) {
+    // Make an AJAX call to get item details
+    fetch(`/item_master/get_item/${encodeURIComponent(itemCode)}`)
+        .then(response => response.json())
+        .then(itemData => {
+            if (itemData) {
+                selectedItemData = itemData;
+                updateFormFromItemData(itemData);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching item data:', error);
+            // Fallback: try to find in the static data
+            const existingItems = JSON.parse('{{ existing_items | tojson | safe }}');
+            const itemData = existingItems.find(item => item.item_code === itemCode);
+            if (itemData) {
+                selectedItemData = itemData;
+                updateFormFromItemData(itemData);
+            }
+        });
+}
+
+function updateFormFromItemData(itemData) {
+    // Auto-populate fields from selected item
+    document.getElementById('description').value = itemData.description || '';
+    document.getElementById('min_level').value = itemData.min_level || '0';
+    document.getElementById('max_level').value = itemData.max_level || '0';
+    document.getElementById('price_kg').value = itemData.price_per_kg || '0';
+    
+    // Set UOM dropdown
+    const uomSelect = document.getElementById('uom_id');
+    if (itemData.uom_id) {
+        uomSelect.value = itemData.uom_id;
+    } else {
+        uomSelect.selectedIndex = 0;
+    }
+    
+    // Set Department dropdown
+    const departmentSelect = document.getElementById('department_id');
+    if (itemData.department_id) {
+        departmentSelect.value = itemData.department_id;
+    } else {
+        departmentSelect.selectedIndex = 0;
+    }
+    
+    // Focus on current stock field for user input
+    document.getElementById('current_stock').focus();
+    
+    // Calculate stock value when item is selected
+    calculateStockValue();
+}
+
+function clearFormFields() {
+    selectedItemData = null;
+    document.getElementById('selected_item_code').value = '';
+    document.getElementById('description').value = '';
+    document.getElementById('uom_id').selectedIndex = 0;
+    document.getElementById('department_id').selectedIndex = 0;
+    document.getElementById('min_level').value = '0';
+    document.getElementById('max_level').value = '0';
+    document.getElementById('price_kg').value = '0';
+    document.getElementById('current_stock').value = '0';
+    document.getElementById('price_uom').value = '0';
+    document.getElementById('stock_value').value = '0';
+    document.getElementById('notes').value = '';
+}
+
+function validateItemCode() {
+    const itemCodeInput = document.getElementById('item_code_input').value.trim();
+    const selectedItemCode = document.getElementById('selected_item_code').value;
+    
+    if (itemCodeInput && !selectedItemCode) {
+        // User typed something but didn't select from suggestions
+        alert('Please select a valid item code from the suggestions.');
+        document.getElementById('item_code_input').focus();
+        return false;
+    }
+    return true;
+}
+
 // Form validation
 document.getElementById('ingredientForm').addEventListener('submit', function(e) {
-    var itemCode = document.getElementById('item_code_select').value.trim();
+    var itemCodeInput = document.getElementById('item_code_input').value.trim();
+    var selectedItemCode = document.getElementById('selected_item_code').value.trim();
     var weekCommencing = document.getElementById('week_commencing').value.trim();
     var stocktakeType = document.getElementById('stocktake_type').value.trim();
     var user = document.getElementById('user').value.trim();
     var currentStock = parseFloat(document.getElementById('current_stock').value);
     var priceUom = parseFloat(document.getElementById('price_uom').value);
     
-    if (!itemCode) {
+    if (!itemCodeInput || !selectedItemCode) {
         e.preventDefault();
-        alert('Please select an item code.');
+        alert('Please select a valid item code.');
         return;
     }
     
@@ -264,63 +445,18 @@ document.getElementById('ingredientForm').addEventListener('submit', function(e)
         alert('Stock levels and prices must be non-negative numbers.');
         return;
     }
-});
-
-// Update form fields when item is selected from dropdown
-function updateFormFromSelection() {
-    const itemSelect = document.getElementById('item_code_select');
-    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
     
-    if (selectedOption && selectedOption.value !== "") {
-        // Auto-populate fields from selected item
-        document.getElementById('description').value = selectedOption.getAttribute('data-description') || '';
-        document.getElementById('min_level').value = selectedOption.getAttribute('data-min-level') || '0';
-        document.getElementById('max_level').value = selectedOption.getAttribute('data-max-level') || '0';
-        document.getElementById('price_kg').value = selectedOption.getAttribute('data-price-kg') || '0';
-        
-        // Set dropdowns based on item data
-        const uomId = selectedOption.getAttribute('data-uom-id') || '';
-        const departmentId = selectedOption.getAttribute('data-department-id') || '';
-        
-        // Set UOM dropdown
-        const uomSelect = document.getElementById('uom_id');
-        if (uomId) {
-            uomSelect.value = uomId;
-        } else {
-            uomSelect.selectedIndex = 0;
-        }
-        
-        // Set Department dropdown
-        const departmentSelect = document.getElementById('department_id');
-        if (departmentId) {
-            departmentSelect.value = departmentId;
-        } else {
-            departmentSelect.selectedIndex = 0;
-        }
-        
-        // Focus on current stock field for user input
-        document.getElementById('current_stock').focus();
-        
-        // Calculate stock value when item is selected
-        calculateStockValue();
-    } else {
-        // Clear fields when no item is selected
-        document.getElementById('description').value = '';
-        document.getElementById('uom_id').selectedIndex = 0;
-        document.getElementById('department_id').selectedIndex = 0;
-        document.getElementById('min_level').value = '0';
-        document.getElementById('max_level').value = '0';
-        document.getElementById('price_kg').value = '0';
-        document.getElementById('current_stock').value = '0';
-        document.getElementById('price_uom').value = '0';
-        document.getElementById('stock_value').value = '0';
-        document.getElementById('notes').value = '';
-    }
-}
+    // Update the form field name to match what the backend expects
+    document.getElementById('item_code_input').name = 'item_code';
+    document.getElementById('item_code_input').value = selectedItemCode;
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     // Set default week commencing
     setDefaultWeekCommencing();
+    
+    // Setup autocomplete functionality
+    setupAutocomplete();
     
     // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {

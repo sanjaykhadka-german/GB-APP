@@ -180,21 +180,38 @@
                 </div>
 
                 <div class="row mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-group">
                             <label for="min_level" class="form-label">Min Level</label>
                             <input type="number" id="min_level" name="min_level" class="form-control" 
                                    value="{{ item.min_level if item and item.min_level else '' }}" step="1" min="0">
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-group">
                             <label for="max_level" class="form-label">Max Level</label>
                             <input type="number" id="max_level" name="max_level" class="form-control" 
                                    value="{{ item.max_level if item and item.max_level else '' }}" step="1" min="0">
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="price_per_kg" class="form-label">Price per KG</label>
+                            <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" 
+                                   value="{{ item.price_per_kg if item and item.price_per_kg else '' }}" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="price_per_uom" class="form-label">Price per UOM</label>
+                            <input type="number" id="price_per_uom" name="price_per_uom" class="form-control" 
+                                   value="{{ item.price_per_uom if item and item.price_per_uom else '' }}" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
                         <div class="form-group">
                             <label class="form-label">Status</label>
                             <div class="form-check form-switch">
@@ -212,16 +229,7 @@
 
                 <!-- Raw Material Specific Fields -->
                 <div id="raw-material-fields">
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="price_per_kg" class="form-label">Price per KG</label>
-                                <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" 
-                                       value="{{ item.price_per_kg if item and item.price_per_kg else '' }}" 
-                                       step="0.01" min="0">
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Raw material specific fields can be added here if needed -->
                 </div>
 
                 <!-- Finished Good Specific Fields -->

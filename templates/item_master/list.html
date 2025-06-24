@@ -95,6 +95,8 @@
                             <th>UOM</th>
                             <th>Min Level</th>
                             <th>Max Level</th>
+                            <th>Price/KG</th>
+                            <th>Price/UOM</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -219,7 +221,7 @@ function searchItems() {
             tbody.innerHTML = '';
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No items found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" class="text-center">No items found</td></tr>';
                 return;
             }
             
@@ -234,6 +236,8 @@ function searchItems() {
                     <td>${item.uom || ''}</td>
                     <td>${item.min_level || ''}</td>
                     <td>${item.max_level || ''}</td>
+                    <td>${item.price_per_kg ? '$' + parseFloat(item.price_per_kg).toFixed(2) : ''}</td>
+                    <td>${item.price_per_uom ? '$' + parseFloat(item.price_per_uom).toFixed(2) : ''}</td>
                     <td>
                         <span class="badge ${item.is_active ? 'bg-success' : 'bg-danger'}">
                             ${item.is_active ? 'Active' : 'Inactive'}

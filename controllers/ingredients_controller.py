@@ -149,7 +149,24 @@ def ingredients_create():
             return redirect(request.url)
 
     # Get existing raw materials from item_master table
-    existing_items = ItemMaster.query.filter_by(item_type='RM').all()
+    existing_items_query = ItemMaster.query.filter_by(item_type='RM').all()
+    
+    # Convert to dictionaries for JSON serialization
+    existing_items = []
+    for item in existing_items_query:
+        existing_items.append({
+            'id': item.id,
+            'item_code': item.item_code,
+            'description': item.description or '',
+            'item_type': item.item_type,
+            'category_id': item.category_id,
+            'department_id': item.department_id,
+            'uom_id': item.uom_id,
+            'min_level': item.min_level or 0,
+            'max_level': item.max_level or 0,
+            'price_per_kg': item.price_per_kg or 0,
+            'is_active': item.is_active
+        })
     
     # Get departments and UOMs for dropdowns
     departments = Department.query.all()
