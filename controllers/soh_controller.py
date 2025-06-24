@@ -135,7 +135,7 @@ def soh_upload():
                     flash(f"No item found for FG Code: {fg_code}. Skipping row.", "danger")
                     continue
                 units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-                avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+                avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
 
 
                 # Recalculate totals to ensure consistency (ALWAYS recalculate on the backend)
@@ -319,7 +319,7 @@ def soh_create():
             if not item:
                 return jsonify({"success": False, "error": f"No item found for FG Code: {fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
 
             soh_total_boxes = dispatch_boxes + packing_boxes
             soh_total_units = (
@@ -407,7 +407,7 @@ def soh_edit(id):
                 flash(f"FG Code '{fg_code}' not found in Item Master table.", "danger")
                 return redirect(request.url)
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
 
             # Recalculate totals
             soh_total_boxes = soh_dispatch_boxes + soh_packing_boxes
@@ -629,7 +629,7 @@ def soh_bulk_edit():
             if not item:
                 return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
 
 
             # Recalculate totals based on potentially updated or existing values
@@ -725,7 +725,7 @@ def soh_inline_edit():
             if not item:
                 return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
 
         # Recalculate total boxes and units based on potentially updated and existing values
         # Ensure these are treated as 0.0 if they are None for calculation purposes

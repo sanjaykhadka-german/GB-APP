@@ -101,9 +101,11 @@ def get_items():
             "max_level": item.max_level,
             "price_per_kg": item.price_per_kg,
             "price_per_uom": item.price_per_uom,
+            "calculation_factor": item.calculation_factor,
             "is_make_to_order": item.is_make_to_order,
             "kg_per_unit": item.kg_per_unit,
             "units_per_bag": item.units_per_bag,
+            "avg_weight_per_unit": item.avg_weight_per_unit,
             "loss_percentage": item.loss_percentage,
             "is_active": item.is_active,
             "allergens": [allergen.name for allergen in item.allergens]
@@ -151,6 +153,7 @@ def save_item():
         item.max_level = data['max_level'] if data['max_level'] else None
         item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
         item.price_per_uom = data['price_per_uom'] if data['price_per_uom'] else None
+        item.calculation_factor = data['calculation_factor'] if data['calculation_factor'] else None
         item.is_active = data['is_active']
         
         # Update type-specific fields
@@ -159,11 +162,13 @@ def save_item():
             item.is_make_to_order = False
             item.kg_per_unit = None
             item.units_per_bag = None
+            item.avg_weight_per_unit = None
             item.loss_percentage = None
         else:
             item.is_make_to_order = data['is_make_to_order']
             item.kg_per_unit = data['kg_per_unit'] if data['kg_per_unit'] else None
             item.units_per_bag = data['units_per_bag'] if data['units_per_bag'] else None
+            item.avg_weight_per_unit = data['avg_weight_per_unit'] if data['avg_weight_per_unit'] else None
             item.loss_percentage = data['loss_percentage'] if data['loss_percentage'] else None
         
         # Handle allergens

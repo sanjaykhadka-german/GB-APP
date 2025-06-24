@@ -22,13 +22,14 @@ class ItemMaster(db.Model):
     price_per_uom = db.Column(db.Float)  # Price per unit of measure
     kg_per_unit = db.Column(db.Float)   # For WIPF/FG
     units_per_bag = db.Column(db.Float)  # For FG
+    avg_weight_per_unit = db.Column(db.Float)  # Average weight per unit in kg
     loss_percentage = db.Column(db.Float)  # Production/Filling loss
     is_make_to_order = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     
     # Additional fields from joining table migration (can be removed later)
     fw = db.Column(db.Boolean, default=False)  # FW flag from joining
-    weekly_average = db.Column(db.Float)  # Weekly average from joining
+    calculation_factor = db.Column(db.Float)  # Calculation factor for stock and production planning (renamed from weekly_average)
     product_description = db.Column(db.String(255))  # Additional description for products
     
     # Cross-reference fields for migration period (will be removed later)
