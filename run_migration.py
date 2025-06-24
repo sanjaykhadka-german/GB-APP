@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import os
 import sys
+from dotenv import load_dotenv
 from flask import Flask
 from flask_migrate import Migrate
 from database import db
 from models.packing import Packing
 from models.soh import SOH
 from models.machinery import Machinery
-from models.joining import Joining
 from models.filling import Filling
 from models.production import Production
 from models.recipe_master import RecipeMaster
@@ -15,6 +15,7 @@ from models.raw_materials import RawMaterials
 from models.usage_report import UsageReport
 from models.raw_material_report import RawMaterialReport
 from models.item_master import ItemMaster
+from sqlalchemy import text
 
 # Create Flask app
 app = Flask(__name__)

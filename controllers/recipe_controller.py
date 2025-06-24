@@ -10,7 +10,7 @@ from models import Production, RecipeMaster, UsageReport, RawMaterialReport, Ite
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.production import Production
-from models.joining import Joining
+# from models.joining import Joining  # REMOVED - joining table deprecated
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 

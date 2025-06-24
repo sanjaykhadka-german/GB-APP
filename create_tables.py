@@ -8,7 +8,7 @@ from models.machinery import Machinery
 from models.uom import UOM
 from models.item_master import ItemMaster
 from models.recipe_master import RecipeMaster
-from models.joining import Joining
+# from models.joining import Joining  # REMOVED - joining table deprecated
 from models.soh import SOH
 from models.packing import Packing
 from models.filling import Filling
@@ -70,8 +70,8 @@ def create_tables():
             print("Created recipe_master table")
 
             # Create operational tables
-            Joining.__table__.create(db.engine)
-            print("Created joining table")
+            # Joining table removed - migrated to ItemMaster
+            print("Joining table removed - functionality moved to ItemMaster")
             
             SOH.__table__.create(db.engine)
             print("Created soh table")
