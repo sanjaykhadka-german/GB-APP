@@ -26,6 +26,7 @@ def ingredients_list():
     search_item_code = request.args.get('item_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_category = request.args.get('category', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
     sort_by = request.args.get('sort_by', 'id').strip()
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
@@ -39,10 +40,12 @@ def ingredients_list():
         if search_description:
             stocktakes_query = stocktakes_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
         if search_category:
-            stocktakes_query = stocktakes_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
+            stocktakes_query = stocktakes_query.join(Category).filter(Category.name.ilike(f"%{search_category}%"))
+        if search_week_commencing:
+            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.week_commencing == search_week_commencing)
 
         # Apply sorting
-        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'price_uom', 'stock_value']:
+        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'order_quantity', 'price_uom', 'stock_value']:
             if sort_direction == 'desc':
                 stocktakes_query = stocktakes_query.order_by(desc(getattr(RawMaterialStocktake, sort_by)))
             else:
@@ -67,6 +70,7 @@ def ingredients_list():
                            search_item_code=search_item_code,
                            search_description=search_description,
                            search_category=search_category,
+                           search_week_commencing=search_week_commencing,
                            sort_by=sort_by,
                            sort_direction=sort_direction,
                            current_page="ingredients")
@@ -89,7 +93,9 @@ def ingredients_create():
             stocktake_type = request.form.get('stocktake_type', '').strip()
             user = request.form.get('user', '').strip()
             item_code = request.form['item_code'].strip()
+            category_id = request.form.get('category_id') or None
             current_stock = float(request.form.get('current_stock') or 0.0)
+            order_quantity = float(request.form.get('order_quantity') or 0.0)
             price_uom = float(request.form.get('price_uom') or 0.0)
             notes = request.form.get('notes', '').strip()
 
@@ -128,7 +134,9 @@ def ingredients_create():
                 stocktake_type=stocktake_type,
                 user=user,
                 item_code=item_code,
+                category_id=int(category_id) if category_id else None,
                 current_stock=current_stock,
+                order_quantity=order_quantity,
                 price_uom=price_uom,
                 stock_value=stock_value,
                 notes=notes
@@ -137,7 +145,7 @@ def ingredients_create():
             db.session.add(new_stocktake)
             db.session.commit()
             
-            flash(f"Stocktake record created successfully for {item_code}: {current_stock} units worth ${stock_value:.2f}", "success")
+            flash(f"Stocktake record created successfully for {item_code}: {current_stock} units, {order_quantity} to order, worth ${stock_value:.2f}", "success")
             return redirect(url_for('ingredients.ingredients_list'))
 
         except ValueError as e:
@@ -168,14 +176,16 @@ def ingredients_create():
             'is_active': item.is_active
         })
     
-    # Get departments and UOMs for dropdowns
+    # Get departments, UOMs, and categories for dropdowns
     departments = Department.query.all()
     uoms = UOM.query.all()
+    categories = Category.query.all()
 
     return render_template('ingredients/create.html',
                            existing_items=existing_items,
                            departments=departments,
                            uoms=uoms,
+                           categories=categories,
                            current_page="ingredients")
 
 @ingredients_bp.route('/ingredients_edit/<int:id>', methods=['GET', 'POST'])
@@ -269,6 +279,7 @@ def stocktake_edit(id):
     from models.item_master import ItemMaster
     from models.department import Department
     from models.uom import UOM
+    from models.category import Category
 
     stocktake = RawMaterialStocktake.query.get_or_404(id)
 
@@ -278,7 +289,9 @@ def stocktake_edit(id):
             week_commencing_str = request.form.get('week_commencing', '').strip()
             stocktake_type = request.form.get('stocktake_type', '').strip()
             user = request.form.get('user', '').strip()
+            category_id = request.form.get('category_id') or None
             current_stock = float(request.form.get('current_stock') or 0.0)
+            order_quantity = float(request.form.get('order_quantity') or 0.0)
             price_uom = float(request.form.get('price_uom') or 0.0)
             notes = request.form.get('notes', '').strip()
 
@@ -298,14 +311,16 @@ def stocktake_edit(id):
             stocktake.week_commencing = week_commencing
             stocktake.stocktake_type = stocktake_type
             stocktake.user = user
+            stocktake.category_id = int(category_id) if category_id else None
             stocktake.current_stock = current_stock
+            stocktake.order_quantity = order_quantity
             stocktake.price_uom = price_uom
             stocktake.stock_value = current_stock * price_uom
             stocktake.notes = notes
             
             db.session.commit()
             
-            flash(f"Stocktake record updated successfully for {stocktake.item_code}: {current_stock} units worth ${stocktake.stock_value:.2f}", "success")
+            flash(f"Stocktake record updated successfully for {stocktake.item_code}: {current_stock} units, {order_quantity} to order, worth ${stocktake.stock_value:.2f}", "success")
             return redirect(url_for('ingredients.ingredients_list'))
 
         except ValueError as e:
@@ -316,14 +331,16 @@ def stocktake_edit(id):
             flash(f"Error updating stocktake record: {str(e)}", "danger")
             return redirect(request.url)
 
-    # Get departments and UOMs for dropdowns
+    # Get departments, UOMs, and categories for dropdowns
     departments = Department.query.all()
     uoms = UOM.query.all()
+    categories = Category.query.all()
 
     return render_template('ingredients/stocktake_edit.html',
                            stocktake=stocktake,
                            departments=departments,
                            uoms=uoms,
+                           categories=categories,
                            current_page="ingredients")
 
 @ingredients_bp.route('/stocktake_delete/<int:id>', methods=['POST'])
@@ -368,10 +385,12 @@ def ingredients_delete(id):
 @ingredients_bp.route('/ingredients_upload', methods=['GET', 'POST'])
 def ingredients_upload():
     from app import db
-    from models.item_master import ItemMaster, ItemAllergen
+    from models.item_master import ItemMaster
+    from models.raw_material_stocktake import RawMaterialStocktake
     from models.category import Category
     from models.department import Department
     from models.uom import UOM
+    from datetime import datetime
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -379,7 +398,7 @@ def ingredients_upload():
             return render_template('ingredients/upload.html', current_page="ingredients")
 
         file = request.files['file']
-        sheet_name = request.form.get('sheet_name', '').strip() or 'Ingredients'
+        sheet_name = request.form.get('sheet_name', '').strip() or 'Stocktake'
 
         if file.filename == '':
             flash("No file selected!", "danger")
@@ -407,7 +426,8 @@ def ingredients_upload():
 
             df.columns = df.columns.str.strip()
 
-            required_columns = ['Item Code', 'Description', 'Category', 'Department', 'UOM', 'Min Level', 'Max Level', 'Price per KG']
+            # Required columns for stocktake upload
+            required_columns = ['Week Commencing', 'Item Code', 'SOH']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 flash(f"Missing required columns in file! Missing: {', '.join(missing_columns)}. Expected: {', '.join(required_columns)}", "danger")
@@ -420,60 +440,74 @@ def ingredients_upload():
 
             for _, row in df.iterrows():
                 try:
+                    # Extract required data
+                    week_commencing_str = str(row['Week Commencing']).strip()
                     item_code = str(row['Item Code']).strip()
-                    description = str(row['Description']).strip()
-                    category_name = str(row['Category']).strip() if pd.notnull(row['Category']) else None
-                    department_name = str(row['Department']).strip() if pd.notnull(row['Department']) else None
-                    uom_name = str(row['UOM']).strip() if pd.notnull(row['UOM']) else None
+                    soh = float(row['SOH']) if pd.notnull(row['SOH']) else 0.0
+
+                    # Parse week commencing date
+                    try:
+                        week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            # Try alternative date formats
+                            week_commencing = pd.to_datetime(week_commencing_str).date()
+                        except:
+                            raise ValueError(f"Invalid date format for Week Commencing: {week_commencing_str}")
+
+                    # Check if item exists in Item Master
+                    item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
+                    if not item:
+                        error_count += 1
+                        print(f"Item code '{item_code}' not found in Item Master")
+                        continue
+
+                    # Calculate order quantity using formula: if(SOH < MIN, MAX - SOH, 0)
+                    min_level = item.min_level or 0
+                    max_level = item.max_level or 0
+                    order_quantity = max(0, max_level - soh) if soh < min_level else 0
+
+                    # Calculate stock value based on UOM
+                    price_per_kg = item.price_per_kg or 0
+                    uom_name = item.uom.UOMName if item.uom else ''
                     
-                    min_level = float(row['Min Level']) if pd.notnull(row['Min Level']) else 0.0
-                    max_level = float(row['Max Level']) if pd.notnull(row['Max Level']) else 0.0
-                    price_per_kg = float(row['Price per KG']) if pd.notnull(row['Price per KG']) else 0.0
+                    if uom_name.lower() in ['kg', 'liter']:
+                        stock_value = soh * price_per_kg
+                        price_uom = price_per_kg
+                    else:
+                        # For other UOMs, use price_per_kg as price_per_uom (could be enhanced)
+                        price_uom = price_per_kg
+                        stock_value = soh * price_uom
 
-                    # Find foreign key IDs
-                    category_id = None
-                    if category_name:
-                        category = Category.query.filter_by(category_name=category_name).first()
-                        category_id = category.id if category else None
+                    # Check if stocktake record already exists for this item and week
+                    existing_stocktake = RawMaterialStocktake.query.filter_by(
+                        item_code=item_code,
+                        week_commencing=week_commencing
+                    ).first()
 
-                    department_id = None
-                    if department_name:
-                        department = Department.query.filter_by(department_name=department_name).first()
-                        department_id = department.department_id if department else None
-
-                    uom_id = None
-                    if uom_name:
-                        uom = UOM.query.filter_by(UOM=uom_name).first()
-                        uom_id = uom.UOMID if uom else None
-
-                    # Check if ingredient exists
-                    existing_ingredient = ItemMaster.query.filter_by(item_code=item_code).first()
-                    
-                    if existing_ingredient:
-                        # Update existing ingredient
-                        existing_ingredient.description = description
-                        existing_ingredient.category_id = category_id
-                        existing_ingredient.department_id = department_id
-                        existing_ingredient.uom_id = uom_id
-                        existing_ingredient.min_level = min_level
-                        existing_ingredient.max_level = max_level
-                        existing_ingredient.price_per_kg = price_per_kg
+                    if existing_stocktake:
+                        # Update existing stocktake
+                        existing_stocktake.current_stock = soh
+                        existing_stocktake.order_quantity = order_quantity
+                        existing_stocktake.price_uom = price_uom
+                        existing_stocktake.stock_value = stock_value
+                        existing_stocktake.category_id = item.category_id
                         updated_count += 1
                     else:
-                        # Create new ingredient
-                        new_ingredient = ItemMaster(
+                        # Create new stocktake record
+                        new_stocktake = RawMaterialStocktake(
+                            week_commencing=week_commencing,
+                            stocktake_type='weekly',  # Default to weekly
+                            user='System Upload',     # Default user
                             item_code=item_code,
-                            description=description,
-                            item_type='RM',
-                            category_id=category_id,
-                            department_id=department_id,
-                            uom_id=uom_id,
-                            min_level=min_level,
-                            max_level=max_level,
-                            price_per_kg=price_per_kg,
-                            is_active=True
+                            category_id=item.category_id,
+                            current_stock=soh,
+                            order_quantity=order_quantity,
+                            price_uom=price_uom,
+                            stock_value=stock_value,
+                            notes=f"Uploaded from file: {filename}"
                         )
-                        db.session.add(new_ingredient)
+                        db.session.add(new_stocktake)
                         created_count += 1
 
                 except Exception as e:
@@ -481,7 +515,7 @@ def ingredients_upload():
                     print(f"Error processing row for item code {item_code}: {str(e)}")
 
             db.session.commit()
-            flash(f"Upload completed! Created: {created_count}, Updated: {updated_count}, Errors: {error_count}", "success")
+            flash(f"Stocktake upload completed! Created: {created_count}, Updated: {updated_count}, Errors: {error_count}", "success")
             return redirect(url_for('ingredients.ingredients_list'))
 
         except Exception as e:
@@ -591,14 +625,15 @@ def ingredients_download_template():
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
+    from datetime import datetime, timedelta
 
     try:
         wb = Workbook()
         ws = wb.active
-        ws.title = "Ingredients Template"
+        ws.title = "Stocktake Template"
 
-        # Headers
-        headers = ['Item Code', 'Description', 'Category', 'Department', 'UOM', 'Min Level', 'Max Level', 'Price per KG']
+        # Headers for stocktake upload
+        headers = ['Week Commencing', 'Item Code', 'Description', 'Category', 'Department', 'SOH']
         ws.append(headers)
 
         # Style headers
@@ -611,11 +646,15 @@ def ingredients_download_template():
             cell.fill = header_fill
             cell.alignment = header_alignment
 
-        # Add sample data
+        # Add sample data with current and next week dates
+        today = datetime.now().date()
+        monday_this_week = today - timedelta(days=today.weekday())
+        monday_next_week = monday_this_week + timedelta(days=7)
+
         sample_data = [
-            ['RM0001', 'Salt', 'Spices', 'Production', 'KG', 10, 100, 2.50],
-            ['RM0002', 'Pepper Black Ground', 'Spices', 'Production', 'KG', 5, 50, 15.00],
-            ['RM0003', 'Pork 75 CL', 'Meat', 'Production', 'KG', 0, 500, 8.50]
+            [monday_this_week.strftime('%Y-%m-%d'), 'RM0001', 'Salt', 'Spices', 'Production', 25.50],
+            [monday_this_week.strftime('%Y-%m-%d'), 'RM0002', 'Pepper Black Ground', 'Spices', 'Production', 12.75],
+            [monday_next_week.strftime('%Y-%m-%d'), 'RM0001', 'Salt', 'Spices', 'Production', 18.25]
         ]
 
         for row_data in sample_data:
@@ -638,14 +677,19 @@ def ingredients_download_template():
         instructions_ws = wb.create_sheet("Instructions")
         instructions = [
             ["Field", "Description", "Required", "Example"],
-            ["Item Code", "Unique identifier for the ingredient", "Yes", "RM0001"],
-            ["Description", "Name of the ingredient", "Yes", "Salt"],
-            ["Category", "Category name (must exist in system)", "No", "Spices"],
-            ["Department", "Department name (must exist in system)", "No", "Production"],
-            ["UOM", "Unit of measurement (must exist in system)", "No", "KG"],
-            ["Min Level", "Minimum stock level", "Yes", "10"],
-            ["Max Level", "Maximum stock level", "Yes", "100"],
-            ["Price per KG", "Cost per kilogram", "Yes", "2.50"]
+            ["Week Commencing", "Date in YYYY-MM-DD format", "Yes", monday_this_week.strftime('%Y-%m-%d')],
+            ["Item Code", "Must exist in Item Master", "Yes", "RM0001"],
+            ["Description", "Auto-populated from Item Master", "No", "Salt"],
+            ["Category", "Auto-populated from Item Master", "No", "Spices"],
+            ["Department", "Auto-populated from Item Master", "No", "Production"],
+            ["SOH", "Stock on Hand (numeric)", "Yes", "25.50"],
+            ["", "", "", ""],
+            ["Auto-calculated Fields:", "", "", ""],
+            ["Order Quantity", "if(SOH < Min Level, Max Level - SOH, 0)", "Auto", ""],
+            ["Stock Value", "Based on UOM and pricing from Item Master", "Auto", ""],
+            ["Price/UOM", "From Item Master pricing", "Auto", ""],
+            ["Min/Max Levels", "From Item Master", "Auto", ""],
+            ["UOM", "From Item Master", "Auto", ""]
         ]
 
         for row in instructions:
@@ -677,7 +721,7 @@ def ingredients_download_template():
 
         # Create response
         response = make_response(output.getvalue())
-        response.headers['Content-Disposition'] = 'attachment; filename=ingredients_upload_template.xlsx'
+        response.headers['Content-Disposition'] = 'attachment; filename=stocktake_upload_template.xlsx'
         response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
         return response
@@ -708,6 +752,55 @@ def autocomplete_ingredients():
         print("Error fetching ingredient autocomplete suggestions:", e)
         return jsonify([])
 
+@ingredients_bp.route('/get_item_details/<item_code>', methods=['GET'])
+def get_item_details(item_code):
+    from app import db
+    from models.item_master import ItemMaster
+    from models.category import Category
+    from models.department import Department
+    from models.uom import UOM
+
+    try:
+        item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
+        
+        if not item:
+            return jsonify({"error": "Item not found"}), 404
+            
+        # Get related data
+        category_name = ""
+        if item.category_id and item.category:
+            category_name = item.category.name
+            
+        department_name = ""
+        if item.department_id and item.department:
+            department_name = item.department.departmentName
+            
+        uom_name = ""
+        if item.uom_id and item.uom:
+            uom_name = item.uom.UOMName
+        
+        item_data = {
+            'item_code': item.item_code,
+            'description': item.description or '',
+            'category_id': item.category_id,
+            'category_name': category_name,
+            'department_id': item.department_id,
+            'department_name': department_name,
+            'uom_id': item.uom_id,
+            'uom_name': uom_name,
+            'min_level': item.min_level or 0,
+            'max_level': item.max_level or 0,
+            'price_per_kg': item.price_per_kg or 0,
+            'price_per_uom': item.price_per_kg or 0,  # Using price_per_kg as default for price_per_uom
+            'is_active': item.is_active
+        }
+        
+        return jsonify(item_data)
+        
+    except Exception as e:
+        print(f"Error fetching item details: {str(e)}")
+        return jsonify({"error": f"Error fetching item details: {str(e)}"}), 500
+
 @ingredients_bp.route('/get_search_stocktakes', methods=['GET'])
 def get_search_stocktakes():
     from app import db
@@ -718,6 +811,7 @@ def get_search_stocktakes():
     search_item_code = request.args.get('item_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_category = request.args.get('category', '').strip()
+    search_week_commencing = request.args.get('week_commencing', '').strip()
     sort_by = request.args.get('sort_by', 'id').strip()
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
@@ -729,10 +823,12 @@ def get_search_stocktakes():
         if search_description:
             stocktakes_query = stocktakes_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
         if search_category:
-            stocktakes_query = stocktakes_query.join(Category).filter(Category.category_name.ilike(f"%{search_category}%"))
+            stocktakes_query = stocktakes_query.join(Category).filter(Category.name.ilike(f"%{search_category}%"))
+        if search_week_commencing:
+            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.week_commencing == search_week_commencing)
 
         # Apply sorting
-        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'price_uom', 'stock_value']:
+        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'order_quantity', 'price_uom', 'stock_value']:
             if sort_direction == 'desc':
                 stocktakes_query = stocktakes_query.order_by(desc(getattr(RawMaterialStocktake, sort_by)))
             else:
@@ -757,6 +853,7 @@ def get_search_stocktakes():
                 "current_stock": stocktake.current_stock if stocktake.current_stock is not None else "",
                 "min_level": stocktake.item.min_level if stocktake.item and stocktake.item.min_level is not None else "",
                 "max_level": stocktake.item.max_level if stocktake.item and stocktake.item.max_level is not None else "",
+                "order_quantity": stocktake.order_quantity if stocktake.order_quantity is not None else "",
                 "price_uom": stocktake.price_uom if stocktake.price_uom is not None else "",
                 "price_kg": stocktake.item.price_per_kg if stocktake.item and stocktake.item.price_per_kg is not None else "",
                 "stock_value": stocktake.stock_value if stocktake.stock_value is not None else "",

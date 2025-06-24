@@ -5,7 +5,7 @@
     <div class="card">
         <div class="card-header">
             <h2 class="mb-0">
-                <i class="fas fa-upload"></i> Upload Ingredients Data
+                <i class="fas fa-upload"></i> Upload Stocktake Data
             </h2>
         </div>
         <div class="card-body">
@@ -67,47 +67,42 @@
                                 </thead>
                                 <tbody>
                                     <tr>
+                                        <td><strong>Week Commencing</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Date format: YYYY-MM-DD (e.g., 2024-01-15)</td>
+                                    </tr>
+                                    <tr>
                                         <td><strong>Item Code</strong></td>
                                         <td><span class="badge bg-danger">Required</span></td>
-                                        <td>Unique identifier for the ingredient</td>
+                                        <td>Must exist in Item Master table</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Description</strong></td>
-                                        <td><span class="badge bg-danger">Required</span></td>
-                                        <td>Name/description of the ingredient</td>
+                                        <td><span class="badge bg-info">Auto-populated</span></td>
+                                        <td>Fetched from Item Master (optional in upload)</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Category</strong></td>
-                                        <td><span class="badge bg-secondary">Optional</span></td>
-                                        <td>Must exist in system to be linked</td>
+                                        <td><span class="badge bg-info">Auto-populated</span></td>
+                                        <td>Fetched from Item Master (optional in upload)</td>
                                     </tr>
                                     <tr>
                                         <td><strong>Department</strong></td>
-                                        <td><span class="badge bg-secondary">Optional</span></td>
-                                        <td>Must exist in system to be linked</td>
+                                        <td><span class="badge bg-info">Auto-populated</span></td>
+                                        <td>Fetched from Item Master (optional in upload)</td>
                                     </tr>
                                     <tr>
-                                        <td><strong>UOM</strong></td>
-                                        <td><span class="badge bg-secondary">Optional</span></td>
-                                        <td>Unit of measure (must exist in system)</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Min Level</strong></td>
+                                        <td><strong>SOH</strong></td>
                                         <td><span class="badge bg-danger">Required</span></td>
-                                        <td>Minimum stock level</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Max Level</strong></td>
-                                        <td><span class="badge bg-danger">Required</span></td>
-                                        <td>Maximum stock level</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Price per KG</strong></td>
-                                        <td><span class="badge bg-danger">Required</span></td>
-                                        <td>Price per kilogram</td>
+                                        <td>Stock on Hand (current stock level)</td>
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="alert alert-success mt-3" role="alert">
+                            <h6><i class="fas fa-magic"></i> Auto-calculated Fields:</h6>
+                            <p class="mb-0"><strong>Order Quantity:</strong> Calculated using formula: if(SOH < Min Level, Max Level - SOH, 0)<br>
+                            <strong>Stock Value:</strong> Calculated based on UOM (if Kg/Liter: SOH × $/KG, else: SOH × $/UOM)</p>
                         </div>
                     </div>
                 </div>
@@ -117,10 +112,11 @@
                         <div class="alert alert-info" role="alert">
                             <h6><i class="fas fa-info-circle"></i> Important Notes:</h6>
                             <ul class="mb-0">
-                                <li>If an ingredient with the same Item Code exists, it will be updated</li>
-                                <li>New ingredients will be created for Item Codes that don't exist</li>
-                                <li>Category, Department, and UOM must exist in the system to be linked</li>
-                                <li>All new ingredients will be marked as active by default</li>
+                                <li>Item Codes must exist in the Item Master table</li>
+                                <li>Description, Category, Department, UOM, Min/Max levels, and pricing will be auto-populated from Item Master</li>
+                                <li>Order Quantity will be calculated automatically based on SOH vs Min Level</li>
+                                <li>Stock Value will be calculated using the appropriate pricing formula</li>
+                                <li>Multiple stocktake records can be uploaded for different items and weeks</li>
                                 <li>Download the template above for the correct format</li>
                             </ul>
                         </div>
@@ -130,7 +126,7 @@
                 <div class="d-flex gap-2 justify-content-between">
                     <div>
                         <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
-                            <i class="fas fa-upload"></i> Upload Ingredients
+                            <i class="fas fa-upload"></i> Upload Stocktake Data
                         </button>
                         <button type="button" class="btn btn-secondary" onclick="window.history.back()">
                             <i class="fas fa-times"></i> Cancel
@@ -160,49 +156,50 @@
                 <table class="table table-sm table-bordered">
                     <thead class="table-light">
                         <tr>
+                            <th>Week Commencing</th>
                             <th>Item Code</th>
                             <th>Description</th>
                             <th>Category</th>
                             <th>Department</th>
-                            <th>UOM</th>
-                            <th>Min Level</th>
-                            <th>Max Level</th>
-                            <th>Price per KG</th>
+                            <th>SOH</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
+                            <td>2024-01-15</td>
                             <td>RM0001</td>
                             <td>Salt</td>
                             <td>Spices</td>
                             <td>Production</td>
-                            <td>KG</td>
-                            <td>10</td>
-                            <td>100</td>
-                            <td>2.50</td>
+                            <td>25.50</td>
                         </tr>
                         <tr>
+                            <td>2024-01-15</td>
                             <td>RM0002</td>
                             <td>Pepper Black Ground</td>
                             <td>Spices</td>
                             <td>Production</td>
-                            <td>KG</td>
-                            <td>5</td>
-                            <td>50</td>
-                            <td>15.00</td>
+                            <td>12.75</td>
                         </tr>
                         <tr>
-                            <td>RM0003</td>
-                            <td>Pork 75 CL</td>
-                            <td>Meat</td>
+                            <td>2024-01-22</td>
+                            <td>RM0001</td>
+                            <td>Salt</td>
+                            <td>Spices</td>
                             <td>Production</td>
-                            <td>KG</td>
-                            <td>0</td>
-                            <td>500</td>
-                            <td>8.50</td>
+                            <td>18.25</td>
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div class="alert alert-warning mt-3" role="alert">
+                <h6><i class="fas fa-info-circle"></i> Template Notes:</h6>
+                <ul class="mb-0">
+                    <li><strong>Description, Category, Department</strong> columns are optional - they will be auto-populated from Item Master if not provided</li>
+                    <li><strong>Week Commencing</strong> must be in YYYY-MM-DD format</li>
+                    <li><strong>Item Code</strong> must exist in the Item Master table</li>
+                    <li><strong>SOH</strong> should be a numeric value (decimal allowed)</li>
+                </ul>
             </div>
         </div>
     </div>
