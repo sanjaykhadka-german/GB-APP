@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, flash
 from database import db
 from models.item_master import ItemMaster
 from models.category import Category
@@ -518,3 +518,158 @@ def download_template():
         
     except Exception as e:
         return jsonify({'error': f'Failed to generate template: {str(e)}'}), 500
+
+@item_master_bp.route('/item-master/upload', methods=['GET', 'POST'])
+def item_master_upload():
+    """Render the upload page for Item Master Excel/CSV upload and handle file uploads."""
+    if request.method == 'POST':
+        # Handle file upload - reuse the existing upload_excel logic
+        try:
+            if 'file' not in request.files:
+                flash('No file uploaded', 'error')
+                return render_template('item_master/upload.html', current_page='item_master')
+            
+            file = request.files['file']
+            if file.filename == '':
+                flash('No file selected', 'error')
+                return render_template('item_master/upload.html', current_page='item_master')
+            
+            if not file.filename.lower().endswith(('.xlsx', '.xls', '.csv')):
+                flash('Please upload a valid Excel or CSV file (.xlsx, .xls, .csv)', 'error')
+                return render_template('item_master/upload.html', current_page='item_master')
+            
+            # Process the file using existing upload logic
+            # Read the Excel file
+            workbook = openpyxl.load_workbook(file)
+            sheet = workbook.active
+            
+            # Expected columns: Item Code, Description, Type, Category, Department, UOM, Min Level, Max Level, Price Per Kg, Is Make To Order, Kg Per Unit, Units Per Bag, Loss Percentage, Is Active
+            headers = []
+            for cell in sheet[1]:
+                if cell.value:
+                    headers.append(str(cell.value).strip())
+            
+            # Validate required headers
+            required_headers = ['Item Code', 'Description', 'Type']
+            missing_headers = [h for h in required_headers if h not in headers]
+            if missing_headers:
+                flash(f'Missing required columns: {", ".join(missing_headers)}', 'error')
+                return render_template('item_master/upload.html', current_page='item_master')
+            
+            success_count = 0
+            error_count = 0
+            errors = []
+            
+            # Process each row (skip header)
+            for row_num, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                try:
+                    if not any(row):  # Skip empty rows
+                        continue
+                    
+                    # Create dictionary from row data
+                    row_data = dict(zip(headers, row))
+                    
+                    # Skip if required fields are empty
+                    if not row_data.get('Item Code') or not row_data.get('Description') or not row_data.get('Type'):
+                        error_count += 1
+                        errors.append(f'Row {row_num}: Missing required fields')
+                        continue
+                    
+                    item_code = str(row_data['Item Code']).strip()
+                    description = str(row_data['Description']).strip()
+                    item_type = str(row_data['Type']).strip()
+                    
+                    # Check if item already exists
+                    existing_item = ItemMaster.query.filter_by(item_code=item_code).first()
+                    if existing_item:
+                        error_count += 1
+                        errors.append(f'Row {row_num}: Item code {item_code} already exists')
+                        continue
+                    
+                    # Validate item type
+                    valid_item_type = ItemType.query.filter_by(type_name=item_type).first()
+                    if not valid_item_type:
+                        error_count += 1
+                        errors.append(f'Row {row_num}: Invalid item type "{item_type}"')
+                        continue
+                    
+                    # Create new item
+                    item = ItemMaster()
+                    item.item_code = item_code
+                    item.description = description
+                    item.item_type = item_type
+                    
+                    # Optional fields
+                    if row_data.get('Category'):
+                        category = Category.query.filter_by(name=str(row_data['Category']).strip()).first()
+                        if category:
+                            item.category_id = category.id
+                    
+                    if row_data.get('Department'):
+                        department = Department.query.filter_by(departmentName=str(row_data['Department']).strip()).first()
+                        if department:
+                            item.department_id = department.id
+                    
+                    if row_data.get('UOM'):
+                        uom = UOM.query.filter_by(UOMName=str(row_data['UOM']).strip()).first()
+                        if uom:
+                            item.uom_id = uom.id
+                    
+                    # Numeric fields
+                    try:
+                        if row_data.get('Min Level'):
+                            item.min_level = float(row_data['Min Level'])
+                        if row_data.get('Max Level'):
+                            item.max_level = float(row_data['Max Level'])
+                        if row_data.get('Price Per Kg'):
+                            item.price_per_kg = float(row_data['Price Per Kg'])
+                        if row_data.get('Price Per UOM'):
+                            item.price_per_uom = float(row_data['Price Per UOM'])
+                        if row_data.get('Kg Per Unit'):
+                            item.kg_per_unit = float(row_data['Kg Per Unit'])
+                        if row_data.get('Units Per Bag'):
+                            item.units_per_bag = int(row_data['Units Per Bag'])
+                        if row_data.get('Loss Percentage'):
+                            item.loss_percentage = float(row_data['Loss Percentage'])
+                    except (ValueError, TypeError):
+                        # If conversion fails, skip the numeric field
+                        pass
+                    
+                    # Boolean fields
+                    if row_data.get('Is Make To Order'):
+                        value = str(row_data['Is Make To Order']).strip().lower()
+                        item.is_make_to_order = value in ['true', '1', 'yes', 'y']
+                    
+                    if row_data.get('Is Active'):
+                        value = str(row_data['Is Active']).strip().lower()
+                        item.is_active = value in ['true', '1', 'yes', 'y']
+                    else:
+                        item.is_active = True  # Default to active
+                    
+                    db.session.add(item)
+                    success_count += 1
+                    
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f'Row {row_num}: {str(e)}')
+            
+            db.session.commit()
+            
+            message = f'Upload completed: {success_count} items added successfully'
+            if error_count > 0:
+                message += f', {error_count} errors occurred'
+                if len(errors) <= 5:  # Show first 5 errors
+                    message += f'. Errors: {"; ".join(errors)}'
+                flash(message, 'warning')
+            else:
+                flash(message, 'success')
+            
+            return render_template('item_master/upload.html', current_page='item_master')
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Failed to process file: {str(e)}', 'error')
+            return render_template('item_master/upload.html', current_page='item_master')
+    
+    # GET request - just render the upload page
+    return render_template('item_master/upload.html', current_page='item_master')

@@ -8,17 +8,10 @@
             <div class="d-flex gap-2">
                 <!-- Upload Excel Button -->
                 <div class="dropdown">
-                    <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <a class="btn btn-success" href="{{ url_for('item_master.item_master_upload') }}">
                         <i class="fas fa-upload"></i> Upload Excel
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#" onclick="document.getElementById('excel-upload').click()">
-                            <i class="fas fa-upload"></i> Upload Excel File
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" onclick="downloadTemplate()">
-                            <i class="fas fa-download"></i> Download Template
-                        </a></li>
-                    </ul>
+                    </a>
+                    <ul class="dropdown-menu d-none"><!-- Hidden, replaced by direct link --></ul>
                 </div>
                 <!-- Download Excel Button -->
                 <button class="btn btn-info" onclick="downloadExcel()">
@@ -31,7 +24,7 @@
         </div>
         
         <!-- Hidden file input for Excel upload -->
-        <input type="file" id="excel-upload" accept=".xlsx,.xls" style="display: none;" onchange="uploadExcel()">
+        <!-- <input type="file" id="excel-upload" accept=".xlsx,.xls" style="display: none;" onchange="uploadExcel()"> -->
         
         <div class="card-body">
             <!-- Upload Progress Bar -->
@@ -41,6 +34,36 @@
             
             <!-- Upload Status Message -->
             <div id="upload-message" class="alert" style="display: none;"></div>
+
+            <!-- Column Toggle Section -->
+            <section id="column-toggle">
+                <h5>Column Visibility</h5>
+                <div class="column-toggle">
+                    <div class="toggle-row">
+                        <label><input type="checkbox" checked data-col-index="2" onchange="toggleColumn(2)"> Type</label>
+                        <label><input type="checkbox" checked data-col-index="3" onchange="toggleColumn(3)"> Category</label>
+                        <label><input type="checkbox" checked data-col-index="4" onchange="toggleColumn(4)"> Department</label>
+                        <label><input type="checkbox" checked data-col-index="5" onchange="toggleColumn(5)"> UOM</label>
+                        <label><input type="checkbox" data-col-index="6" onchange="toggleColumn(6)"> Min Level</label>
+                    </div>
+                    <div class="toggle-row">
+                        <label><input type="checkbox" data-col-index="7" onchange="toggleColumn(7)"> Max Level</label>
+                        <label><input type="checkbox" checked data-col-index="8" onchange="toggleColumn(8)"> Price/KG</label>
+                        <label><input type="checkbox" checked data-col-index="9" onchange="toggleColumn(9)"> Price/UOM</label>
+                        <label><input type="checkbox" data-col-index="10" onchange="toggleColumn(10)"> Calc Factor</label>
+                        <label><input type="checkbox" data-col-index="11" onchange="toggleColumn(11)"> Units/Bag</label>
+                    </div>
+                    <div class="toggle-row">
+                        <label><input type="checkbox" data-col-index="12" onchange="toggleColumn(12)"> Avg Weight/Unit</label>
+                        <label><input type="checkbox" checked data-col-index="13" onchange="toggleColumn(13)"> Status</label>
+                    </div>
+                    <div class="toggle-actions">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="showAllColumns()">Show All</button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="resetToDefault()">Reset to Default</button>
+                    </div>
+                </div>
+            </section>
 
             <!-- Search Section -->
             <div class="row mb-4">
@@ -209,6 +232,86 @@
     background-color: #e74a3b;
     color: white;
 } */
+
+/* Column Toggle Styles */
+#column-toggle {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#column-toggle h5 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.column-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.toggle-row label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #495057;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    min-width: 140px;
+}
+
+.toggle-row label:hover {
+    background-color: rgba(78, 115, 223, 0.1);
+}
+
+.toggle-row input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.toggle-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.toggle-actions button {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .toggle-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .toggle-row label {
+        min-width: auto;
+    }
+
+    .toggle-actions {
+        flex-direction: column;
+    }
+}
 </style>
 
 <script>
@@ -260,6 +363,9 @@ function searchItems() {
                 `;
                 tbody.appendChild(row);
             });
+
+            // Apply column visibility after data is loaded
+            applyColumnVisibility();
         })
         .catch(error => {
             console.error('Error fetching items:', error);
@@ -410,9 +516,112 @@ function downloadTemplate() {
     document.body.removeChild(link);
 }
 
+// Column visibility functions
+function toggleColumn(colIndex) {
+    const table = document.getElementById('items-table');
+    const isVisible = document.querySelector(`input[data-col-index="${colIndex}"]`).checked;
+    
+    // Toggle header
+    const headerCell = table.rows[0].cells[colIndex];
+    if (headerCell) {
+        headerCell.style.display = isVisible ? '' : 'none';
+    }
+    
+    // Toggle data cells
+    for (let i = 1; i < table.rows.length; i++) {
+        const cell = table.rows[i].cells[colIndex];
+        if (cell) {
+            cell.style.display = isVisible ? '' : 'none';
+        }
+    }
+}
+
+function showEssentialColumns() {
+    // Essential columns: Item Code, Description, Type, Status, Actions
+    const essentialColumns = [0, 1, 2, 13, 14];
+    const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
+    
+    allCheckboxes.forEach(checkbox => {
+        const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+        const isEssential = essentialColumns.includes(colIndex);
+        checkbox.checked = isEssential;
+        toggleColumn(colIndex);
+    });
+}
+
+function showAllColumns() {
+    const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
+    allCheckboxes.forEach(checkbox => {
+        checkbox.checked = true;
+        const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+        toggleColumn(colIndex);
+    });
+}
+
+function resetToDefault() {
+    // Default visible columns based on the initial state
+    const defaultColumns = {
+        2: true,   // Type
+        3: true,   // Category
+        4: true,   // Department
+        5: true,   // UOM
+        6: false,  // Min Level
+        7: false,  // Max Level
+        8: true,   // Price/KG
+        9: true,   // Price/UOM
+        10: false, // Calc Factor
+        11: false, // Units/Bag
+        12: false, // Avg Weight/Unit
+        13: true   // Status
+    };
+    
+    const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
+    allCheckboxes.forEach(checkbox => {
+        const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+        checkbox.checked = defaultColumns[colIndex] !== false;
+        toggleColumn(colIndex);
+    });
+}
+
+function initializeColumnVisibility() {
+    // Set initial visibility based on checkbox states
+    const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
+    allCheckboxes.forEach(checkbox => {
+        const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+        toggleColumn(colIndex);
+    });
+}
+
+function applyColumnVisibility() {
+    // Re-apply column visibility after table data is refreshed
+    const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
+    allCheckboxes.forEach(checkbox => {
+        const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+        const isVisible = checkbox.checked;
+        
+        const table = document.getElementById('items-table');
+        
+        // Toggle header
+        const headerCell = table.rows[0].cells[colIndex];
+        if (headerCell) {
+            headerCell.style.display = isVisible ? '' : 'none';
+        }
+        
+        // Toggle data cells
+        for (let i = 1; i < table.rows.length; i++) {
+            const cell = table.rows[i].cells[colIndex];
+            if (cell) {
+                cell.style.display = isVisible ? '' : 'none';
+            }
+        }
+    });
+}
+
 // Initial load
 document.addEventListener('DOMContentLoaded', function() {
     searchItems();
+    // Initialize column visibility on page load
+    initializeColumnVisibility();
 });
 </script>
 {% endblock %}
