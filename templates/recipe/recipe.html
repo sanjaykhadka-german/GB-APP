@@ -317,7 +317,7 @@ function fetchRecipes() {
                     <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
                     <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
                     <td>
-                        <button class="btn btn-secondary btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
+                        <a href="/recipe/edit/${recipe.id}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
                         <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
                     </td>
                 `;

@@ -156,6 +156,13 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="table-total-row">
+                        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                        <td class="stock-value-total"><strong id="totalStockValue">$0.00</strong></td>
+                        <td></td><td></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </section>
@@ -376,6 +383,23 @@
         background-color: #e8f5e8 !important;
         font-weight: bold;
         color: #155724;
+    }
+
+    .table-total-row {
+        background-color: #f8f9fa !important;
+        border-top: 3px solid #007bff !important;
+    }
+
+    .table-total-row td {
+        border-top: 3px solid #007bff !important;
+        padding: 12px 8px;
+        font-size: 1.1rem;
+    }
+
+    .stock-value-total {
+        background-color: #d4edda !important;
+        color: #155724 !important;
+        text-align: center;
     }
 
     /* Column Toggle Styles */
@@ -600,6 +624,9 @@ $(document).ready(function() {
 
                 // Apply column visibility after data is loaded
                 applyColumnVisibility();
+                
+                // Calculate and display total stock value
+                calculateTotalStockValue();
             },
             error: function(xhr) {
                 console.error('AJAX error:', xhr.responseText);
@@ -632,7 +659,33 @@ $(document).ready(function() {
 
     // Initialize column visibility on page load
     initializeColumnVisibility();
+    
+    // Calculate initial total stock value
+    calculateTotalStockValue();
 });
+
+// Function to calculate and display total stock value
+function calculateTotalStockValue() {
+    let total = 0;
+    const stockValueCells = document.querySelectorAll('#ingredientsListTable tbody tr td:nth-child(15)');
+    
+    stockValueCells.forEach(function(cell) {
+        const value = cell.textContent.trim();
+        if (value && value !== '') {
+            // Remove $ sign and convert to number
+            const numericValue = parseFloat(value.replace('$', '').replace(',', ''));
+            if (!isNaN(numericValue)) {
+                total += numericValue;
+            }
+        }
+    });
+    
+    // Update the total display
+    const totalElement = document.getElementById('totalStockValue');
+    if (totalElement) {
+        totalElement.textContent = '$' + total.toFixed(2);
+    }
+}
 
 // Clear search function
 function clearSearch() {
@@ -662,11 +715,23 @@ function toggleColumn(colIndex) {
         headerCell.style.display = isVisible ? '' : 'none';
     }
     
-    // Toggle data cells
-    for (let i = 1; i < table.rows.length; i++) {
-        const cell = table.rows[i].cells[colIndex];
-        if (cell) {
-            cell.style.display = isVisible ? '' : 'none';
+    // Toggle data cells in tbody
+    const tbody = table.querySelector('tbody');
+    if (tbody) {
+        for (let i = 0; i < tbody.rows.length; i++) {
+            const cell = tbody.rows[i].cells[colIndex];
+            if (cell) {
+                cell.style.display = isVisible ? '' : 'none';
+            }
+        }
+    }
+    
+    // Toggle footer cells
+    const tfoot = table.querySelector('tfoot');
+    if (tfoot && tfoot.rows.length > 0) {
+        const footerCell = tfoot.rows[0].cells[colIndex];
+        if (footerCell) {
+            footerCell.style.display = isVisible ? '' : 'none';
         }
     }
 }
@@ -742,11 +807,23 @@ function applyColumnVisibility() {
             headerCell.style.display = isVisible ? '' : 'none';
         }
         
-        // Toggle data cells
-        for (let i = 1; i < table.rows.length; i++) {
-            const cell = table.rows[i].cells[colIndex];
-            if (cell) {
-                cell.style.display = isVisible ? '' : 'none';
+        // Toggle data cells in tbody
+        const tbody = table.querySelector('tbody');
+        if (tbody) {
+            for (let i = 0; i < tbody.rows.length; i++) {
+                const cell = tbody.rows[i].cells[colIndex];
+                if (cell) {
+                    cell.style.display = isVisible ? '' : 'none';
+                }
+            }
+        }
+        
+        // Toggle footer cells
+        const tfoot = table.querySelector('tfoot');
+        if (tfoot && tfoot.rows.length > 0) {
+            const footerCell = tfoot.rows[0].cells[colIndex];
+            if (footerCell) {
+                footerCell.style.display = isVisible ? '' : 'none';
             }
         }
     });
