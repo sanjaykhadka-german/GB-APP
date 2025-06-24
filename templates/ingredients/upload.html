@@ -1,176 +1,336 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="mb-0">Upload Ingredients Data</h2>
-                </div>
-                <div class="card-body">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                    {% endwith %}
+<div class="container mt-2">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="mb-0">
+                <i class="fas fa-upload"></i> Upload Ingredients Data
+            </h2>
+        </div>
+        <div class="card-body">
+            <div class="d-flex gap-2 mb-3">
+                <a href="{{ url_for('ingredients.ingredients_list') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to List
+                </a>
+                <a href="{{ url_for('ingredients.ingredients_create') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Add New Stocktake
+                </a>
+                <a href="{{ url_for('ingredients.ingredients_download_template') }}" class="btn btn-info">
+                    <i class="fas fa-download"></i> Download Template
+                </a>
+                <a href="{{ url_for('ingredients.ingredients_download_excel') }}" class="btn btn-warning">
+                    <i class="fas fa-file-excel"></i> Download Excel
+                </a>
+            </div>
 
-                    <form method="post" enctype="multipart/form-data" id="uploadForm">
-                        <div class="mb-3">
-                            <label for="file" class="form-label">Select Excel/CSV File:</label>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="file" class="form-label">Select Excel/CSV File</label>
                             <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls,.csv" required>
                             <div class="form-text">Supported formats: .xlsx, .xls, .csv</div>
                         </div>
-
-                        <div class="mb-3">
-                            <label for="sheet_name" class="form-label">Sheet Name (for Excel files):</label>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="sheet_name" class="form-label">Sheet Name (Excel only)</label>
                             <input type="text" class="form-control" id="sheet_name" name="sheet_name" value="Ingredients" placeholder="Leave blank for default sheet">
                             <div class="form-text">Default: "Ingredients" (only used for Excel files)</div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="mb-4">
-                            <h5>Required Columns:</h5>
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Item Code</strong>
-                                    <span class="badge bg-danger rounded-pill">Required</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Description</strong>
-                                    <span class="badge bg-danger rounded-pill">Required</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Category</strong>
-                                    <span class="badge bg-secondary rounded-pill">Optional</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Department</strong>
-                                    <span class="badge bg-secondary rounded-pill">Optional</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>UOM</strong>
-                                    <span class="badge bg-secondary rounded-pill">Optional</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Min Level</strong>
-                                    <span class="badge bg-danger rounded-pill">Required</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Max Level</strong>
-                                    <span class="badge bg-danger rounded-pill">Required</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <strong>Price per KG</strong>
-                                    <span class="badge bg-danger rounded-pill">Required</span>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="alert alert-info" role="alert">
-                                <h6>Important Notes:</h6>
-                                <ul class="mb-0">
-                                    <li>If an ingredient with the same Item Code exists, it will be updated</li>
-                                    <li>New ingredients will be created for Item Codes that don't exist</li>
-                                    <li>Category, Department, and UOM must exist in the system to be linked</li>
-                                    <li>All new ingredients will be marked as active by default</li>
-                                    <li>Download the template below for the correct format</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-between">
-                            <div>
-                                <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
-                                    <i class="fas fa-upload"></i> Upload Ingredients
-                                </button>
-                                <button type="button" class="btn btn-secondary" onclick="window.history.back()">
-                                    <i class="fas fa-arrow-left"></i> Back
-                                </button>
-                            </div>
-                            <div>
-                                <a href="{{ url_for('ingredients.ingredients_download_template') }}" class="btn btn-info">
-                                    <i class="fas fa-download"></i> Download Template
-                                </a>
-                            </div>
-                        </div>
-                    </form>
-
-                    <!-- Progress bar (hidden by default) -->
-                    <div id="progressContainer" class="mt-3" style="display: none;">
-                        <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">
-                                Processing file...
-                            </div>
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <h5><i class="fas fa-table"></i> Required Columns</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Column Name</th>
+                                        <th>Status</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Item Code</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Unique identifier for the ingredient</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Description</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Name/description of the ingredient</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Category</strong></td>
+                                        <td><span class="badge bg-secondary">Optional</span></td>
+                                        <td>Must exist in system to be linked</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Department</strong></td>
+                                        <td><span class="badge bg-secondary">Optional</span></td>
+                                        <td>Must exist in system to be linked</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>UOM</strong></td>
+                                        <td><span class="badge bg-secondary">Optional</span></td>
+                                        <td>Unit of measure (must exist in system)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Min Level</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Minimum stock level</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Max Level</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Maximum stock level</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Price per KG</strong></td>
+                                        <td><span class="badge bg-danger">Required</span></td>
+                                        <td>Price per kilogram</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Sample data preview -->
-            <div class="card mt-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Sample Data Format</h5>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="alert alert-info" role="alert">
+                            <h6><i class="fas fa-info-circle"></i> Important Notes:</h6>
+                            <ul class="mb-0">
+                                <li>If an ingredient with the same Item Code exists, it will be updated</li>
+                                <li>New ingredients will be created for Item Codes that don't exist</li>
+                                <li>Category, Department, and UOM must exist in the system to be linked</li>
+                                <li>All new ingredients will be marked as active by default</li>
+                                <li>Download the template above for the correct format</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Item Code</th>
-                                    <th>Description</th>
-                                    <th>Category</th>
-                                    <th>Department</th>
-                                    <th>UOM</th>
-                                    <th>Min Level</th>
-                                    <th>Max Level</th>
-                                    <th>Price per KG</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>RM0001</td>
-                                    <td>Salt</td>
-                                    <td>Spices</td>
-                                    <td>Production</td>
-                                    <td>KG</td>
-                                    <td>10</td>
-                                    <td>100</td>
-                                    <td>2.50</td>
-                                </tr>
-                                <tr>
-                                    <td>RM0002</td>
-                                    <td>Pepper Black Ground</td>
-                                    <td>Spices</td>
-                                    <td>Production</td>
-                                    <td>KG</td>
-                                    <td>5</td>
-                                    <td>50</td>
-                                    <td>15.00</td>
-                                </tr>
-                                <tr>
-                                    <td>RM0003</td>
-                                    <td>Pork 75 CL</td>
-                                    <td>Meat</td>
-                                    <td>Production</td>
-                                    <td>KG</td>
-                                    <td>0</td>
-                                    <td>500</td>
-                                    <td>8.50</td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                <div class="d-flex gap-2 justify-content-between">
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                            <i class="fas fa-upload"></i> Upload Ingredients
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="window.history.back()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Progress bar (hidden by default) -->
+            <div id="progressContainer" class="mt-3" style="display: none;">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">
+                        Processing file...
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Sample data preview -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-eye"></i> Sample Data Format</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item Code</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Department</th>
+                            <th>UOM</th>
+                            <th>Min Level</th>
+                            <th>Max Level</th>
+                            <th>Price per KG</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>RM0001</td>
+                            <td>Salt</td>
+                            <td>Spices</td>
+                            <td>Production</td>
+                            <td>KG</td>
+                            <td>10</td>
+                            <td>100</td>
+                            <td>2.50</td>
+                        </tr>
+                        <tr>
+                            <td>RM0002</td>
+                            <td>Pepper Black Ground</td>
+                            <td>Spices</td>
+                            <td>Production</td>
+                            <td>KG</td>
+                            <td>5</td>
+                            <td>50</td>
+                            <td>15.00</td>
+                        </tr>
+                        <tr>
+                            <td>RM0003</td>
+                            <td>Pork 75 CL</td>
+                            <td>Meat</td>
+                            <td>Production</td>
+                            <td>KG</td>
+                            <td>0</td>
+                            <td>500</td>
+                            <td>8.50</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: none;
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    padding: 1rem 1.35rem;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #000000;
+}
+
+.form-control, .form-select {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.35rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #bac8f3;
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+
+.btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.35rem;
+}
+
+.btn-primary {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+
+.btn-secondary {
+    background-color: #858796;
+    border-color: #858796;
+}
+
+.btn-success {
+    background-color: #1cc88a;
+    border-color: #1cc88a;
+}
+
+.btn-info {
+    background-color: #36b9cc;
+    border-color: #36b9cc;
+}
+
+.btn-warning {
+    background-color: #f6c23e;
+    border-color: #f6c23e;
+}
+
+.progress {
+    height: 1rem;
+    background-color: #f8f9fc;
+}
+
+.progress-bar {
+    background-color: #4e73df;
+}
+
+.table {
+    font-size: 0.875rem;
+}
+
+.table thead th {
+    background-color: #f8f9fc;
+    border-bottom: 2px solid #e3e6f0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #000000;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(78, 115, 223, 0.05);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.btn-lg {
+    padding: 0.5rem 1rem;
+    font-size: 1.125rem;
+}
+
+.alert-info {
+    background-color: #e7f3ff;
+    border-color: #b8daff;
+    color: #004085;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-text {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+</style>
 
 <script>
 document.getElementById('uploadForm').addEventListener('submit', function(e) {
@@ -217,44 +377,4 @@ document.getElementById('file').addEventListener('change', function(e) {
     }
 });
 </script>
-
-<style>
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.list-group-item {
-    padding: 0.75rem 1rem;
-}
-
-.progress {
-    height: 2rem;
-}
-
-.table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-}
-
-.btn {
-    border-radius: 0.375rem;
-}
-
-.btn-lg {
-    padding: 0.5rem 1rem;
-    font-size: 1.125rem;
-}
-
-.alert-info {
-    background-color: #e7f3ff;
-    border-color: #b8daff;
-    color: #004085;
-}
-</style>
 {% endblock %} 
