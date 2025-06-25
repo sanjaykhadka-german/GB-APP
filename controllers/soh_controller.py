@@ -8,7 +8,6 @@ from datetime import datetime, date
 import pytz
 
 from controllers.packing_controller import update_packing_entry
-from controllers.filling_controller import update_production_entry # This import seems unused in this controller
 from models.item_master import ItemMaster
 from models.packing import Packing
 
@@ -135,7 +134,7 @@ def soh_upload():
                     flash(f"No item found for FG Code: {fg_code}. Skipping row.", "danger")
                     continue
                 units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-                avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
+                avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
 
                 # Recalculate totals to ensure consistency (ALWAYS recalculate on the backend)
@@ -194,7 +193,7 @@ def soh_upload():
 
                     # Update Packing if soh_total_boxes or soh_total_units >= 0 (or if any relevant SOH field changed)
                     # The update_packing_entry should be called *after* SOH is committed
-                    # It seems `soh_requirement_units_week` and `weekly_average` are set to 0.
+                    # It seems `soh_requirement_units_week` and `calculation_factor` are set to 0.
                     # Consider if these should truly be 0 or derived from other data.
                     # If this is just about linking SOH with Packing, then those values might be irrelevant for this specific update.
                     if soh_total_boxes_calc >= 0 or soh_total_units_calc >= 0:
@@ -204,8 +203,8 @@ def soh_upload():
                             packing_date=week_commencing, # Pass the date object directly
                             special_order_kg=0.0,
                             avg_weight_per_unit=avg_weight_per_unit,
-                            soh_requirement_units_week=0, # Confirm if this should be 0 or calculated
-                            weekly_average=0.0, # Confirm if this should be 0 or calculated
+                            soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
+                            calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
                             week_commencing=week_commencing # Pass the date object directly
                         )
                         if not success:
@@ -319,7 +318,7 @@ def soh_create():
             if not item:
                 return jsonify({"success": False, "error": f"No item found for FG Code: {fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
             soh_total_boxes = dispatch_boxes + packing_boxes
             soh_total_units = (
@@ -353,8 +352,8 @@ def soh_create():
                     packing_date=packing_date_for_update,
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=0, # Confirm if this should be 0 or calculated
-                    weekly_average=0.0, # Confirm if this should be 0 or calculated
+                    soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
+                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
                     week_commencing=packing_date_for_update
                 )
                 if not success:
@@ -407,7 +406,7 @@ def soh_edit(id):
                 flash(f"FG Code '{fg_code}' not found in Item Master table.", "danger")
                 return redirect(request.url)
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
             # Recalculate totals
             soh_total_boxes = soh_dispatch_boxes + soh_packing_boxes
@@ -432,6 +431,10 @@ def soh_edit(id):
             db.session.commit()
 
             if soh_total_boxes > 0 or soh_total_units > 0: # Condition for update_packing_entry
+                # Fetch item to get calculation_factor
+                item = ItemMaster.query.filter_by(item_code=fg_code).first()
+                avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
+                
                 packing_date = week_commencing_date if week_commencing_date else date.today()
                 success, message = update_packing_entry(
                     fg_code=fg_code,
@@ -440,7 +443,7 @@ def soh_edit(id):
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
                     soh_requirement_units_week=None, # Recalculation based on min_level and max_level in Packing
-                    weekly_average=None, # Existing weekly average or default in Packing
+                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
                     week_commencing=week_commencing_date # Pass the date object directly
                 )
                 if not success:
@@ -629,7 +632,7 @@ def soh_bulk_edit():
             if not item:
                 return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
+            avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
 
             # Recalculate totals based on potentially updated or existing values
@@ -659,8 +662,8 @@ def soh_bulk_edit():
                     packing_date=packing_date_for_update,
                     special_order_kg=0.0,
                     avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=0, # Confirm if this should be 0 or calculated
-                    weekly_average=0.0, # Confirm if this should be 0 or calculated
+                    soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
+                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
                     week_commencing=packing_date_for_update
                 )
                 if not success:
@@ -720,12 +723,12 @@ def soh_inline_edit():
         else:
             return jsonify({"success": False, "error": f"Invalid field specified: {field}."}), 400
 
-                    # Retrieve current fg_code for calculating totals and updating packing
-            item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
-            if not item:
-                return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
-            units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
-            avg_weight_per_unit = item.avg_weight_per_unit if item and item.avg_weight_per_unit else 0.0
+        # Retrieve current fg_code for calculating totals and updating packing
+        item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
+        if not item:
+            return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
+        units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
+        avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
         # Recalculate total boxes and units based on potentially updated and existing values
         # Ensure these are treated as 0.0 if they are None for calculation purposes
@@ -755,7 +758,7 @@ def soh_inline_edit():
                 special_order_kg=0.0,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=None, # Recalculation based on min_level and max_level
-                weekly_average=None, # Existing weekly average or default
+                calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
                 week_commencing=soh.week_commencing # Pass the date object directly
             )
             if not success:

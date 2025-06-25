@@ -27,7 +27,7 @@ class Packing(db.Model):
     soh_units = db.Column(db.Float, default=0.0, nullable=True)
     total_stock_kg = db.Column(db.Float, default=0.0, nullable=True)
     total_stock_units = db.Column(db.Integer, default=0, nullable=True)
-    weekly_average = db.Column(db.Float, default=0.0, nullable=True)
+    calculation_factor = db.Column(db.Float, default=0.0, nullable=True)
     priority = db.Column(db.Integer, default=0, nullable=True)
     machinery = db.Column(db.Integer, nullable=True)
 

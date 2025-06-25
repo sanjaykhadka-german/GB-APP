@@ -88,7 +88,7 @@
                     <th>Requirement Unit</th>
                     <th>Avg Weight per Unit (KG)</th>
                     <th>SOH Requirement Units/Week</th>
-                    <th>Weekly Average</th>
+                    <th>Calculation Factor</th>
                     <th>Machinery</th>
                     <th>Priority</th>
                     <th>Actions</th>
@@ -110,7 +110,7 @@
                     <td>{{ packing.requirement_unit }}</td>
                     <td>{{ packing.avg_weight_per_unit }}</td>
                     <td>{{ packing.soh_requirement_units_week }}</td>
-                    <td class="editable" data-field="weekly_average" data-original="{{ packing.weekly_average if packing.weekly_average is not none else '' }}">{{ packing.weekly_average if packing.weekly_average is not none else '' }}</td>
+                    <td class="editable" data-field="calculation_factor" data-original="{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}">{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}</td>
                     <td>
                         <select name="machinery" data-id="{{ packing.id }}" data-field="machinery" onchange="updateCellSelect(this)">
                             <option value="">Select</option>
@@ -164,8 +164,8 @@
                         <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
                     </div>
                     <div class="mb-3">
-                        <label for="bulk_weekly_average" class="form-label">Weekly Average</label>
-                        <input type="number" step="0.01" class="form-control" id="bulk_weekly_average" name="weekly_average">
+                        <label for="bulk_calculation_factor" class="form-label">Calculation Factor</label>
+                        <input type="number" step="0.01" class="form-control" id="bulk_calculation_factor" name="calculation_factor">
                     </div>
                     <div class="mb-3">
                         <label for="bulk_machinery" class="form-label">Machinery</label>
@@ -261,7 +261,7 @@
             const data = {
                 ids: selectedIds,
                 special_order_kg: document.getElementById('bulk_special_order_kg').value,
-                weekly_average: document.getElementById('bulk_weekly_average').value,
+                calculation_factor: document.getElementById('bulk_calculation_factor').value,
                 machinery: document.getElementById('bulk_machinery').value,
                 priority: document.getElementById('bulk_priority').value
             };
@@ -407,7 +407,7 @@
 
         function updateCell(packingId, field, value) {
             // Only convert to number for specific fields
-            if (field === 'special_order_kg' || field === 'weekly_average') {
+            if (field === 'special_order_kg' || field === 'calculation_factor') {
                 value = (value === '' || isNaN(value)) ? 0 : parseFloat(value);
             } else if (field === 'priority') {
                 value = (value === '' || isNaN(value)) ? 0 : parseInt(value);
