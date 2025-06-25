@@ -76,6 +76,17 @@ def edit_inventory(id):
     
     if request.method == 'POST':
         try:
+            # Ensure all required fields are present
+            required_fields = [
+                'week_commencing', 'category_id', 'raw_material_id', 'price_per_kg', 'soh',
+                'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+                'monday2', 'tuesday2', 'wednesday2', 'thursday2', 'friday2'
+            ]
+            for field in required_fields:
+                if field not in request.form or request.form[field] == '':
+                    flash(f'Missing required field: {field}', 'error')
+                    return redirect(request.url)
+
             # Extract form data
             price_per_kg = float(request.form['price_per_kg'])
             soh = float(request.form['soh'])
@@ -117,6 +128,7 @@ def edit_inventory(id):
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating inventory record: {str(e)}', 'error')
+            return redirect(request.url)
 
     categories = Category.query.all()
     # Get only raw materials from item_master
