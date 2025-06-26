@@ -216,7 +216,6 @@
                             <label for="supplier_name" class="form-label">Supplier Name</label>
                             <input type="text" id="supplier_name" name="supplier_name" class="form-control" 
                                    value="{{ item.supplier_name if item and item.supplier_name else '' }}" placeholder="Enter supplier name">
-                            <small class="form-text text-muted">Name of the supplier for this item</small>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -224,7 +223,6 @@
                             <label for="calculation_factor" class="form-label">Calculation Factor</label>
                             <input type="number" id="calculation_factor" name="calculation_factor" class="form-control" 
                                    value="{{ item.calculation_factor if item and item.calculation_factor else '' }}" step="0.01" min="0" placeholder="0.00">
-                            <small class="form-text text-muted">Factor used for stock and production calculations</small>
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -232,7 +230,6 @@
                             <label for="avg_weight_per_unit" class="form-label">Avg Weight per Unit (kg)</label>
                             <input type="number" id="avg_weight_per_unit" name="avg_weight_per_unit" class="form-control" 
                                    value="{{ item.avg_weight_per_unit if item and item.avg_weight_per_unit else '' }}" step="0.01" min="0" placeholder="0.00">
-                            <small class="form-text text-muted">Average weight per unit in kg</small>
                         </div>
                     </div>
                 </div>
