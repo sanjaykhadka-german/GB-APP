@@ -107,6 +107,7 @@ def get_items():
             "units_per_bag": item.units_per_bag,
             "avg_weight_per_unit": item.avg_weight_per_unit,
             "loss_percentage": item.loss_percentage,
+            "supplier_name": item.supplier_name,
             "is_active": item.is_active,
             "allergens": [allergen.name for allergen in item.allergens]
         }
@@ -154,6 +155,7 @@ def save_item():
         item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
         item.price_per_uom = data['price_per_uom'] if data['price_per_uom'] else None
         item.calculation_factor = data['calculation_factor'] if data['calculation_factor'] else None
+        item.supplier_name = data['supplier_name'] if data['supplier_name'] else None
         item.is_active = data['is_active']
         
         # Update type-specific fields
@@ -285,23 +287,29 @@ def upload_excel():
                     if uom:
                         item.uom_id = uom.id
                 
-                # Numeric fields
-                try:
-                    if row_data.get('Min Level'):
-                        item.min_level = float(row_data['Min Level'])
-                    if row_data.get('Max Level'):
-                        item.max_level = float(row_data['Max Level'])
-                    if row_data.get('Price Per Kg'):
-                        item.price_per_kg = float(row_data['Price Per Kg'])
-                    if row_data.get('Kg Per Unit'):
-                        item.kg_per_unit = float(row_data['Kg Per Unit'])
-                    if row_data.get('Units Per Bag'):
-                        item.units_per_bag = int(row_data['Units Per Bag'])
-                    if row_data.get('Loss Percentage'):
-                        item.loss_percentage = float(row_data['Loss Percentage'])
-                except (ValueError, TypeError):
-                    # If conversion fails, skip the numeric field
-                    pass
+                                    # Text fields
+                    if row_data.get('Supplier Name'):
+                        item.supplier_name = str(row_data['Supplier Name']).strip()
+                    
+                    # Numeric fields
+                    try:
+                        if row_data.get('Min Level'):
+                            item.min_level = float(row_data['Min Level'])
+                        if row_data.get('Max Level'):
+                            item.max_level = float(row_data['Max Level'])
+                        if row_data.get('Price Per Kg'):
+                            item.price_per_kg = float(row_data['Price Per Kg'])
+                        if row_data.get('Price Per UOM'):
+                            item.price_per_uom = float(row_data['Price Per UOM'])
+                        if row_data.get('Kg Per Unit'):
+                            item.kg_per_unit = float(row_data['Kg Per Unit'])
+                        if row_data.get('Units Per Bag'):
+                            item.units_per_bag = int(row_data['Units Per Bag'])
+                        if row_data.get('Loss Percentage'):
+                            item.loss_percentage = float(row_data['Loss Percentage'])
+                    except (ValueError, TypeError):
+                        # If conversion fails, skip the numeric field
+                        pass
                 
                 # Boolean fields
                 if row_data.get('Is Make To Order'):
@@ -363,8 +371,9 @@ def download_excel():
         # Define headers
         headers = [
             'Item Code', 'Description', 'Type', 'Category', 'Department', 
-            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Is Make To Order',
-            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
+            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Price Per UOM', 
+            'Supplier Name', 'Is Make To Order', 'Kg Per Unit', 'Units Per Bag', 
+            'Loss Percentage', 'Is Active'
         ]
         
         # Add headers with styling
@@ -385,11 +394,13 @@ def download_excel():
             sheet.cell(row=row, column=7, value=item.min_level)
             sheet.cell(row=row, column=8, value=item.max_level)
             sheet.cell(row=row, column=9, value=item.price_per_kg)
-            sheet.cell(row=row, column=10, value='Yes' if item.is_make_to_order else 'No')
-            sheet.cell(row=row, column=11, value=item.kg_per_unit)
-            sheet.cell(row=row, column=12, value=item.units_per_bag)
-            sheet.cell(row=row, column=13, value=item.loss_percentage)
-            sheet.cell(row=row, column=14, value='Yes' if item.is_active else 'No')
+            sheet.cell(row=row, column=10, value=item.price_per_uom)
+            sheet.cell(row=row, column=11, value=item.supplier_name or '')
+            sheet.cell(row=row, column=12, value='Yes' if item.is_make_to_order else 'No')
+            sheet.cell(row=row, column=13, value=item.kg_per_unit)
+            sheet.cell(row=row, column=14, value=item.units_per_bag)
+            sheet.cell(row=row, column=15, value=item.loss_percentage)
+            sheet.cell(row=row, column=16, value='Yes' if item.is_active else 'No')
         
         # Auto-adjust column widths
         for column in sheet.columns:
@@ -432,8 +443,9 @@ def download_template():
         # Define headers with descriptions
         headers = [
             'Item Code', 'Description', 'Type', 'Category', 'Department', 
-            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Is Make To Order',
-            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
+            'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Price Per UOM', 
+            'Supplier Name', 'Is Make To Order', 'Kg Per Unit', 'Units Per Bag', 
+            'Loss Percentage', 'Is Active'
         ]
         
         # Add headers with styling
@@ -446,7 +458,7 @@ def download_template():
         # Add sample data row
         sample_data = [
             'ITEM001', 'Sample Item Description', 'Raw Material', 'Category Name', 'Department Name',
-            'KG', '10', '100', '5.50', 'No', '', '', '', 'Yes'
+            'KG', '10', '100', '5.50', '6.00', 'ABC Suppliers Ltd', 'No', '', '', '', 'Yes'
         ]
         
         for col, value in enumerate(sample_data, 1):
@@ -469,6 +481,8 @@ def download_template():
             "- Min Level: Minimum stock level (numeric)",
             "- Max Level: Maximum stock level (numeric)",
             "- Price Per Kg: Price per kilogram (numeric, for Raw Materials)",
+            "- Price Per UOM: Price per unit of measure (numeric)",
+            "- Supplier Name: Name of the supplier for this item",
             "- Is Make To Order: Yes/No (for Finished Goods)",
             "- Kg Per Unit: Kilograms per unit (numeric, for Finished Goods)",
             "- Units Per Bag: Units per bag (numeric, for Finished Goods)",
@@ -614,6 +628,10 @@ def item_master_upload():
                         uom = UOM.query.filter_by(UOMName=str(row_data['UOM']).strip()).first()
                         if uom:
                             item.uom_id = uom.id
+                    
+                    # Text fields
+                    if row_data.get('Supplier Name'):
+                        item.supplier_name = str(row_data['Supplier Name']).strip()
                     
                     # Numeric fields
                     try:

@@ -188,6 +188,13 @@
                 <div class="row mb-3">
                     <div class="col-md-4">
                         <div class="form-group">
+                            <label for="supplier_name" class="form-label">Supplier Name</label>
+                            <input type="text" id="supplier_name" name="supplier_name" class="form-control" placeholder="Enter supplier name">
+                            <small class="form-text text-muted">Name of the supplier for this item</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
                             <label for="calculation_factor" class="form-label">Calculation Factor</label>
                             <input type="number" id="calculation_factor" name="calculation_factor" class="form-control" step="0.01" min="0" placeholder="0.00">
                             <small class="form-text text-muted">Factor used for stock and production calculations</small>
@@ -200,6 +207,9 @@
                             <small class="form-text text-muted">Number of units in each bag/packaging</small>
                         </div>
                     </div>
+                </div>
+
+                <div class="row mb-3">
                     <div class="col-md-4">
                         <div class="form-group">
                             <label for="avg_weight_per_unit" class="form-label">Avg Weight per Unit (kg)</label>

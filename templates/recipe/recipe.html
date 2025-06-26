@@ -30,6 +30,12 @@
             </div>
             <div class="nav-buttons">
                 <button class="btn btn-success" onclick="openAddRecipePopup()">Add Recipe</button>
+                <a href="{{ url_for('recipe.recipe_upload') }}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Upload Recipes
+                </a>
+                <a href="{{ url_for('recipe.download_recipe_excel') }}" class="btn btn-secondary">
+                    <i class="fas fa-download"></i> Export Excel
+                </a>
             </div>
             <div id="recipe_code_suggestions" class="suggestion-list"></div>
         </form>
@@ -317,7 +323,7 @@ function fetchRecipes() {
                     <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
                     <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
                     <td>
-                        <a href="/recipe/edit/${recipe.id}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
+                        <button class="btn btn-warning btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
                     </td>
                 `;

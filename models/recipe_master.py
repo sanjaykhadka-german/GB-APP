@@ -30,7 +30,7 @@ class RecipeMaster(db.Model):
 
     # Prevent duplicate component-assembly pairs
     __table_args__ = (
-        db.UniqueConstraint('finished_good_id', 'raw_material_id', name='uix_finished_good_raw_material'),
+        db.UniqueConstraint('recipe_code', 'description', name='uix_recipe_code_description'),
     )
 
     def __repr__(self):

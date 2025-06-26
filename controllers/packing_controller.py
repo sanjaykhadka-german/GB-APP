@@ -172,8 +172,27 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
                     wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
                     if wip_item:
                         update_production_entry(packing.packing_date, item.filling_code, item, week_commencing=week_commencing)
+        elif item and item.production_code:
+            # Handle items with production_code but no filling_code (direct production)
+            logger.info(f"Creating direct production entry for product {fg_code} with production code {item.production_code}")
+            
+            # Get all packing entries for the same recipe family and date
+            recipe_code_prefix = fg_code.split('.')[0]
+            related_packings = Packing.query.filter(
+                Packing.week_commencing == week_commencing,
+                Packing.packing_date == packing.packing_date,
+                Packing.product_code.ilike(f"{recipe_code_prefix}%")
+            ).all()
+            
+            # Calculate total requirement for this production code
+            total_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings 
+                                     if ItemMaster.query.filter_by(item_code=p.product_code).first() 
+                                     and ItemMaster.query.filter_by(item_code=p.product_code).first().production_code == item.production_code)
+            
+            # Create or update production entry directly
+            create_direct_production_entry(packing.packing_date, item.production_code, total_requirement_kg, week_commencing)
         else:
-            logger.warning(f"No item record or filling_code found for product code {fg_code}. Filling entry not updated.")
+            logger.warning(f"No item record, filling_code, or production_code found for product code {fg_code}. No entries updated.")
 
         return True, "Packing entry updated successfully"
     except Exception as e:
@@ -408,8 +427,12 @@ def packing_create():
                     # For production entry, find the WIP item
                     if item.production_code:
                         update_production_entry(packing_date, item.filling_code, item, week_commencing)
+            elif item and item.production_code:
+                # Handle items with production_code but no filling_code (direct production)
+                logger.info(f"Creating direct production entry for product {product_code} with production code {item.production_code}")
+                create_direct_production_entry(packing_date, item.production_code, requirement_kg, week_commencing)
             else:
-                flash(f"No item record or filling_code found for product code {product_code}. Filling entry not created.", 'warning')
+                flash(f"No item record, filling_code, or production_code found for product code {product_code}. No entries created.", 'warning')
 
             flash('Packing entry created successfully!', 'success')
             return redirect(url_for('packing.packing_list'))
@@ -546,9 +569,19 @@ def packing_edit(id):
             # Update or consolidate Production entry  
             production_code = item.production_code if item else None
             if production_code:
+                # For items with production code but no filling code, calculate total directly from packings
+                if not item.filling_code:
+                    # Direct production - sum requirements from all packings with same production code
+                    total_production_requirement = sum(p.requirement_kg or 0.0 for p in related_packings 
+                                                     if ItemMaster.query.filter_by(item_code=p.product_code).first() 
+                                                     and ItemMaster.query.filter_by(item_code=p.product_code).first().production_code == production_code)
+                else:
+                    # Production via filling - use total from filling entries
+                    total_production_requirement = sum(filling.kilo_per_size or 0 for filling in related_fillings)
+                
                 # Calculate batches
                 batch_size = 100.0  # Default batch size
-                batches = total_requirement_kg / batch_size if batch_size > 0 else 0
+                batches = total_production_requirement / batch_size if total_production_requirement > 0 else 0
 
                 # Find existing Production entry using the *original* packing_date
                 existing_production = Production.query.filter_by(
@@ -563,19 +596,19 @@ def packing_edit(id):
                     wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
                     existing_production.description = wip_item.description if wip_item else f"{production_code} - WIP"
                     existing_production.batches = batches
-                    existing_production.total_kg = total_requirement_kg
+                    existing_production.total_kg = total_production_requirement
                     existing_production.week_commencing = packing.week_commencing
                     db.session.add(existing_production)
                 else:
                     # Create a new production entry if none exists
-                    if total_requirement_kg > 0:
+                    if total_production_requirement > 0:
                         wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
                         production = Production(
                             production_date=packing.packing_date,
                             production_code=production_code,
                             description=wip_item.description if wip_item else f"{production_code} - WIP",
                             batches=batches,
-                            total_kg=total_requirement_kg,
+                            total_kg=total_production_requirement,
                             week_commencing=packing.week_commencing
                         )
                         db.session.add(production)
@@ -611,19 +644,23 @@ def packing_edit(id):
         Packing.product_code.ilike(f"{recipe_code_prefix}%")
     ).all()
     # Get related fillings by finding items with matching filling codes
-    related_items = ItemMaster.query.filter(
+    related_items_with_filling = ItemMaster.query.filter(
         ItemMaster.item_code.ilike(f"{recipe_code_prefix}%"),
         ItemMaster.filling_code.isnot(None)
     ).all()
-    filling_codes = [item.filling_code for item in related_items if item.filling_code]
+    filling_codes = [item.filling_code for item in related_items_with_filling if item.filling_code]
     related_fillings = Filling.query.filter(
         Filling.week_commencing == packing.week_commencing,
         Filling.fill_code.in_(filling_codes)
     ).all() if filling_codes else []
     total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in related_fillings)
     
-    # Get related productions by finding items with matching production codes
-    production_codes = [item.production_code for item in related_items if item.production_code]
+    # Get related productions by finding items with matching production codes (regardless of filling code)
+    related_items_with_production = ItemMaster.query.filter(
+        ItemMaster.item_code.ilike(f"{recipe_code_prefix}%"),
+        ItemMaster.production_code.isnot(None)
+    ).all()
+    production_codes = [item.production_code for item in related_items_with_production if item.production_code]
     related_productions = Production.query.filter(
         Production.week_commencing == packing.week_commencing,
         Production.production_code.in_(production_codes)
@@ -1015,6 +1052,59 @@ def export_packings():
         logger.error(f"Error exporting to Excel: {str(e)}")
         flash(f"Error exporting to Excel: {str(e)}", 'danger')
         return redirect(url_for('packing.packing_list'))
+
+def create_direct_production_entry(production_date, production_code, total_kg, week_commencing=None):
+    """Helper function to create or update a Production entry directly (without filling step)."""
+    try:
+        # Get WIP item for production description
+        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+        product_description = wip_item.description if wip_item else f"{production_code} - WIP"
+
+        # If total_kg is 0, delete the Production entry if it exists
+        if total_kg == 0.0:
+            production = Production.query.filter_by(
+                production_date=production_date,
+                production_code=production_code,
+                week_commencing=week_commencing
+            ).first()
+            if production:
+                db.session.delete(production)
+                db.session.commit()
+            return
+
+        # Calculate batches (using default batch size of 100kg)
+        batch_size = 100.0
+        batches = total_kg / batch_size if total_kg > 0 else 0.0
+
+        # Check for existing Production entry
+        production = Production.query.filter_by(
+            production_date=production_date,
+            production_code=production_code,
+            week_commencing=week_commencing
+        ).first()
+
+        if production:
+            # Update existing Production entry
+            production.description = product_description
+            production.total_kg = total_kg
+            production.batches = batches
+        else:
+            # Create new Production entry
+            production = Production(
+                production_date=production_date,
+                production_code=production_code,
+                description=product_description,
+                batches=batches,
+                total_kg=total_kg,
+                week_commencing=week_commencing
+            )
+            db.session.add(production)
+
+        db.session.commit()
+        logger.info(f"Created/updated direct production entry: {production_code}, {total_kg}kg, {batches} batches")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating direct production entry: {str(e)}")
 
 def update_production_entry(filling_date, fill_code, item, week_commencing=None):
     """Helper function to create or update a Production entry."""

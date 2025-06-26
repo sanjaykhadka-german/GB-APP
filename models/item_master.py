@@ -24,6 +24,7 @@ class ItemMaster(db.Model):
     units_per_bag = db.Column(db.Float)  # For FG
     avg_weight_per_unit = db.Column(db.Float)  # Average weight per unit in kg
     loss_percentage = db.Column(db.Float)  # Production/Filling loss
+    supplier_name = db.Column(db.String(255))  # Name of the supplier for this item
     is_make_to_order = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     
