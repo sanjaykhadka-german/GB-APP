@@ -235,6 +235,23 @@
                 </div>
 
                 <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="production_code" class="form-label">Production Code</label>
+                            <input type="text" id="production_code" name="production_code" class="form-control" 
+                                   value="{{ item.production_code if item and item.production_code else '' }}" placeholder="Enter production code">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="filling_code" class="form-label">Filling Code</label>
+                            <input type="text" id="filling_code" name="filling_code" class="form-control" 
+                                   value="{{ item.filling_code if item and item.filling_code else '' }}" placeholder="Enter filling code">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
                     <div class="col-md-12">
                         <div class="form-group">
                             <label class="form-label">Status</label>

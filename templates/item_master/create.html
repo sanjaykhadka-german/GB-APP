@@ -211,7 +211,18 @@
                         <div class="form-group">
                             <label for="avg_weight_per_unit" class="form-label">Avg Weight per Unit (kg)</label>
                             <input type="number" id="avg_weight_per_unit" name="avg_weight_per_unit" class="form-control" step="0.01" min="0" placeholder="0.00">
-                            <small class="form-text text-muted">Average weight per unit in kg</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="production_code" class="form-label">Production Code</label>
+                            <input type="text" id="production_code" name="production_code" class="form-control" placeholder="Enter production code">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="filling_code" class="form-label">Filling Code</label>
+                            <input type="text" id="filling_code" name="filling_code" class="form-control" placeholder="Enter filling code">
                         </div>
                     </div>
                 </div>
@@ -578,7 +589,14 @@
 </style>
 
 <script>
+// Global error handler to catch any JavaScript errors
+window.addEventListener('error', function(e) {
+    console.error('🚨 JavaScript Error:', e.error);
+    console.error('🚨 Error details:', e.message, 'at', e.filename, ':', e.lineno);
+});
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎯 DOM Content Loaded - Initializing form...');
     const itemTypeSelect = document.getElementById('item_type');
     const rawMaterialFields = document.getElementById('raw-material-fields');
     const finishedGoodFields = document.getElementById('finished-good-fields');
@@ -624,8 +642,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize toggle states
     toggleFields();
 
-    document.getElementById('item-form').addEventListener('submit', function(e) {
+    // Add click event listener to save button for debugging
+    const saveButton = document.querySelector('button[type="submit"]');
+    if (saveButton) {
+        saveButton.addEventListener('click', function(e) {
+            console.log('🚀 SAVE BUTTON CLICKED!');
+            console.log('Button element:', this);
+            console.log('Event:', e);
+        });
+    } else {
+        console.error('❌ Save button not found!');
+    }
+
+    // Add form submission handler with multiple approaches
+    const itemForm = document.getElementById('item-form');
+    if (!itemForm) {
+        console.error('❌ Form with id "item-form" not found!');
+        return;
+    }
+    
+    console.log('✅ Form found, adding event listeners...');
+    
+    itemForm.addEventListener('submit', function(e) {
         e.preventDefault();
+        console.log('🔥 FORM SUBMIT EVENT TRIGGERED!');
         
         const formData = new FormData(this);
         const data = {};
@@ -648,6 +688,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const allergenCheckboxes = document.querySelectorAll('.allergen-checkbox:checked');
         data.allergen_ids = Array.from(allergenCheckboxes).map(cb => cb.value);
 
+        console.log('Sending item data:', data);
+        
         fetch('/item-master', {
             method: 'POST',
             headers: {
@@ -655,8 +697,23 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify(data)
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            
+            // Check if response is redirected to login (status 200 but HTML content)
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+                throw new Error('Authentication required - redirected to login page');
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(result => {
+            console.log('Server response:', result);
             if (result.error) {
                 alert(result.error);
             } else {
@@ -665,8 +722,31 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving the item');
+            console.error('Error details:', error);
+            if (error.message.includes('Authentication required')) {
+                alert('You need to log in to save items. Redirecting to login page...');
+                window.location.href = '/login';
+            } else {
+                alert('An error occurred while saving the item: ' + error.message);
+            }
+        });
+    });
+    
+    // Backup click handler for save button (in case form submit doesn't work)
+    const saveButtons = document.querySelectorAll('button[type="submit"]');
+    saveButtons.forEach(function(button, index) {
+        console.log(`✅ Found save button ${index + 1}:`, button);
+        button.addEventListener('click', function(e) {
+            console.log(`🚀 SAVE BUTTON ${index + 1} CLICKED DIRECTLY!`);
+            
+            // If the form submission doesn't work, try manual submission
+            setTimeout(() => {
+                const form = document.getElementById('item-form');
+                if (form) {
+                    console.log('🔄 Manually triggering form submission...');
+                    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+            }, 100);
         });
     });
 

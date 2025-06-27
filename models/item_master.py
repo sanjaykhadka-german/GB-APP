@@ -13,6 +13,7 @@ class ItemMaster(db.Model):
     
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=True)
+    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
     uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID'), nullable=True)  # Unit of Measure (kg, unit, box)
     
     # Item Attributes (previously scattered, now centralized)
@@ -36,7 +37,6 @@ class ItemMaster(db.Model):
     # Cross-reference fields for migration period (will be removed later)
     filling_code = db.Column(db.String(50))  # Reference to WIPF items
     production_code = db.Column(db.String(50))  # Reference to WIP items
-    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
     
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())

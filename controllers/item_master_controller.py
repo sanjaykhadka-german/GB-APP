@@ -108,6 +108,8 @@ def get_items():
             "avg_weight_per_unit": item.avg_weight_per_unit,
             "loss_percentage": item.loss_percentage,
             "supplier_name": item.supplier_name,
+            "production_code": item.production_code,
+            "filling_code": item.filling_code,
             "is_active": item.is_active,
             "allergens": [allergen.name for allergen in item.allergens]
         }
@@ -120,12 +122,20 @@ def save_item():
     try:
         data = request.get_json()
         
-        item_type_name = data.get('item_type')
-        if not item_type_name:
-            return jsonify({'error': 'item_type is required'}), 400
+        # Validate required fields
+        required_fields = ['item_code', 'description', 'item_type']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
         
-        # Get item_code for both new and existing items
-        item_code = data['item_code']
+        item_type_name = data.get('item_type')
+        item_code = data.get('item_code')
+        description = data.get('description')
+        
+        # Validate item type exists
+        valid_item_type = ItemType.query.filter_by(type_name=item_type_name).first()
+        if not valid_item_type:
+            return jsonify({'error': f'Invalid item type: {item_type_name}'}), 400
         
         # For new item, check if item_code already exists
         if data.get('id'):
@@ -144,19 +154,21 @@ def save_item():
         
         # Update basic fields
         item.item_code = item_code
-        item.description = data['description']
+        item.description = description
         item.item_type = item_type_name
-        item.category_id = data['category_id'] if data['category_id'] else None
-        item.department_id = data['department_id'] if data['department_id'] else None
-        item.machinery_id = data['machinery_id'] if data['machinery_id'] else None
-        item.uom_id = data['uom_id'] if data['uom_id'] else None
-        item.min_level = data['min_level'] if data['min_level'] else None
-        item.max_level = data['max_level'] if data['max_level'] else None
-        item.price_per_kg = data['price_per_kg'] if data['price_per_kg'] else None
-        item.price_per_uom = data['price_per_uom'] if data['price_per_uom'] else None
-        item.calculation_factor = data['calculation_factor'] if data['calculation_factor'] else None
-        item.supplier_name = data['supplier_name'] if data['supplier_name'] else None
-        item.is_active = data['is_active']
+        item.category_id = data.get('category_id') if data.get('category_id') else None
+        item.department_id = data.get('department_id') if data.get('department_id') else None
+        item.machinery_id = data.get('machinery_id') if data.get('machinery_id') else None
+        item.uom_id = data.get('uom_id') if data.get('uom_id') else None
+        item.min_level = data.get('min_level') if data.get('min_level') else None
+        item.max_level = data.get('max_level') if data.get('max_level') else None
+        item.price_per_kg = data.get('price_per_kg') if data.get('price_per_kg') else None
+        item.price_per_uom = data.get('price_per_uom') if data.get('price_per_uom') else None
+        item.calculation_factor = data.get('calculation_factor') if data.get('calculation_factor') else None
+        item.supplier_name = data.get('supplier_name') if data.get('supplier_name') else None
+        item.production_code = data.get('production_code') if data.get('production_code') else None
+        item.filling_code = data.get('filling_code') if data.get('filling_code') else None
+        item.is_active = data.get('is_active', True)
         
         # Update type-specific fields
         if item_type_name == 'Raw Material':
@@ -167,11 +179,11 @@ def save_item():
             item.avg_weight_per_unit = None
             item.loss_percentage = None
         else:
-            item.is_make_to_order = data['is_make_to_order']
-            item.kg_per_unit = data['kg_per_unit'] if data['kg_per_unit'] else None
-            item.units_per_bag = data['units_per_bag'] if data['units_per_bag'] else None
-            item.avg_weight_per_unit = data['avg_weight_per_unit'] if data['avg_weight_per_unit'] else None
-            item.loss_percentage = data['loss_percentage'] if data['loss_percentage'] else None
+            item.is_make_to_order = data.get('is_make_to_order', False)
+            item.kg_per_unit = data.get('kg_per_unit') if data.get('kg_per_unit') else None
+            item.units_per_bag = data.get('units_per_bag') if data.get('units_per_bag') else None
+            item.avg_weight_per_unit = data.get('avg_weight_per_unit') if data.get('avg_weight_per_unit') else None
+            item.loss_percentage = data.get('loss_percentage') if data.get('loss_percentage') else None
         
         # Handle allergens
         if 'allergen_ids' in data:
@@ -372,8 +384,8 @@ def download_excel():
         headers = [
             'Item Code', 'Description', 'Type', 'Category', 'Department', 
             'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Price Per UOM', 
-            'Supplier Name', 'Is Make To Order', 'Kg Per Unit', 'Units Per Bag', 
-            'Loss Percentage', 'Is Active'
+            'Supplier Name', 'Production Code', 'Filling Code', 'Is Make To Order', 
+            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
         ]
         
         # Add headers with styling
@@ -396,11 +408,13 @@ def download_excel():
             sheet.cell(row=row, column=9, value=item.price_per_kg)
             sheet.cell(row=row, column=10, value=item.price_per_uom)
             sheet.cell(row=row, column=11, value=item.supplier_name or '')
-            sheet.cell(row=row, column=12, value='Yes' if item.is_make_to_order else 'No')
-            sheet.cell(row=row, column=13, value=item.kg_per_unit)
-            sheet.cell(row=row, column=14, value=item.units_per_bag)
-            sheet.cell(row=row, column=15, value=item.loss_percentage)
-            sheet.cell(row=row, column=16, value='Yes' if item.is_active else 'No')
+            sheet.cell(row=row, column=12, value=item.production_code or '')
+            sheet.cell(row=row, column=13, value=item.filling_code or '')
+            sheet.cell(row=row, column=14, value='Yes' if item.is_make_to_order else 'No')
+            sheet.cell(row=row, column=15, value=item.kg_per_unit)
+            sheet.cell(row=row, column=16, value=item.units_per_bag)
+            sheet.cell(row=row, column=17, value=item.loss_percentage)
+            sheet.cell(row=row, column=18, value='Yes' if item.is_active else 'No')
         
         # Auto-adjust column widths
         for column in sheet.columns:
@@ -532,6 +546,17 @@ def download_template():
         
     except Exception as e:
         return jsonify({'error': f'Failed to generate template: {str(e)}'}), 500
+
+@item_master_bp.route('/item-master/test-form', methods=['GET'])
+def test_form():
+    """Serve a simple test form for debugging form submission issues."""
+    import os
+    test_file_path = os.path.join(os.getcwd(), 'test_form_simple.html')
+    if os.path.exists(test_file_path):
+        with open(test_file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    else:
+        return "Test form file not found", 404
 
 @item_master_bp.route('/item-master/upload', methods=['GET', 'POST'])
 def item_master_upload():
