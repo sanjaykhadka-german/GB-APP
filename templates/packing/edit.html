@@ -2,6 +2,49 @@
 
 {% block content %}
 <div class="container mt-4">
+    <!-- Duplicate Detection Notice -->
+    {% if from_duplicate %}
+    <div class="alert alert-warning border-warning" style="border-width: 3px; background-color: #fff3cd; margin-bottom: 2rem;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle fa-2x text-warning me-3"></i>
+            <div>
+                <h4 class="alert-heading mb-2">🔄 Redirected from Create New Entry</h4>
+                <p class="mb-2">
+                    <strong>You are now EDITING an existing packing entry instead of creating a new one.</strong>
+                </p>
+                <p class="mb-2">
+                    A packing entry already exists for this product/date combination, so the system redirected you here to edit it.
+                </p>
+                <div class="mt-2">
+                    <a href="{{ url_for('packing.packing_create') }}" class="btn btn-outline-primary btn-sm me-2">
+                        <i class="fas fa-plus"></i> Try Creating a Different Entry
+                    </a>
+                    <a href="{{ url_for('packing.packing_list') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list"></i> View All Packing Entries
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Page Title -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            {% if from_duplicate %}
+                <i class="fas fa-edit text-warning"></i> Editing Existing Packing Entry (ID: {{ packing.id }})
+                <small class="text-muted d-block" style="font-size: 0.6em;">Redirected from duplicate detection</small>
+            {% else %}
+                <i class="fas fa-edit"></i> Edit Packing Entry
+            {% endif %}
+        </h2>
+        <div>
+            <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

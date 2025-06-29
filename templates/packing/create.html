@@ -39,10 +39,64 @@
         <div class="form-group">
             <label for="calculation_factor">Calculation Factor</label>
             <input type="number" step="0.01" class="form-control" id="calculation_factor" name="calculation_factor" value="0.0">
+            <small class="form-text text-muted">Leave as 0.0 to use the calculation factor from Item Master</small>
+        </div>
+        
+        <!-- ItemMaster Info Display -->
+        <div class="item-master-info" id="itemMasterInfo" style="display: none;">
+            <div class="card mt-3 mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0 text-primary">Item Master Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Avg Weight/Unit:</strong>
+                            <span id="displayAvgWeight">-</span> kg
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Min Level:</strong>
+                            <span id="displayMinLevel">-</span> units
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Max Level:</strong>
+                            <span id="displayMaxLevel">-</span> units
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Calc Factor:</strong>
+                            <span id="displayCalcFactor">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- SOH Creation Option - Simple and Clean -->
+        <div class="form-group">
+            <div class="card border-info">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0 text-info">
+                        <i class="fas fa-database me-2"></i>Stock on Hand (SOH) Entry
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="create_soh_entry" name="create_soh_entry" value="1" checked>
+                        <label class="form-check-label" for="create_soh_entry">
+                            <strong>Create SOH entry if it doesn't exist (with 0 units)</strong>
+                        </label>
+                    </div>
+                    <small class="form-text text-muted mt-2">
+                        <i class="fas fa-info-circle text-info me-1"></i>
+                        This will automatically create a Stock on Hand entry for this product if one doesn't exist. 
+                        Leave checked unless you're certain the SOH entry already exists.
+                    </small>
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label for="machinery">Machinery</label>
-            <select class="form-control" id="machinery" name="machinery" required onchange="checkDuplicate()">
+            <select class="form-control" id="machinery" name="machinery" onchange="checkDuplicate()">
                 <option value="">Select Machinery</option>
                 {% for machine in machinery %}
                     <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
@@ -197,9 +251,87 @@
         const selectedOption = select.options[select.selectedIndex];
         
         if (selectedOption && selectedOption.value !== "") {
+            const productCode = selectedOption.value;
             descriptionInput.value = selectedOption.getAttribute('data-description');
+            
+            // Fetch and display ItemMaster information
+            fetchItemMasterInfo(productCode);
         } else {
             descriptionInput.value = '';
+            hideItemMasterInfo();
+        }
+    }
+
+    function fetchItemMasterInfo(productCode) {
+        fetch(`/packing/item_master_info/${productCode}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching item master info:', data.error);
+                    hideItemMasterInfo();
+                } else {
+                    displayItemMasterInfo(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching item master info:', error);
+                hideItemMasterInfo();
+            });
+    }
+
+    function displayItemMasterInfo(data) {
+        // Update the display elements
+        document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit || '0.0';
+        document.getElementById('displayMinLevel').textContent = data.min_level || '0.0';
+        document.getElementById('displayMaxLevel').textContent = data.max_level || '0.0';
+        document.getElementById('displayCalcFactor').textContent = data.calculation_factor || '0.0';
+        
+        // Auto-fill calculation factor if user hasn't entered one
+        const calcFactorInput = document.getElementById('calculation_factor');
+        if (calcFactorInput.value == '0.0' || calcFactorInput.value == '') {
+            calcFactorInput.value = data.calculation_factor || '0.0';
+        }
+        
+        // Show the info panel
+        document.getElementById('itemMasterInfo').style.display = 'block';
+        
+        // Add visual feedback for missing values
+        updateFieldWarnings(data);
+    }
+
+    function hideItemMasterInfo() {
+        document.getElementById('itemMasterInfo').style.display = 'none';
+    }
+
+    function updateFieldWarnings(data) {
+        // Remove existing warnings
+        document.querySelectorAll('.field-warning').forEach(el => el.remove());
+        
+        const warnings = [];
+        if (!data.avg_weight_per_unit || data.avg_weight_per_unit == 0) {
+            warnings.push('Average weight per unit is missing or zero');
+        }
+        if (!data.calculation_factor || data.calculation_factor == 0) {
+            warnings.push('Calculation factor is missing or zero');
+        }
+        if (!data.min_level || data.min_level == 0) {
+            warnings.push('Minimum level is missing or zero');
+        }
+        if (!data.max_level || data.max_level == 0) {
+            warnings.push('Maximum level is missing or zero');
+        }
+        
+        if (warnings.length > 0) {
+            const warningDiv = document.createElement('div');
+            warningDiv.className = 'alert alert-warning field-warning mt-2';
+            warningDiv.innerHTML = `
+                <strong>Missing ItemMaster Data:</strong>
+                <ul class="mb-0">
+                    ${warnings.map(w => `<li>${w}</li>`).join('')}
+                </ul>
+                <small>Please update the Item Master record for accurate calculations.</small>
+            `;
+            document.getElementById('itemMasterInfo').appendChild(warningDiv);
         }
     }
 
@@ -238,15 +370,28 @@
             existingAlert.remove();
         }
 
-        if (weekCommencing && productCode && packingDate && machinery) {
-            fetch(`/packing/check_duplicate?week_commencing=${weekCommencing}&product_code=${productCode}&packing_date=${packingDate}&machinery=${machinery}`)
+        // Only check duplicates if we have the required fields (machinery is now optional)
+        if (weekCommencing && productCode && packingDate) {
+            const machineParam = machinery ? `&machinery=${machinery}` : '&machinery=';
+            fetch(`/packing/check_duplicate?week_commencing=${weekCommencing}&product_code=${productCode}&packing_date=${packingDate}${machineParam}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.exists) {
                         submitButton.disabled = true;
+                        const machineText = machinery ? ` with machinery ${machinery}` : '';
                         const alert = document.createElement('div');
-                        alert.className = 'alert alert-danger';
-                        alert.innerText = `A packing entry already exists for product ${productCode} on ${packingDate} (week commencing ${weekCommencing}) with machinery ${machinery}. Please edit the existing entry.`;
+                        alert.className = 'alert alert-danger border-danger';
+                        alert.style.cssText = 'border-width: 3px; font-size: 1.1em; padding: 1.5rem;';
+                        alert.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-circle fa-2x text-danger me-3"></i>
+                                <div>
+                                    <h5 class="alert-heading mb-2">🚫 Duplicate Entry Detected!</h5>
+                                    <p class="mb-2">A packing entry already exists for product <strong>${productCode}</strong> on <strong>${packingDate}</strong>${machineText}.</p>
+                                    <p class="mb-0"><strong>You cannot create a duplicate entry.</strong> Please change the date, machinery, or edit the existing entry instead.</p>
+                                </div>
+                            </div>
+                        `;
                         alertContainer.insertBefore(alert, document.getElementById('packingForm'));
                     } else {
                         submitButton.disabled = false;
@@ -254,11 +399,36 @@
                 })
                 .catch(error => {
                     console.error('Error checking duplicate:', error);
+                    // Don't disable submit on error
+                    submitButton.disabled = false;
                 });
+        } else {
+            // Enable submit if we don't have enough info to check duplicates
+            submitButton.disabled = false;
         }
     }
 
-    // Allergen modal functionality
+    // Simple SOH checkbox validation
+    document.addEventListener('DOMContentLoaded', function() {
+        const sohCheckbox = document.getElementById('create_soh_entry');
+        
+        // Simple warning when user tries to uncheck SOH checkbox
+        sohCheckbox.addEventListener('change', function() {
+            if (!this.checked) {
+                const userConfirmed = confirm(
+                    "Are you sure you want to uncheck 'Create SOH entry'?\n\n" +
+                    "This may prevent packing entry creation if no SOH entry exists for this product.\n\n" +
+                    "Click 'Cancel' to keep it checked (recommended)."
+                );
+                
+                if (!userConfirmed) {
+                    this.checked = true; // Re-check the box
+                }
+            }
+        });
+    });
+
+    // Allergen modal functionality (disabled for now - route not implemented)
     document.getElementById('save-new-allergen').addEventListener('click', function() {
         const allergenName = document.getElementById('new-allergen-name').value.trim();
         if (!allergenName) {
@@ -266,47 +436,15 @@
             return;
         }
 
-        fetch('/allergen', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({name: allergenName})
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.error) {
-                alert(result.error);
-            } else {
-                // Add new checkbox to allergen section
-                const allergenContainer = document.querySelector('.allergen-checkboxes');
-                const addButton = allergenContainer.querySelector('.allergen-add-btn');
-                const newCheckboxDiv = document.createElement('div');
-                newCheckboxDiv.className = 'allergen-checkbox-wrapper';
-                newCheckboxDiv.innerHTML = `
-                    <input class="form-check-input allergen-checkbox" type="checkbox" 
-                           id="allergen_${result.id}" 
-                           name="allergen_ids" 
-                           value="${result.id}"
-                           checked>
-                    <label class="form-check-label" for="allergen_${result.id}">
-                        ${allergenName}
-                    </label>
-                `;
-                allergenContainer.insertBefore(newCheckboxDiv, addButton);
-                
-                // Close modal and reset form
-                bootstrap.Modal.getInstance(document.getElementById('newAllergenModal')).hide();
-                document.getElementById('new-allergen-form').reset();
-                alert('Allergen added successfully!');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving the allergen');
-        });
+        // TODO: Implement allergen creation route
+        alert('Allergen creation is not yet implemented. Please create allergens through the allergen management section.');
+        
+        // Close modal and reset form
+        bootstrap.Modal.getInstance(document.getElementById('newAllergenModal')).hide();
+        document.getElementById('new-allergen-form').reset();
     });
 
+    // Initialize page when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
         updateDescription();
         updateWeekCommencing();

@@ -754,7 +754,7 @@ function fetchPackings() {
                             <td class="editable" data-field="priority" data-original="${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}">${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}</td>
                             <td>
                                 <a href="${editUrl}" class="btn btn-sm btn-secondary" target="_blank" rel="noopener noreferrer">Edit</a>
-                                <a href="{{ url_for('packing.packing_delete', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '') class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="deletePacking(${packing.id})">Delete</button>
                             </td>
                         </tr>
                     `);
@@ -1097,6 +1097,35 @@ function updateCell(packingId, field, value) {
             fetchPackings();
         }
     });
+}
+
+// Delete packing entry
+function deletePacking(packingId) {
+    if (!packingId) {
+        alert('Invalid packing ID');
+        return;
+    }
+
+    if (confirm('Are you sure you want to delete this packing entry? This action cannot be undone.')) {
+        // Create a temporary form to submit POST request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `{{ url_for('packing.packing_delete', id=0) }}`.replace('0', packingId);
+        form.style.display = 'none';
+        
+        // Add CSRF token if needed (assuming Flask-WTF is used)
+        const csrfToken = document.querySelector('meta[name=csrf-token]');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfToken.getAttribute('content');
+            form.appendChild(csrfInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 </script>
 {% endblock %}
