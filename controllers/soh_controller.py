@@ -19,6 +19,144 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_total_units, item):
+    """
+    Create or update a packing entry when SOH data is uploaded.
+    This is a simplified version specifically for SOH uploads.
+    Also creates related Filling and Production entries as needed.
+    """
+    from app import db
+    from models.packing import Packing
+    from models.filling import Filling
+    from models.production import Production
+    
+    try:
+        # Get all required values from ItemMaster
+        avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
+        min_level = item.min_level or 0.0
+        max_level = item.max_level or 0.0
+        calculation_factor = item.calculation_factor or 0.0
+        
+        print(f"Processing SOH->Packing for {fg_code}: soh_units={soh_total_units}, avg_weight={avg_weight_per_unit}, calc_factor={calculation_factor}")
+        
+        # Calculate SOH requirement based on min/max levels
+        soh_requirement_units_week = int(max_level - soh_total_units) if soh_total_units < min_level else 0
+        
+        # Check if packing entry already exists
+        existing_packing = Packing.query.filter_by(
+            product_code=fg_code,
+            week_commencing=week_commencing,
+            packing_date=week_commencing  # Use week_commencing as packing_date for SOH-generated entries
+        ).first()
+        
+        if existing_packing:
+            # Update existing packing entry
+            packing = existing_packing
+            print(f"✓ Updating existing packing entry for {fg_code}")
+        else:
+            # Create new packing entry
+            packing = Packing(
+                product_code=fg_code,
+                product_description=description,
+                packing_date=week_commencing,
+                week_commencing=week_commencing,
+                special_order_kg=0.0,
+                avg_weight_per_unit=avg_weight_per_unit,
+                calculation_factor=calculation_factor,
+                priority=0,
+                machinery=None
+            )
+            db.session.add(packing)
+            print(f"✓ Creating new packing entry for {fg_code}")
+        
+        # Perform all calculations
+        packing.avg_weight_per_unit = avg_weight_per_unit
+        packing.soh_requirement_units_week = soh_requirement_units_week
+        packing.soh_units = soh_total_units
+        
+        # Calculate derived values
+        special_order_kg = packing.special_order_kg or 0.0
+        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit > 0 else 0
+        packing.soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit > 0 else 0
+        packing.soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit > 0 else 0
+        packing.total_stock_kg = packing.soh_requirement_kg_week * calculation_factor if calculation_factor > 0 else 0
+        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit > 0 else 0
+        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+        packing.requirement_unit = packing.total_stock_units - soh_total_units + packing.special_order_unit if (packing.total_stock_units - soh_total_units + packing.special_order_unit) > 0 else 0
+        
+        db.session.commit()
+        print(f"✓ Packing entry saved: requirement_kg={packing.requirement_kg}, requirement_unit={packing.requirement_unit}")
+        
+        # Create related Filling and Production entries (similar to what packing controller does)
+        created_entries = ["Packing"]
+        
+        if item.filling_code and packing.requirement_kg > 0:
+            # Create/update Filling entry
+            wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code, item_type='WIPF').first()
+            if wipf_item:
+                filling = Filling.query.filter_by(
+                    filling_date=week_commencing,
+                    fill_code=item.filling_code,
+                    week_commencing=week_commencing
+                ).first()
+                
+                if filling:
+                    filling.kilo_per_size = packing.requirement_kg
+                    filling.description = wipf_item.description
+                    print(f"✓ Updated Filling entry for {item.filling_code}")
+                else:
+                    filling = Filling(
+                        filling_date=week_commencing,
+                        fill_code=item.filling_code,
+                        description=wipf_item.description,
+                        kilo_per_size=packing.requirement_kg,
+                        week_commencing=week_commencing
+                    )
+                    db.session.add(filling)
+                    print(f"✓ Created Filling entry for {item.filling_code}")
+                created_entries.append("Filling")
+        
+        if item.production_code and packing.requirement_kg > 0:
+            # Create/update Production entry
+            wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
+            if wip_item:
+                production = Production.query.filter_by(
+                    production_date=week_commencing,
+                    production_code=item.production_code,
+                    week_commencing=week_commencing
+                ).first()
+                
+                batch_size = 100.0  # Default batch size
+                batches = packing.requirement_kg / batch_size if packing.requirement_kg > 0 else 0
+                
+                if production:
+                    production.total_kg = packing.requirement_kg
+                    production.batches = batches
+                    production.description = wip_item.description
+                    print(f"✓ Updated Production entry for {item.production_code}")
+                else:
+                    production = Production(
+                        production_date=week_commencing,
+                        production_code=item.production_code,
+                        description=wip_item.description,
+                        batches=batches,
+                        total_kg=packing.requirement_kg,
+                        week_commencing=week_commencing
+                    )
+                    db.session.add(production)
+                    print(f"✓ Created Production entry for {item.production_code}")
+                created_entries.append("Production")
+        
+        db.session.commit()
+        entries_created = ", ".join(created_entries)
+        print(f"✓ Successfully processed {fg_code}: Created/Updated {entries_created} entries")
+        return True, f"Created/Updated {entries_created} entries for {fg_code}"
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"✗ Error creating packing entry for {fg_code}: {str(e)}")
+        return False, f"Error creating packing entry for {fg_code}: {str(e)}"
+
 @soh_bp.route('/soh_upload', methods=['GET', 'POST'])
 def soh_upload():
     from app import db
@@ -79,6 +217,11 @@ def soh_upload():
                 except ValueError:
                     flash(f"Invalid Week Commencing date format in form: {form_week_commencing}. Expected format: YYYY-MM-DD.", "danger")
                     return render_template('soh/upload.html', current_page="soh")
+
+            # Counters for tracking created entries
+            soh_processed = 0
+            packing_created = 0
+            packing_failed = 0
 
             for _, row in df.iterrows():
                 print("Processing row:", row.to_dict())
@@ -190,27 +333,30 @@ def soh_upload():
                     # then an individual commit here might be necessary, or a flush.
                     # For now, let's keep it here for data consistency before related updates.
                     db.session.commit() # Commit changes to SOH and Packing entries if any
+                    soh_processed += 1
 
-                    # Update Packing if soh_total_boxes or soh_total_units >= 0 (or if any relevant SOH field changed)
-                    # The update_packing_entry should be called *after* SOH is committed
-                    # It seems `soh_requirement_units_week` and `calculation_factor` are set to 0.
-                    # Consider if these should truly be 0 or derived from other data.
-                    # If this is just about linking SOH with Packing, then those values might be irrelevant for this specific update.
+                    # Automatically create Packing (and related Filling/Production) entries
                     if soh_total_boxes_calc >= 0 or soh_total_units_calc >= 0:
-                        success, message = update_packing_entry(
+                        success, message = create_packing_entry_from_soh(
                             fg_code=fg_code,
                             description=description,
-                            packing_date=week_commencing, # Pass the date object directly
-                            special_order_kg=0.0,
-                            avg_weight_per_unit=avg_weight_per_unit,
-                            soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
-                            calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
-                            week_commencing=week_commencing # Pass the date object directly
+                            week_commencing=week_commencing,
+                            soh_total_units=soh_total_units_calc,
+                            item=item
                         )
-                        if not success:
-                            flash(f"Warning: Could not update Packing for FG Code {fg_code}: {message}", "warning")
+                        if success:
+                            packing_created += 1
+                            print(f"✓ Auto-created entries for {fg_code}: {message}")
+                        else:
+                            packing_failed += 1
+                            flash(f"Warning: Could not create entries for FG Code {fg_code}: {message}", "warning")
 
-            flash("SOH data uploaded and updated successfully!", "success")
+            # Provide detailed summary to user
+            flash(f"SOH data uploaded successfully! Processed {soh_processed} SOH entries.", "success")
+            if packing_created > 0:
+                flash(f"✓ Automatically created {packing_created} packing entries (with related filling/production entries where applicable).", "success")
+            if packing_failed > 0:
+                flash(f"⚠ Failed to create packing entries for {packing_failed} products. Check warnings above.", "warning")
             return redirect(url_for('soh.soh_list'))
 
         except Exception as e:
@@ -346,15 +492,12 @@ def soh_create():
             if soh_total_boxes >= 0 or soh_total_units >= 0: # Condition for update_packing_entry
                 # Ensure packing_date is a date object
                 packing_date_for_update = week_commencing_date if week_commencing_date else date.today()
-                success, message = update_packing_entry(
+                success, message = create_packing_entry_from_soh(
                     fg_code=fg_code,
                     description=description,
-                    packing_date=packing_date_for_update,
-                    special_order_kg=0.0,
-                    avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
-                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
-                    week_commencing=packing_date_for_update
+                    week_commencing=packing_date_for_update,
+                    soh_total_units=soh_total_units,
+                    item=item
                 )
                 if not success:
                     flash(f"Warning: Could not update Packing for FG Code {fg_code}: {message}", "warning")
@@ -436,15 +579,12 @@ def soh_edit(id):
                 avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
                 
                 packing_date = week_commencing_date if week_commencing_date else date.today()
-                success, message = update_packing_entry(
+                success, message = create_packing_entry_from_soh(
                     fg_code=fg_code,
                     description=description,
-                    packing_date=packing_date,
-                    special_order_kg=0.0,
-                    avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=None, # Recalculation based on min_level and max_level in Packing
-                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
-                    week_commencing=week_commencing_date # Pass the date object directly
+                    week_commencing=packing_date,
+                    soh_total_units=soh_total_units,
+                    item=item
                 )
                 if not success:
                     flash(f"Warning: Could not update Packing for FG Code {fg_code}: {message}", "warning")
@@ -654,17 +794,14 @@ def soh_bulk_edit():
 
             # Update packing entry if necessary
             # Pass the current soh.week_commencing (which might have just been updated)
-            if soh.soh_total_boxes > 0 or soh.soh_total_units > 0: # Condition for update_packing_entry
+            if soh.soh_total_boxes >= 0 or soh.soh_total_units >= 0: # Condition for create_packing_entry_from_soh
                 packing_date_for_update = soh.week_commencing if soh.week_commencing else date.today()
-                success, message = update_packing_entry(
+                success, message = create_packing_entry_from_soh(
                     fg_code=soh.fg_code,
                     description=soh.description,
-                    packing_date=packing_date_for_update,
-                    special_order_kg=0.0,
-                    avg_weight_per_unit=avg_weight_per_unit,
-                    soh_requirement_units_week=None, # Let packing controller calculate based on min/max levels
-                    calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
-                    week_commencing=packing_date_for_update
+                    week_commencing=packing_date_for_update,
+                    soh_total_units=soh.soh_total_units or 0,
+                    item=item
                 )
                 if not success:
                     print(f"Failed to update Packing for {soh.fg_code} during bulk edit: {message}")
@@ -748,18 +885,15 @@ def soh_inline_edit():
         soh.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
 
         # Update packing entry if necessary
-        if soh.soh_total_boxes > 0 or soh.soh_total_units > 0:
-            # Ensure packing_date is a date object for update_packing_entry
+        if soh.soh_total_boxes >= 0 or soh.soh_total_units >= 0:
+            # Ensure packing_date is a date object for create_packing_entry_from_soh
             packing_date = soh.week_commencing if soh.week_commencing else date.today()
-            success, message = update_packing_entry(
+            success, message = create_packing_entry_from_soh(
                 fg_code=soh.fg_code,
                 description=soh.description,
-                packing_date=packing_date,
-                special_order_kg=0.0,
-                avg_weight_per_unit=avg_weight_per_unit,
-                soh_requirement_units_week=None, # Recalculation based on min_level and max_level
-                calculation_factor=item.calculation_factor if item and item.calculation_factor else 0.0, # Auto-fetch from item_master
-                week_commencing=soh.week_commencing # Pass the date object directly
+                week_commencing=packing_date,
+                soh_total_units=soh.soh_total_units or 0,
+                item=item
             )
             if not success:
                 print(f"Failed to update Packing for {soh.fg_code} during inline edit: {message}")
