@@ -13,6 +13,7 @@ from sqlalchemy import asc, desc, func
 import pandas as pd
 import io
 import logging
+import math
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -76,7 +77,9 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         item = ItemMaster.query.filter_by(item_code=fg_code).first()
         if not item:
             return False, f"No item found for fg_code {fg_code}"
-        avg_weight_per_unit = avg_weight_per_unit or item.kg_per_unit or item.avg_weight_per_unit or 0.0  # Try kg_per_unit first, then avg_weight_per_unit as fallback
+        avg_weight_per_unit = avg_weight_per_unit or item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
+        min_level = item.min_level or 0.0
+        max_level = item.max_level or 0.0
 
         # Use provided calculation_factor or fetch from existing Packing entry
         packing = Packing.query.filter_by(
@@ -163,7 +166,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
         packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
         packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
         packing.soh_units = soh_units
@@ -313,7 +316,7 @@ def packing_list():
 
         # Get Item Master data for avg_weight_per_unit
         item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
-        avg_weight_per_unit = item.kg_per_unit if item else 0.0
+        avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
 
         # Calculate special order unit
         special_order_unit = round(packing.special_order_kg / avg_weight_per_unit) if packing.special_order_kg and avg_weight_per_unit else 0
@@ -451,7 +454,7 @@ def packing_create():
                 return redirect(url_for('packing.packing_create'))
             
             # Get all ItemMaster parameters for calculation
-            avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0  # Try kg_per_unit first, then avg_weight_per_unit as fallback
+            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
             min_level = item.min_level or 0.0
             max_level = item.max_level or 0.0
             
@@ -504,7 +507,7 @@ def packing_create():
             
             # 4. Total stock target (using calculation_factor from ItemMaster)
             total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
-            total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             
             # 5. Final requirement calculation
             requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
@@ -639,7 +642,7 @@ def packing_edit(id):
             if not item:
                 flash(f"No item record found for {packing.product_code}.", 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
-            avg_weight_per_unit = item.kg_per_unit or 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit or 0.0
             packing.avg_weight_per_unit = avg_weight_per_unit
 
             # Calculate soh_requirement_units_week
@@ -655,7 +658,7 @@ def packing_edit(id):
             packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
             packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
             packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-            packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
             packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
             packing.soh_units = soh_units
@@ -1006,7 +1009,7 @@ def bulk_edit():
             item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
             if not item:
                 continue
-            avg_weight_per_unit = item.kg_per_unit or 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
             packing.avg_weight_per_unit = avg_weight_per_unit
 
             # Calculate soh_requirement_units_week
@@ -1022,7 +1025,7 @@ def bulk_edit():
             packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
             packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
             packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-            packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
             packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
             packing.soh_units = soh_units
@@ -1146,7 +1149,7 @@ def export_packings():
             soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
             item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
-            avg_weight_per_unit = item.kg_per_unit if item else 0.0
+            avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
             min_level = item.min_level or 0.0 if item else 0.0
             max_level = item.max_level or 0.0 if item else 0.0
             soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
@@ -1156,7 +1159,7 @@ def export_packings():
             soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
             soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
             total_stock_kg = soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-            total_stock_units = round(total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
             requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
 
@@ -1336,6 +1339,7 @@ def update_cell():
 
         original_requirement_kg = packing.requirement_kg or 0.0
 
+        # Convert values based on field type
         if field == 'special_order_kg' or field == 'calculation_factor':
             value = float(value) if value else 0.0
         elif field == 'priority':
@@ -1352,87 +1356,94 @@ def update_cell():
 
         setattr(packing, field, value)
 
-        # Recalculate dependent fields
-        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
-        if not item:
-            return jsonify({"success": False, "message": f"No item record found for {packing.product_code}."}), 400
+        # Only recalculate dependent fields if the changed field affects calculations
+        # Priority and machinery don't affect requirement calculations
+        calculation_affecting_fields = ['special_order_kg', 'calculation_factor']
+        
+        if field in calculation_affecting_fields:
+            # Recalculate dependent fields only for fields that affect calculations
+            item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            if not item:
+                return jsonify({"success": False, "message": f"No item record found for {packing.product_code}."}), 400
 
-        avg_weight_per_unit = item.kg_per_unit or 0.0
-        packing.avg_weight_per_unit = avg_weight_per_unit
+            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+            packing.avg_weight_per_unit = avg_weight_per_unit
 
-        # Fetch SOH data
-        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
-        soh_units = soh.soh_total_units if soh else 0
+            # Fetch SOH data
+            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
 
-        min_level = item.min_level or 0.0
-        max_level = item.max_level or 0.0
-        packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+            min_level = item.min_level or 0.0
+            max_level = item.max_level or 0.0
+            packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
 
-        # Update calculated fields
-        special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
-        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
-        packing.soh_units = soh_units
+            # Update calculated fields
+            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
+            packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
+            packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
+            packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+            packing.soh_units = soh_units
 
         db.session.commit()
 
-        # Update Filling entries for all fill_codes in the recipe family
-        recipe_code_prefix = packing.product_code.split('.')[0]
-        related_packings = Packing.query.filter(
-            Packing.week_commencing == packing.week_commencing,
-            Packing.product_code.ilike(f"{recipe_code_prefix}%")
-        ).all()
+        # Update Filling entries only if the change affects requirement_kg
+        if field in calculation_affecting_fields:
+            # Update Filling entries for all fill_codes in the recipe family
+            recipe_code_prefix = packing.product_code.split('.')[0]
+            related_packings = Packing.query.filter(
+                Packing.week_commencing == packing.week_commencing,
+                Packing.product_code.ilike(f"{recipe_code_prefix}%")
+            ).all()
 
-        # Group Packing entries by fill_code
-        fill_code_to_packing = {}
-        for p in related_packings:
-            item = ItemMaster.query.filter_by(item_code=p.product_code).first()
-            if item and item.filling_code:
-                fill_code = item.filling_code
-                if fill_code not in fill_code_to_packing:
-                    fill_code_to_packing[fill_code] = []
-                fill_code_to_packing[fill_code].append(p)
+            # Group Packing entries by fill_code
+            fill_code_to_packing = {}
+            for p in related_packings:
+                item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if item and item.filling_code:
+                    fill_code = item.filling_code
+                    if fill_code not in fill_code_to_packing:
+                        fill_code_to_packing[fill_code] = []
+                    fill_code_to_packing[fill_code].append(p)
 
-        # Update or create Filling entries
-        for fill_code, packings in fill_code_to_packing.items():
-            total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
-            filling = Filling.query.filter_by(
-                filling_date=packings[0].packing_date,
-                fill_code=fill_code,
-                week_commencing=packings[0].week_commencing
-            ).first()
+            # Update or create Filling entries
+            for fill_code, packings in fill_code_to_packing.items():
+                total_requirement_kg = sum(p.requirement_kg or 0.0 for p in packings)
+                filling = Filling.query.filter_by(
+                    filling_date=packings[0].packing_date,
+                    fill_code=fill_code,
+                    week_commencing=packings[0].week_commencing
+                ).first()
 
-            wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type="WIPF").first()
-            if not wipf_item:
-                logger.warning(f"No WIPF item found for fill_code {fill_code}. Skipping Filling update.")
-                continue
+                wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type="WIPF").first()
+                if not wipf_item:
+                    logger.warning(f"No WIPF item found for fill_code {fill_code}. Skipping Filling update.")
+                    continue
 
-            if filling:
-                filling.kilo_per_size = total_requirement_kg
-                if filling.kilo_per_size <= 0:
-                    db.session.delete(filling)
-            else:
-                if total_requirement_kg > 0:
-                    filling = Filling(
-                        filling_date=packings[0].packing_date,
-                        fill_code=fill_code,
-                        description=wipf_item.description,
-                        kilo_per_size=total_requirement_kg,
-                        week_commencing=packings[0].week_commencing
-                    )
-                    db.session.add(filling)
-            db.session.commit()
+                if filling:
+                    filling.kilo_per_size = total_requirement_kg
+                    if filling.kilo_per_size <= 0:
+                        db.session.delete(filling)
+                else:
+                    if total_requirement_kg > 0:
+                        filling = Filling(
+                            filling_date=packings[0].packing_date,
+                            fill_code=fill_code,
+                            description=wipf_item.description,
+                            kilo_per_size=total_requirement_kg,
+                            week_commencing=packings[0].week_commencing
+                        )
+                        db.session.add(filling)
+                db.session.commit()
 
-            # Update Production entry
-            # Find the original finished good item to get its production code
-            original_fg_item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
-            if original_fg_item:
-                update_production_entry(packing.packing_date, fill_code, original_fg_item, packing.week_commencing)
+                # Update Production entry
+                # Find the original finished good item to get its production code
+                original_fg_item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+                if original_fg_item:
+                    update_production_entry(packing.packing_date, fill_code, original_fg_item, packing.week_commencing)
 
         return jsonify({"success": True, "message": "Cell updated successfully"})
     except Exception as e:
@@ -1456,8 +1467,8 @@ def get_item_master_info(product_code):
         if not item:
             return jsonify({"error": f"No item found for product code {product_code}"}), 404
         
-        # Get the average weight per unit (try kg_per_unit first, then avg_weight_per_unit)
-        avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
+        # Get the average weight per unit (try avg_weight_per_unit first, then kg_per_unit)
+        avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
         
         data = {
             "product_code": item.item_code,
