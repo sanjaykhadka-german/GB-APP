@@ -232,18 +232,22 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             # Handle items with production_code but no filling_code (direct production)
             logger.info(f"Creating direct production entry for product {fg_code} with production code {item.production_code}")
             
-            # Get all packing entries for the same recipe family and date
-            recipe_code_prefix = fg_code.split('.')[0]
-            related_packings = Packing.query.filter(
+            # Get ALL packing entries for the same date (across all recipe families)
+            all_packings_for_date = Packing.query.filter(
                 Packing.week_commencing == week_commencing,
-                Packing.packing_date == packing.packing_date,
-                Packing.product_code.ilike(f"{recipe_code_prefix}%")
+                Packing.packing_date == packing.packing_date
             ).all()
             
-            # Calculate total requirement for this production code
-            total_requirement_kg = sum(p.requirement_kg or 0.0 for p in related_packings 
-                                     if ItemMaster.query.filter_by(item_code=p.product_code).first() 
-                                     and ItemMaster.query.filter_by(item_code=p.product_code).first().production_code == item.production_code)
+            # Calculate total requirement for this production code across ALL recipe families
+            total_requirement_kg = 0.0
+            contributing_products = []
+            for p in all_packings_for_date:
+                p_item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if p_item and p_item.production_code == item.production_code:
+                    total_requirement_kg += (p.requirement_kg or 0.0)
+                    contributing_products.append(p.product_code)
+            
+            logger.info(f"Direct production aggregation for {item.production_code}: {total_requirement_kg} kg from products: {', '.join(contributing_products)}")
             
             # Create or update production entry directly
             create_direct_production_entry(packing.packing_date, item.production_code, total_requirement_kg, week_commencing)
@@ -717,22 +721,30 @@ def packing_edit(id):
                         )
                         db.session.add(filling)
 
-            # Update or consolidate Production entry  
-            production_code = item.production_code if item else None
-            if production_code:
-                # For items with production code but no filling code, calculate total directly from packings
-                if not item.filling_code:
-                    # Direct production - sum requirements from all packings with same production code
-                    total_production_requirement = sum(p.requirement_kg or 0.0 for p in related_packings 
-                                                     if ItemMaster.query.filter_by(item_code=p.product_code).first() 
-                                                     and ItemMaster.query.filter_by(item_code=p.product_code).first().production_code == production_code)
-                else:
-                    # Production via filling - use total from filling entries
-                    total_production_requirement = sum(filling.kilo_per_size or 0 for filling in related_fillings)
-                
+            # Update or consolidate Production entries for all production codes across ALL recipe families
+            # Get ALL packing entries for the same date and week (not just current recipe family)
+            all_packings_for_date = Packing.query.filter(
+                Packing.week_commencing == packing.week_commencing,
+                Packing.packing_date == packing.packing_date
+            ).all()
+            
+            # Group by production_code across ALL recipe families
+            production_code_to_total = {}
+            for p in all_packings_for_date:
+                p_item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if p_item and p_item.production_code:
+                    prod_code = p_item.production_code
+                    if prod_code not in production_code_to_total:
+                        production_code_to_total[prod_code] = 0
+                    production_code_to_total[prod_code] += (p.requirement_kg or 0.0)
+            
+            logger.info(f"Production aggregation across ALL recipe families: {production_code_to_total}")
+            
+            # Update or create production entries for each production code
+            for production_code, total_requirement_kg in production_code_to_total.items():
                 # Calculate batches
                 batch_size = 100.0  # Default batch size
-                batches = total_production_requirement / batch_size if total_production_requirement > 0 else 0
+                batches = total_requirement_kg / batch_size if total_requirement_kg > 0 else 0
 
                 # Find existing Production entry using the *original* packing_date
                 existing_production = Production.query.filter_by(
@@ -747,22 +759,24 @@ def packing_edit(id):
                     wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
                     existing_production.description = wip_item.description if wip_item else f"{production_code} - WIP"
                     existing_production.batches = batches
-                    existing_production.total_kg = total_production_requirement
+                    existing_production.total_kg = total_requirement_kg
                     existing_production.week_commencing = packing.week_commencing
                     db.session.add(existing_production)
+                    logger.info(f"Updated production entry for {production_code}: {total_requirement_kg} kg (was {existing_production.total_kg})")
                 else:
                     # Create a new production entry if none exists
-                    if total_production_requirement > 0:
+                    if total_requirement_kg > 0:
                         wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
                         production = Production(
                             production_date=packing.packing_date,
                             production_code=production_code,
                             description=wip_item.description if wip_item else f"{production_code} - WIP",
                             batches=batches,
-                            total_kg=total_production_requirement,
+                            total_kg=total_requirement_kg,
                             week_commencing=packing.week_commencing
                         )
                         db.session.add(production)
+                        logger.info(f"Created new production entry for {production_code}: {total_requirement_kg} kg")
 
             db.session.commit()
 
@@ -1270,29 +1284,36 @@ def update_production_entry(filling_date, fill_code, item, week_commencing=None)
         wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
         product_description = wip_item.description if wip_item else f"{production_code} - WIP"
 
-        fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
-        if len(fill_code_prefix) > 1:
-            # Aggregate total_kg for all Filling entries with the same filling_date and fill_code prefix
-            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
-                Filling.filling_date == filling_date,
-                func.substring_index(Filling.fill_code, '.', 1) == fill_code_prefix
-            ).scalar() or 0.0
-        else:
-            # Aggregate total_kg for Filling entries with matching fill_code and filling_date
-            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
-                Filling.filling_date == filling_date,
-                Filling.fill_code == fill_code
-            ).scalar() or 0.0
+        # NEW APPROACH: Aggregate by production_code from ALL packings across ALL recipe families
+        # Find ALL packing entries for this date that share the same production_code
+        from models.packing import Packing
+        all_packings_for_date = Packing.query.filter(
+            Packing.week_commencing == week_commencing,
+            Packing.packing_date == filling_date
+        ).all()
+        
+        # Sum requirements from ALL packings that share the same production_code
+        total_kg = 0.0
+        contributing_products = []
+        for p in all_packings_for_date:
+            p_item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+            if p_item and p_item.production_code == production_code:
+                total_kg += (p.requirement_kg or 0.0)
+                contributing_products.append(p.product_code)
+        
+        logger.info(f"Production aggregation for {production_code}: {total_kg} kg from {len(contributing_products)} packing entries across ALL recipe families: {', '.join(contributing_products)}")
 
         # If total_kg is 0, delete the Production entry if it exists
         if total_kg == 0.0:
             production = Production.query.filter_by(
                 production_date=filling_date,
-                production_code=production_code
+                production_code=production_code,
+                week_commencing=week_commencing
             ).first()
             if production:
                 db.session.delete(production)
                 db.session.commit()
+                logger.info(f"Deleted production entry for {production_code} (0 kg)")
             return
 
         # Calculate batches
@@ -1301,15 +1322,18 @@ def update_production_entry(filling_date, fill_code, item, week_commencing=None)
         # Check for existing Production entry
         production = Production.query.filter_by(
             production_date=filling_date,
-            production_code=production_code
+            production_code=production_code,
+            week_commencing=week_commencing
         ).first()
 
         if production:
             # Update existing Production entry
+            old_total = production.total_kg
             production.description = product_description
             production.total_kg = total_kg
             production.batches = batches
             production.week_commencing = week_commencing
+            logger.info(f"Updated production entry for {production_code}: {old_total} kg → {total_kg} kg")
         else:
             # Create new Production entry
             production = Production(
@@ -1321,10 +1345,12 @@ def update_production_entry(filling_date, fill_code, item, week_commencing=None)
                 week_commencing=week_commencing
             )
             db.session.add(production)
+            logger.info(f"Created new production entry for {production_code}: {total_kg} kg")
 
         db.session.commit()
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error updating Production entry for {production_code}: {str(e)}")
         flash(f"Error updating Production entry: {str(e)}", 'error')
 
 @packing.route('/update_cell', methods=['POST'])
