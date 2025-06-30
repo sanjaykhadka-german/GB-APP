@@ -1465,11 +1465,61 @@ def update_cell():
                         db.session.add(filling)
                 db.session.commit()
 
-                # Update Production entry
-                # Find the original finished good item to get its production code
-                original_fg_item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
-                if original_fg_item:
-                    update_production_entry(packing.packing_date, fill_code, original_fg_item, packing.week_commencing)
+            # ✅ NEW: Update Production entries across ALL recipe families (not just current recipe family)
+            # Get ALL packing entries for the same date and week to handle cross-recipe-family production aggregation
+            all_packings_for_date = Packing.query.filter(
+                Packing.week_commencing == packing.week_commencing,
+                Packing.packing_date == packing.packing_date
+            ).all()
+            
+            # Group by production_code across ALL recipe families
+            production_code_to_total = {}
+            for p in all_packings_for_date:
+                p_item = ItemMaster.query.filter_by(item_code=p.product_code).first()
+                if p_item and p_item.production_code:
+                    prod_code = p_item.production_code
+                    if prod_code not in production_code_to_total:
+                        production_code_to_total[prod_code] = 0
+                    production_code_to_total[prod_code] += (p.requirement_kg or 0.0)
+            
+            logger.info(f"Production aggregation across ALL recipe families (update_cell): {production_code_to_total}")
+            
+            # Update or create production entries for each production code
+            for production_code, total_requirement_kg in production_code_to_total.items():
+                # Calculate batches
+                batch_size = 100.0  # Default batch size
+                batches = total_requirement_kg / batch_size if total_requirement_kg > 0 else 0
+
+                # Find existing Production entry
+                existing_production = Production.query.filter_by(
+                    week_commencing=packing.week_commencing,
+                    production_code=production_code,
+                    production_date=packing.packing_date
+                ).first()
+
+                if existing_production:
+                    # Update the existing production entry
+                    wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+                    existing_production.description = wip_item.description if wip_item else f"{production_code} - WIP"
+                    existing_production.batches = batches
+                    existing_production.total_kg = total_requirement_kg
+                    logger.info(f"Updated production entry for {production_code}: {total_requirement_kg} kg")
+                else:
+                    # Create a new production entry if none exists
+                    if total_requirement_kg > 0:
+                        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+                        production = Production(
+                            production_date=packing.packing_date,
+                            production_code=production_code,
+                            description=wip_item.description if wip_item else f"{production_code} - WIP",
+                            batches=batches,
+                            total_kg=total_requirement_kg,
+                            week_commencing=packing.week_commencing
+                        )
+                        db.session.add(production)
+                        logger.info(f"Created new production entry for {production_code}: {total_requirement_kg} kg")
+            
+            db.session.commit()
 
         return jsonify({"success": True, "message": "Cell updated successfully"})
     except Exception as e:
