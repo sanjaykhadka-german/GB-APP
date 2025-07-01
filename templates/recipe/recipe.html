@@ -147,7 +147,6 @@
 </div>
 
 <style>
-    /* Existing styles remain unchanged */
     .popup-overlay {
         display: none;
         position: fixed;
@@ -198,136 +197,127 @@
         background: #ff0000;
     }
     .add-row-btn {
-        padding: 6px 12px;
-        background: #007bff;
-        color: #fff;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        margin: 10px 0;
-    }
-    .add-row-btn:hover {
-        background: #0056b3;
-    }
-    .popup-box table input, .popup-box table select {
-        width: 100%;
-        padding: 5px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    .delete-row-btn {
-        background: #f44336;
+        background: #28a745;
         color: white;
         border: none;
-        padding: 5px 10px;
+        padding: 8px 16px;
         border-radius: 4px;
         cursor: pointer;
+        margin: 10px 10px 0 0;
     }
-    .delete-row-btn:hover {
-        background: #d32f2f;
+    .delete-row-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
     }
-    .error-message {
-        color: #dc3545;
-        font-size: 0.875rem;
-        margin-top: 4px;
-        display: block;
+    .invalid {
+        border-color: #ff4444 !important;
+        background-color: #fff5f5;
     }
-    input.invalid, select.invalid {
-        border-color: #dc3545;
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0;
+    }
+    table th, table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+    }
+    input, select {
+        width: 100%;
+        padding: 4px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
     }
 </style>
 
 <script>
-// Get the raw material and finished good options from the hidden templates
+// Helper functions to get dropdown options
 function getRawMaterialOptions(selectedId = "") {
     const template = document.getElementById('raw-material-options');
-    const options = Array.from(template.children);
-    let html = '';
+    if (!template) return '<option value="">Select Raw Material</option>';
     
-    options.forEach(option => {
-        const isSelected = option.value === selectedId ? ' selected' : '';
-        html += `<option value="${option.value}"${isSelected}>${option.textContent}</option>`;
-    });
-    
-    return html;
+    let options = template.innerHTML;
+    if (selectedId) {
+        options = options.replace(`value="${selectedId}"`, `value="${selectedId}" selected`);
+    }
+    return options;
 }
 
 function getFinishedGoodOptions(selectedId = "") {
     const template = document.getElementById('finished-good-options');
-    const options = Array.from(template.children);
-    let html = '';
+    if (!template) return '<option value="">Select Finished Good</option>';
     
-    options.forEach(option => {
-        const isSelected = option.value === selectedId ? ' selected' : '';
-        html += `<option value="${option.value}"${isSelected}>${option.textContent}</option>`;
-    });
-    
-    return html;
+    let options = template.innerHTML;
+    if (selectedId) {
+        options = options.replace(`value="${selectedId}"`, `value="${selectedId}" selected`);
+    }
+    return options;
 }
 
-$(document).ready(function() {
-    $("#search-input").keyup(function () {
-        var recipeCode = $(this).val().trim();
-        if (recipeCode.length > 0) {
-            $.ajax({
-                url: "{{ url_for('recipe.autocomplete_recipe') }}",
-                type: "GET",
-                data: { query: recipeCode },
-                success: function (response) {
-                    var suggestionsHtml = "<ul>";
-                    response.forEach(function (recipe) {
-                        suggestionsHtml += `<li data-recipe-code="${recipe.recipe_code}" data-description="${recipe.description}">${recipe.recipe_code} - ${recipe.description}</li>`;
-                    });
-                    suggestionsHtml += "</ul>";
-                    $("#recipe_code_suggestions").html(suggestionsHtml);
-                }
-            });
-        } else {
-            $("#recipe_code_suggestions").empty();
-        }
-    });
-
-    $(document).on("click", "#recipe_code_suggestions li", function () {
-        $("#search-input").val($(this).data("recipe-code"));
-        $("#search_description").val($(this).data("description"));
-        $("#recipe_code_suggestions").empty();
-        fetchRecipes();
-    });
-
-    $(document).click(function (event) {
-        if (!$(event.target).closest("#search-input, #recipe_code_suggestions").length) {
-            $("#recipe_code_suggestions").empty();
-        }
-    });
-
-    if ($("#search-input").val().trim()) {
-        fetchRecipes();
-    }
-});
-
+// Fetch and display recipes
 function fetchRecipes() {
-    const recipe_code = document.getElementById('search-input').value;
+    const recipeCode = document.getElementById('search-input').value;
     const description = document.getElementById('search_description').value;
     
-    fetch(`/get_search_recipes?recipe_code=${encodeURIComponent(recipe_code)}&description=${encodeURIComponent(description)}`)
+    fetch(`/get_search_recipes?recipe_code=${encodeURIComponent(recipeCode)}&description=${encodeURIComponent(description)}`)
         .then(response => response.json())
         .then(recipes => {
-            const tbody = document.querySelector('#search-results-table tbody');
-            tbody.innerHTML = '';
+            const tableBody = document.querySelector('#search-results-table tbody');
+            tableBody.innerHTML = '';
             
+            if (recipes.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5">No recipes found</td></tr>';
+                return;
+            }
+            
+            // Group recipes by description
+            const grouped = {};
             recipes.forEach(recipe => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${recipe.raw_material_code}</td>
-                    <td>${recipe.raw_material}</td>
-                    <td>${parseFloat(recipe.kg_per_batch).toFixed(3)}</td>
-                    <td>${parseFloat(recipe.percentage).toFixed(2)}%</td>
+                if (!grouped[recipe.description]) {
+                    grouped[recipe.description] = [];
+                }
+                grouped[recipe.description].push(recipe);
+            });
+            
+            // Display grouped recipes
+            Object.keys(grouped).forEach(desc => {
+                const group = grouped[desc];
+                
+                // Add header row for each group
+                const headerRow = document.createElement('tr');
+                headerRow.innerHTML = `
+                    <td colspan="4"><strong>${desc} (Recipe Code: ${group[0].recipe_code})</strong></td>
                     <td>
-                        <button class="btn btn-warning btn-sm" onclick="openEditRecipePopup('${recipe.id}')">Edit</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteRecipeHandler('${recipe.id}')">Delete</button>
+                        <button onclick="openEditRecipePopup(${group[0].id})" class="btn btn-sm btn-primary">Edit Family</button>
                     </td>
                 `;
-                tbody.appendChild(row);
+                headerRow.style.backgroundColor = '#f8f9fa';
+                tableBody.appendChild(headerRow);
+                
+                // Add recipe rows
+                group.forEach(recipe => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${recipe.raw_material_code}</td>
+                        <td>${recipe.raw_material}</td>
+                        <td>${recipe.kg_per_batch}</td>
+                        <td>${recipe.percentage}%</td>
+                        <td>
+                            <button onclick="deleteRecipeHandler(${recipe.id})" class="btn btn-sm btn-danger">Delete</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
             });
         })
         .catch(error => {
@@ -336,15 +326,17 @@ function fetchRecipes() {
         });
 }
 
-function openAddRecipePopup(recipeCode = '') {
-    document.getElementById('addRecipePopup').classList.add('active');
-    document.getElementById('add-recipe-form').reset();
+// Open add recipe popup
+function openAddRecipePopup() {
+    const popup = document.getElementById('addRecipePopup');
+    const form = document.getElementById('add-recipe-form');
+    const tableBody = form.querySelector('tbody');
     
-    // Reset the table body and add a fresh row with populated dropdowns
-    const tableBody = document.getElementById('addRecipeTable').getElementsByTagName('tbody')[0];
+    // Clear form
+    form.reset();
     tableBody.innerHTML = `
         <tr>
-            <td><input type="text" name="recipe_code" value="${recipeCode}" required></td>
+            <td><input type="text" name="recipe_code" required></td>
             <td><input type="text" name="description" required></td>
             <td>
                 <select name="raw_material_id" required>
@@ -363,8 +355,10 @@ function openAddRecipePopup(recipeCode = '') {
     
     // Ensure no recipe ID is set for new recipes
     tableBody.querySelector('input[name="recipe_code"]').removeAttribute('data-recipe-id');
+    popup.classList.add('active');
 }
 
+// Open edit recipe popup
 function openEditRecipePopup(recipeId) {
     fetch(`/get_search_recipes?recipe_code=&description=`)
         .then(response => response.json())
@@ -411,10 +405,12 @@ function openEditRecipePopup(recipeId) {
         });
 }
 
+// Close popup
 function closePopup(popupId) {
     document.getElementById(popupId).classList.remove('active');
 }
 
+// Add recipe row
 function addRecipeRow(tableId, recipe = null) {
     const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];
     const existingDescription = table.querySelector('input[name="description"]')?.value || '';
@@ -441,6 +437,7 @@ function addRecipeRow(tableId, recipe = null) {
     }
 }
 
+// Delete recipe row
 function deleteRecipeRow(button) {
     const row = button.parentNode.parentNode;
     if (row.parentNode.rows.length > 1) {
@@ -450,6 +447,7 @@ function deleteRecipeRow(button) {
     }
 }
 
+// Submit recipe form
 function submitRecipeForm(event, mode) {
     event.preventDefault();
     const form = event.target;
@@ -523,6 +521,7 @@ function submitRecipeForm(event, mode) {
     });
 }
 
+// Delete recipe handler
 function deleteRecipeHandler(id) {
     if (confirm('Are you sure you want to delete this recipe?')) {
         fetch(`/recipe/delete/${id}`, {
@@ -546,5 +545,10 @@ function deleteRecipeHandler(id) {
         });
     }
 }
+
+// Load recipes on page load
+document.addEventListener('DOMContentLoaded', function() {
+    fetchRecipes();
+});
 </script>
 {% endblock %}

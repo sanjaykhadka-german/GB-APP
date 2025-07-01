@@ -1036,3 +1036,57 @@ def raw_material_download():
     except Exception as e:
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('recipe.raw_material_report')) 
+
+@recipe_bp.route('/autocomplete_items', methods=['GET'])
+def autocomplete_items():
+    """Autocomplete for ItemMaster items in recipes"""
+    search = request.args.get('query', '').strip()
+    item_type = request.args.get('type', '').strip()  # Optional filter by item type
+    
+    if not search:
+        return jsonify([])
+    
+    try:
+        # Base query
+        query = ItemMaster.query.filter(
+            ItemMaster.item_code.ilike(f"%{search}%") | 
+            ItemMaster.description.ilike(f"%{search}%")
+        )
+        
+        # Optional filter by item type
+        if item_type:
+            query = query.filter(ItemMaster.item_type == item_type)
+        
+        # Limit results
+        items = query.limit(15).all()
+        
+        suggestions = [
+            {
+                "id": item.id,
+                "item_code": item.item_code,
+                "description": item.description,
+                "item_type": item.item_type,
+                "display_text": f"{item.item_code} - {item.description}"
+            }
+            for item in items
+        ]
+        
+        return jsonify(suggestions)
+    except Exception as e:
+        print(f"Error fetching item autocomplete suggestions: {e}")
+        return jsonify([])
+
+@recipe_bp.route('/get_item_by_id/<int:item_id>', methods=['GET'])
+def get_item_by_id(item_id):
+    """Get specific item details by ID"""
+    try:
+        item = ItemMaster.query.get_or_404(item_id)
+        return jsonify({
+            "id": item.id,
+            "item_code": item.item_code,
+            "description": item.description,
+            "item_type": item.item_type,
+            "display_text": f"{item.item_code} - {item.description}"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404 

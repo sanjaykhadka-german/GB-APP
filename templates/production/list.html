@@ -80,9 +80,16 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="no-results">No production entries found.</td>
+                        <td colspan="8" class="no-results">No production entries found.</td>
                     </tr>
                     {% endfor %}
+                    {% if productions %}
+                    <tr class="table-info font-weight-bold">
+                        <td colspan="6" style="text-align: right;"><strong>Total:</strong></td>
+                        <td><strong>{{ total_kg | round(2) }}</strong></td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -143,6 +150,10 @@
     #list h2 {
         margin-top: 10px;
         margin-bottom: 10px;
+    }
+    
+    .font-weight-bold {
+        font-weight: bold;
     }
     
 </style>
@@ -257,8 +268,8 @@
                     return;
                 }
 
-                if (response.length > 0) {
-                    response.forEach(function(production) {
+                if (response.productions && response.productions.length > 0) {
+                    response.productions.forEach(function(production) {
                         if (production.id !== null && production.id !== undefined) {
                             tableBody.append(`
                                 <tr>
@@ -279,6 +290,15 @@
                             `);
                         }
                     });
+                    
+                    // Add total row
+                    tableBody.append(`
+                        <tr class="table-info font-weight-bold">
+                            <td colspan="6" style="text-align: right;"><strong>Total:</strong></td>
+                            <td><strong>${response.total_kg.toFixed(2)}</strong></td>
+                            <td></td>
+                        </tr>
+                    `);
                 } else {
                     tableBody.append(`
                         <tr>

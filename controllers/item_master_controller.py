@@ -75,14 +75,69 @@ def get_items():
     search_description = request.args.get('description', '').strip()
     search_type = request.args.get('item_type', '').strip()
     
+    # Get sorting parameters
+    sort_by = request.args.get('sort_by', 'item_code')  # Default sort by item_code
+    sort_order = request.args.get('sort_order', 'asc')  # Default ascending
+    
     query = ItemMaster.query
     
+    # Apply filters
     if search_code:
         query = query.filter(ItemMaster.item_code.ilike(f"%{search_code}%"))
     if search_description:
         query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
     if search_type:
         query = query.filter(ItemMaster.item_type == search_type)
+    
+    # Apply sorting
+    if sort_by and sort_order:
+        # Define column mapping for sorting
+        column_mapping = {
+            'item_code': ItemMaster.item_code,
+            'description': ItemMaster.description,
+            'item_type': ItemMaster.item_type,
+            'min_level': ItemMaster.min_level,
+            'max_level': ItemMaster.max_level,
+            'price_per_kg': ItemMaster.price_per_kg,
+            'price_per_uom': ItemMaster.price_per_uom,
+            'supplier_name': ItemMaster.supplier_name,
+            'calculation_factor': ItemMaster.calculation_factor,
+            'units_per_bag': ItemMaster.units_per_bag,
+            'avg_weight_per_unit': ItemMaster.avg_weight_per_unit,
+            'is_active': ItemMaster.is_active
+        }
+        
+        if sort_by in column_mapping:
+            sort_column = column_mapping[sort_by]
+            # Apply sort direction
+            if sort_order.lower() == 'desc':
+                query = query.order_by(sort_column.desc())
+            else:
+                query = query.order_by(sort_column.asc())
+        elif sort_by == 'category':
+            query = query.outerjoin(Category, ItemMaster.category_id == Category.id)
+            if sort_order.lower() == 'desc':
+                query = query.order_by(Category.name.desc())
+            else:
+                query = query.order_by(Category.name.asc())
+        elif sort_by == 'department':
+            query = query.outerjoin(Department, ItemMaster.department_id == Department.id)
+            if sort_order.lower() == 'desc':
+                query = query.order_by(Department.departmentName.desc())
+            else:
+                query = query.order_by(Department.departmentName.asc())
+        elif sort_by == 'uom':
+            query = query.outerjoin(UOM, ItemMaster.uom_id == UOM.id)
+            if sort_order.lower() == 'desc':
+                query = query.order_by(UOM.UOMName.desc())
+            else:
+                query = query.order_by(UOM.UOMName.asc())
+        else:
+            # Default sorting
+            query = query.order_by(ItemMaster.item_code.asc())
+    else:
+        # Default sorting
+        query = query.order_by(ItemMaster.item_code.asc())
     
     items = query.all()
     
