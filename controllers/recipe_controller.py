@@ -1065,7 +1065,7 @@ def autocomplete_items():
                 "id": item.id,
                 "item_code": item.item_code,
                 "description": item.description,
-                "item_type": item.item_type,
+                "item_type": item.item_type.type_name if item.item_type else None,
                 "display_text": f"{item.item_code} - {item.description}"
             }
             for item in items
@@ -1085,7 +1085,7 @@ def get_item_by_id(item_id):
             "id": item.id,
             "item_code": item.item_code,
             "description": item.description,
-            "item_type": item.item_type,
+            "item_type": item.item_type.type_name if item.item_type else None,
             "display_text": f"{item.item_code} - {item.description}"
         })
     except Exception as e:

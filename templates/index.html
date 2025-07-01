@@ -133,19 +133,20 @@
                         <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="border: 2px solid white; padding: 8px 16px; font-weight: 500;">
                             <i class="fas fa-user-circle"></i> {{ session.username }}
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdown" style="min-width: 200px;">
-                            <li class="dropdown-header">
-                                <i class="fas fa-user"></i> {{ session.username }}
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('login.change_password') }}" style="padding: 10px 20px;">
-                                    <i class="fas fa-key text-primary"></i> Change Password
+                                <a class="dropdown-item" href="{{ url_for('login.profile') }}">
+                                    <i class="fas fa-user-edit"></i> Edit Profile
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('login.change_password') }}">
+                                    <i class="fas fa-key"></i> Change Password
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item text-danger" href="{{ url_for('login.logout') }}" style="padding: 10px 20px;" onclick="return confirm('Are you sure you want to logout?');">
+                                <a class="dropdown-item text-danger" href="{{ url_for('login.logout') }}">
                                     <i class="fas fa-sign-out-alt"></i> Logout
                                 </a>
                             </li>

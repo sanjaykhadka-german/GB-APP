@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, flash
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, flash, session
 from database import db
 from models.item_master import ItemMaster
 from models.category import Category
@@ -7,6 +7,7 @@ from models.machinery import Machinery
 from models.uom import UOM
 from models.allergen import Allergen
 from models.item_type import ItemType
+from models.user import User
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -87,58 +88,27 @@ def get_items():
     if search_description:
         query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
     if search_type:
-        query = query.filter(ItemMaster.item_type == search_type)
-    
+        query = query.join(ItemType).filter(ItemType.type_name.ilike(f"%{search_type}%"))
+
     # Apply sorting
-    if sort_by and sort_order:
-        # Define column mapping for sorting
-        column_mapping = {
-            'item_code': ItemMaster.item_code,
-            'description': ItemMaster.description,
-            'item_type': ItemMaster.item_type,
-            'min_level': ItemMaster.min_level,
-            'max_level': ItemMaster.max_level,
-            'price_per_kg': ItemMaster.price_per_kg,
-            'price_per_uom': ItemMaster.price_per_uom,
-            'supplier_name': ItemMaster.supplier_name,
-            'calculation_factor': ItemMaster.calculation_factor,
-            'units_per_bag': ItemMaster.units_per_bag,
-            'avg_weight_per_unit': ItemMaster.avg_weight_per_unit,
-            'is_active': ItemMaster.is_active
-        }
-        
-        if sort_by in column_mapping:
-            sort_column = column_mapping[sort_by]
-            # Apply sort direction
-            if sort_order.lower() == 'desc':
-                query = query.order_by(sort_column.desc())
-            else:
-                query = query.order_by(sort_column.asc())
-        elif sort_by == 'category':
-            query = query.outerjoin(Category, ItemMaster.category_id == Category.id)
-            if sort_order.lower() == 'desc':
-                query = query.order_by(Category.name.desc())
-            else:
-                query = query.order_by(Category.name.asc())
-        elif sort_by == 'department':
-            query = query.outerjoin(Department, ItemMaster.department_id == Department.id)
-            if sort_order.lower() == 'desc':
-                query = query.order_by(Department.departmentName.desc())
-            else:
-                query = query.order_by(Department.departmentName.asc())
-        elif sort_by == 'uom':
-            query = query.outerjoin(UOM, ItemMaster.uom_id == UOM.id)
-            if sort_order.lower() == 'desc':
-                query = query.order_by(UOM.UOMName.desc())
-            else:
-                query = query.order_by(UOM.UOMName.asc())
-        else:
-            # Default sorting
-            query = query.order_by(ItemMaster.item_code.asc())
+    if sort_by == 'item_code':
+        query = query.order_by(ItemMaster.item_code.asc() if sort_order.lower() == 'asc' else ItemMaster.item_code.desc())
+    elif sort_by == 'description':
+        query = query.order_by(ItemMaster.description.asc() if sort_order.lower() == 'asc' else ItemMaster.description.desc())
+    elif sort_by == 'item_type':
+        query = query.join(ItemType).order_by(ItemType.type_name.asc() if sort_order.lower() == 'asc' else ItemType.type_name.desc())
+    elif sort_by == 'category':
+        query = query.outerjoin(Category).order_by(Category.name.asc() if sort_order.lower() == 'asc' else Category.name.desc())
+    elif sort_by == 'department':
+        query = query.outerjoin(Department).order_by(Department.departmentName.asc() if sort_order.lower() == 'asc' else Department.departmentName.desc())
+    elif sort_by == 'machinery':
+        query = query.outerjoin(Machinery).order_by(Machinery.machineryName.asc() if sort_order.lower() == 'asc' else Machinery.machineryName.desc())
+    elif sort_by == 'uom':
+        query = query.outerjoin(UOM).order_by(UOM.UOMName.asc() if sort_order.lower() == 'asc' else UOM.UOMName.desc())
     else:
         # Default sorting
         query = query.order_by(ItemMaster.item_code.asc())
-    
+
     items = query.all()
     
     items_data = []
@@ -147,7 +117,7 @@ def get_items():
             "id": item.id,
             "item_code": item.item_code,
             "description": item.description,
-            "item_type": item.item_type,
+            "item_type": item.item_type.type_name if item.item_type else None,
             "category": item.category.name if item.category else None,
             "department": item.department.departmentName if item.department else None,
             "machinery": item.machinery.machineryName if item.machinery else None,
@@ -166,7 +136,11 @@ def get_items():
             "production_code": item.production_code,
             "filling_code": item.filling_code,
             "is_active": item.is_active,
-            "allergens": [allergen.name for allergen in item.allergens]
+            "allergens": [allergen.name for allergen in item.allergens],
+            "created_by": item.created_by.username if item.created_by else None,
+            "updated_by": item.updated_by.username if item.updated_by else None,
+            "created_at": item.created_at.strftime("%Y-%m-%d %H:%M:%S") if item.created_at else None,
+            "updated_at": item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else None
         }
         items_data.append(item_data)
     
@@ -176,6 +150,11 @@ def get_items():
 def save_item():
     try:
         data = request.get_json()
+        
+        # Get current user
+        current_user_id = session.get('user_id')
+        if not current_user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
         
         # Validate required fields
         required_fields = ['item_code', 'description', 'item_type']
@@ -187,7 +166,7 @@ def save_item():
         item_code = data.get('item_code')
         description = data.get('description')
         
-        # Validate item type exists
+        # Validate item type exists and get the ItemType object
         valid_item_type = ItemType.query.filter_by(type_name=item_type_name).first()
         if not valid_item_type:
             return jsonify({'error': f'Invalid item type: {item_type_name}'}), 400
@@ -199,6 +178,8 @@ def save_item():
             if item.item_code != item_code:
                 if ItemMaster.query.filter_by(item_code=item_code).first():
                     return jsonify({'error': 'Item code already exists'}), 400
+            # Update the updated_by field
+            item.updated_by_id = current_user_id
         else:
             # Add "RM_" prefix for raw materials (only for new items)
             if item_type_name == 'Raw Material':
@@ -206,11 +187,14 @@ def save_item():
             if ItemMaster.query.filter_by(item_code=item_code).first():
                 return jsonify({'error': 'Item code already exists'}), 400
             item = ItemMaster()
+            # Set the created_by field for new items
+            item.created_by_id = current_user_id
+            item.updated_by_id = current_user_id
         
         # Update basic fields
         item.item_code = item_code
         item.description = description
-        item.item_type = item_type_name
+        item.item_type_id = valid_item_type.id
         item.category_id = data.get('category_id') if data.get('category_id') else None
         item.department_id = data.get('department_id') if data.get('department_id') else None
         item.machinery_id = data.get('machinery_id') if data.get('machinery_id') else None
@@ -245,10 +229,9 @@ def save_item():
             allergens = Allergen.query.filter(Allergen.allergens_id.in_(data['allergen_ids'])).all()
             item.allergens = allergens
         
-        if not data.get('id'):
-            db.session.add(item)
-        
+        db.session.add(item)
         db.session.commit()
+        
         return jsonify({'message': 'Item saved successfully!', 'id': item.id}), 200
         
     except Exception as e:
@@ -354,29 +337,29 @@ def upload_excel():
                     if uom:
                         item.uom_id = uom.id
                 
-                                    # Text fields
-                    if row_data.get('Supplier Name'):
-                        item.supplier_name = str(row_data['Supplier Name']).strip()
-                    
-                    # Numeric fields
-                    try:
-                        if row_data.get('Min Level'):
-                            item.min_level = float(row_data['Min Level'])
-                        if row_data.get('Max Level'):
-                            item.max_level = float(row_data['Max Level'])
-                        if row_data.get('Price Per Kg'):
-                            item.price_per_kg = float(row_data['Price Per Kg'])
-                        if row_data.get('Price Per UOM'):
-                            item.price_per_uom = float(row_data['Price Per UOM'])
-                        if row_data.get('Kg Per Unit'):
-                            item.kg_per_unit = float(row_data['Kg Per Unit'])
-                        if row_data.get('Units Per Bag'):
-                            item.units_per_bag = int(row_data['Units Per Bag'])
-                        if row_data.get('Loss Percentage'):
-                            item.loss_percentage = float(row_data['Loss Percentage'])
-                    except (ValueError, TypeError):
-                        # If conversion fails, skip the numeric field
-                        pass
+                # Text fields
+                if row_data.get('Supplier Name'):
+                    item.supplier_name = str(row_data['Supplier Name']).strip()
+                
+                # Numeric fields
+                try:
+                    if row_data.get('Min Level'):
+                        item.min_level = float(row_data['Min Level'])
+                    if row_data.get('Max Level'):
+                        item.max_level = float(row_data['Max Level'])
+                    if row_data.get('Price Per Kg'):
+                        item.price_per_kg = float(row_data['Price Per Kg'])
+                    if row_data.get('Price Per UOM'):
+                        item.price_per_uom = float(row_data['Price Per UOM'])
+                    if row_data.get('Kg Per Unit'):
+                        item.kg_per_unit = float(row_data['Kg Per Unit'])
+                    if row_data.get('Units Per Bag'):
+                        item.units_per_bag = int(row_data['Units Per Bag'])
+                    if row_data.get('Loss Percentage'):
+                        item.loss_percentage = float(row_data['Loss Percentage'])
+                except (ValueError, TypeError):
+                    # If conversion fails, skip the numeric field
+                    pass
                 
                 # Boolean fields
                 if row_data.get('Is Make To Order'):
@@ -454,7 +437,7 @@ def download_excel():
         for row, item in enumerate(items, 2):
             sheet.cell(row=row, column=1, value=item.item_code)
             sheet.cell(row=row, column=2, value=item.description)
-            sheet.cell(row=row, column=3, value=item.item_type)
+            sheet.cell(row=row, column=3, value=item.item_type.type_name if item.item_type else '')
             sheet.cell(row=row, column=4, value=item.category.name if item.category else '')
             sheet.cell(row=row, column=5, value=item.department.departmentName if item.department else '')
             sheet.cell(row=row, column=6, value=item.uom.UOMName if item.uom else '')
@@ -691,7 +674,14 @@ def item_master_upload():
                     item = ItemMaster()
                     item.item_code = item_code
                     item.description = description
-                    item.item_type = item_type
+                    # Find ItemType by name and set the foreign key
+                    valid_item_type = ItemType.query.filter_by(type_name=item_type).first()
+                    if valid_item_type:
+                        item.item_type_id = valid_item_type.id
+                    else:
+                        # Skip this row if item type is invalid
+                        error_count += 1
+                        continue
                     
                     # Optional fields
                     if row_data.get('Category'):

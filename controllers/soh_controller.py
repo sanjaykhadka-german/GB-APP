@@ -290,12 +290,12 @@ def soh_upload():
                 )
 
                 with db.session.no_autoflush:
-                    soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
+                    # Use foreign key relationship instead of fg_code
+                    soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
                     if soh:
                         # Check for Packing entries that reference the current SOH
-                        # This logic might need refinement if 'packing_date' in Packing refers to something else
-                        # For now, assuming it's linked by week_commencing and product_code
-                        packing_entries = Packing.query.filter_by(week_commencing=soh.week_commencing, product_code=fg_code).all()
+                        # Use the item's foreign key relationship
+                        packing_entries = Packing.query.filter_by(week_commencing=soh.week_commencing, item_id=item.id).all()
                         if packing_entries and soh.week_commencing != week_commencing: # Only update if week_commencing changed
                             for packing in packing_entries:
                                 packing.week_commencing = week_commencing
@@ -314,7 +314,8 @@ def soh_upload():
                     else:
                         new_soh = SOH(
                             week_commencing=week_commencing,
-                            fg_code=fg_code,
+                            item_id=item.id,  # Use foreign key
+                            fg_code=fg_code,  # Keep for backward compatibility
                             description=description,
                             soh_dispatch_boxes=dispatch_boxes,
                             soh_dispatch_units=dispatch_units,
@@ -386,9 +387,9 @@ def soh_list():
 
     sohs = [] # Initialize sohs as an empty list
     try:
-        sohs_query = SOH.query
+        sohs_query = SOH.query.join(ItemMaster, SOH.item_id == ItemMaster.id)
         if search_fg_code:
-            sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
+            sohs_query = sohs_query.filter(ItemMaster.item_code.ilike(f"%{search_fg_code}%"))
         if search_description:
             sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
         if search_week_commencing:
@@ -475,7 +476,8 @@ def soh_create():
             )
 
             new_soh = SOH(
-                fg_code=fg_code,
+                item_id=item.id,  # Use foreign key
+                fg_code=fg_code,  # Keep for backward compatibility
                 week_commencing=week_commencing_date,
                 description=description,
                 soh_dispatch_boxes=dispatch_boxes,
@@ -560,7 +562,15 @@ def soh_edit(id):
                 soh_packing_units
             )
 
-            soh.fg_code = fg_code
+            # Update item_id if fg_code changed
+            if fg_code != (soh.item.item_code if soh.item else soh.fg_code):
+                new_item = ItemMaster.query.filter_by(item_code=fg_code).first()
+                if new_item:
+                    soh.item_id = new_item.id
+                else:
+                    flash(f"No item found for FG Code: {fg_code}", "danger")
+                    return redirect(request.url)
+            soh.fg_code = fg_code  # Keep for backward compatibility
             soh.week_commencing = week_commencing_date
             soh.description = description
             soh.soh_dispatch_boxes = soh_dispatch_boxes
@@ -633,9 +643,11 @@ def autocomplete_soh():
 
     try:
         # Use SQLAlchemy's ORM for better integration and less raw SQL
-        results = db.session.query(ItemMaster.item_code, ItemMaster.description).filter(
+        results = db.session.query(ItemMaster.item_code, ItemMaster.description).join(
+            ItemMaster.item_type
+        ).filter(
             ItemMaster.item_code.ilike(f"{search}%"),
-            ItemMaster.item_type.in_(['FG', 'WIPF'])
+            ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
         ).limit(10).all()
         suggestions = [{"fg_code": row.item_code, "description": row.description} for row in results]
         return jsonify(suggestions)
@@ -657,10 +669,10 @@ def get_search_sohs():
     sort_direction = request.args.get('sort_direction', 'asc').strip()
 
     try:
-        sohs_query = SOH.query
+        sohs_query = SOH.query.join(ItemMaster, SOH.item_id == ItemMaster.id)
 
         if search_fg_code:
-            sohs_query = sohs_query.filter(SOH.fg_code.ilike(f"%{search_fg_code}%"))
+            sohs_query = sohs_query.filter(ItemMaster.item_code.ilike(f"%{search_fg_code}%"))
         if search_description:
             sohs_query = sohs_query.filter(SOH.description.ilike(f"%{search_description}%"))
         if search_week_commencing:
@@ -694,7 +706,7 @@ def get_search_sohs():
                 "id": soh.id,
                 "week_commencing": week_commencing_display, # For displaying in the table (DD-MM-YYYY)
                 "week_commencing_original": week_commencing_input, # For data-original-input attribute (YYYY-MM-DD)
-                "fg_code": soh.fg_code or "",
+                "fg_code": soh.item.item_code if soh.item else (soh.fg_code or ""),  # Use foreign key relationship
                 "description": soh.description or "",
                 "soh_dispatch_boxes": soh.soh_dispatch_boxes if soh.soh_dispatch_boxes is not None else "",
                 "soh_dispatch_units": soh.soh_dispatch_units if soh.soh_dispatch_units is not None else "",
@@ -768,9 +780,11 @@ def soh_bulk_edit():
             if packing_units_input is not None:
                 soh.soh_packing_units = packing_units_input
 
-            item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
+            # Use the foreign key relationship if available, fallback to fg_code
+            item = soh.item if soh.item else ItemMaster.query.filter_by(item_code=soh.fg_code).first()
             if not item:
-                return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
+                fg_code = soh.item.item_code if soh.item else soh.fg_code
+                return jsonify({"success": False, "error": f"No item found for FG Code: {fg_code}"}), 400
             units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
             avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 
@@ -796,8 +810,9 @@ def soh_bulk_edit():
             # Pass the current soh.week_commencing (which might have just been updated)
             if soh.soh_total_boxes >= 0 or soh.soh_total_units >= 0: # Condition for create_packing_entry_from_soh
                 packing_date_for_update = soh.week_commencing if soh.week_commencing else date.today()
+                fg_code = soh.item.item_code if soh.item else soh.fg_code
                 success, message = create_packing_entry_from_soh(
-                    fg_code=soh.fg_code,
+                    fg_code=fg_code,
                     description=soh.description,
                     week_commencing=packing_date_for_update,
                     soh_total_units=soh.soh_total_units or 0,
@@ -860,10 +875,11 @@ def soh_inline_edit():
         else:
             return jsonify({"success": False, "error": f"Invalid field specified: {field}."}), 400
 
-        # Retrieve current fg_code for calculating totals and updating packing
-        item = ItemMaster.query.filter_by(item_code=soh.fg_code).first()
+        # Retrieve current item for calculating totals and updating packing
+        item = soh.item if soh.item else ItemMaster.query.filter_by(item_code=soh.fg_code).first()
         if not item:
-            return jsonify({"success": False, "error": f"No item found for FG Code: {soh.fg_code}"}), 400
+            fg_code = soh.item.item_code if soh.item else soh.fg_code
+            return jsonify({"success": False, "error": f"No item found for FG Code: {fg_code}"}), 400
         units_per_bag = item.units_per_bag if item and item.units_per_bag else 1
         avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
 

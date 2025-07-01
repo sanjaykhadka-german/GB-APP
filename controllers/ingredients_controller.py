@@ -166,7 +166,7 @@ def ingredients_create():
             'id': item.id,
             'item_code': item.item_code,
             'description': item.description or '',
-            'item_type': item.item_type,
+            'item_type': item.item_type.type_name if item.item_type else None,
             'category_id': item.category_id,
             'department_id': item.department_id,
             'uom_id': item.uom_id,

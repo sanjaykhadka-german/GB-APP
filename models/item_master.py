@@ -7,9 +7,8 @@ class ItemMaster(db.Model):
     item_code = db.Column(db.String(20), unique=True, nullable=False)  # e.g., RM001, 2006, 2006.56, 2006.1
     description = db.Column(db.String(255))
     
-    # CRITICAL: Use your ItemType table or an Enum
-    # e.g., 'Raw Material', 'WIP', 'WIPF', 'Finished Good'
-    item_type = db.Column(db.String(20), nullable=False)
+    # Foreign key to ItemType table
+    item_type_id = db.Column(db.Integer, db.ForeignKey('item_type.id'), nullable=False)
     
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=True)
@@ -38,10 +37,14 @@ class ItemMaster(db.Model):
     filling_code = db.Column(db.String(50))  # Reference to WIPF items
     production_code = db.Column(db.String(50))  # Reference to WIP items
     
+    # User tracking fields
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
     # Relationships
+    item_type = db.relationship('ItemType', backref='items')
     category = db.relationship('Category', backref='items')
     department = db.relationship('Department', backref='items')
     machinery = db.relationship('Machinery', backref='items')
@@ -59,19 +62,19 @@ class ItemMaster(db.Model):
     
     @property
     def is_raw_material(self):
-        return self.item_type == 'Raw Material'
+        return self.item_type and self.item_type.type_name == 'RM'
 
     @property 
     def is_wip(self):
-        return self.item_type == 'WIP'
+        return self.item_type and self.item_type.type_name == 'WIP'
         
     @property
     def is_wipf(self):
-        return self.item_type == 'WIPF'
+        return self.item_type and self.item_type.type_name == 'WIPF'
         
     @property
     def is_finished_good(self):
-        return self.item_type == 'Finished Good'
+        return self.item_type and self.item_type.type_name == 'FG'
 
     def get_recipe_components(self):
         """Get all components needed to make this item"""

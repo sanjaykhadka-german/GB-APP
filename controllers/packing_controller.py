@@ -199,8 +199,9 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         max_level = item.max_level or 0.0
 
         # Use provided calculation_factor or fetch from existing Packing entry
+        # Use foreign key relationship instead of product_code
         packing = Packing.query.filter_by(
-            product_code=fg_code, 
+            item_id=item.id, 
             packing_date=packing_date,
             week_commencing=week_commencing,
             machinery=machinery
@@ -209,7 +210,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         # If no packing found with the new key structure, try to find by old structure
         if not packing:
             packing = Packing.query.filter_by(
-                product_code=fg_code, 
+                item_id=item.id, 
                 packing_date=packing_date
             ).first()
             
@@ -226,7 +227,8 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
         # Fetch SOH data and calculate soh_requirement_units_week
         # Allow packing entries even if SOH doesn't exist yet
-        soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
+        # Use foreign key relationship instead of fg_code
+        soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
 
         if soh:
             soh_units = soh.soh_total_units or 0
@@ -257,7 +259,8 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
 
         if not packing:
             packing = Packing(
-                product_code=fg_code,
+                item_id=item.id,  # Use foreign key
+                product_code=fg_code,  # Keep for backward compatibility
                 product_description=description,
                 packing_date=packing_date,
                 week_commencing=week_commencing,  
@@ -343,7 +346,10 @@ def packing_list():
             flash("Invalid Packing Date format.", 'error')
             
     if search_fg_code:
-        packings_query = packings_query.filter(Packing.product_code.ilike(f"%{search_fg_code}%"))
+        # Use foreign key relationship to search by item code
+        packings_query = packings_query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
+            ItemMaster.item_code.ilike(f"%{search_fg_code}%")
+        )
     if search_description:
         packings_query = packings_query.filter(Packing.product_description.ilike(f"%{search_description}%"))
 
@@ -353,12 +359,12 @@ def packing_list():
     total_requirement_unit = 0
 
     for packing in packings:
-        # Get SOH data
-        soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=packing.week_commencing).first()
+        # Get SOH data using foreign key relationship
+        soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=packing.week_commencing).first()
         soh_units = soh.soh_total_units if soh else 0
 
-        # Get Item Master data for avg_weight_per_unit
-        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+        # Get Item Master data using foreign key relationship
+        item = packing.item if packing.item else ItemMaster.query.filter_by(item_code=packing.product_code).first()
         avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
 
         # Calculate special order unit
@@ -567,7 +573,8 @@ def packing_create():
             # Create the packing entry (SOH entry now exists if needed)
             new_packing = Packing(
                 packing_date=packing_date,
-                product_code=product_code,
+                item_id=item.id,  # Use foreign key
+                product_code=product_code,  # Keep for backward compatibility
                 product_description=product_description,
                 special_order_kg=special_order_kg,
                 special_order_unit=special_order_unit,
@@ -602,7 +609,10 @@ def packing_create():
             flash(f'Error creating packing entry: {str(e)}', 'danger')
             logger.error(f"Error creating packing entry: {str(e)}")
 
-    products = ItemMaster.query.filter(ItemMaster.item_type.in_(['FG', 'WIPF'])).order_by(ItemMaster.item_code).all()
+    # Use foreign key relationship to filter by item type
+    products = ItemMaster.query.join(ItemMaster.item_type).filter(
+        ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
+    ).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     allergens = Allergen.query.all()
     return render_template('packing/create.html', products=products, machinery=machinery, allergens=allergens, current_page="packing")
@@ -648,16 +658,28 @@ def packing_edit(id):
                     flash(f'Invalid machinery ID {packing.machinery}. Please select a valid machinery.', 'danger')
                     return redirect(url_for('packing.packing_edit', id=id))
 
-            # Fetch avg_weight_per_unit from Item Master
-            item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+            # Fetch avg_weight_per_unit from Item Master using foreign key relationship
+            item = packing.item if packing.item else ItemMaster.query.filter_by(item_code=packing.product_code).first()
             if not item:
-                flash(f"No item record found for {packing.product_code}.", 'danger')
+                product_code = packing.item.item_code if packing.item else packing.product_code
+                flash(f"No item record found for {product_code}.", 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
+            
+            # Update item_id if product_code changed
+            if packing.product_code != (packing.item.item_code if packing.item else packing.product_code):
+                new_item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+                if new_item:
+                    packing.item_id = new_item.id
+                    item = new_item
+                else:
+                    flash(f"No item found for product code: {packing.product_code}", 'danger')
+                    return redirect(url_for('packing.packing_edit', id=id))
+            
             avg_weight_per_unit = item.avg_weight_per_unit or 0.0
             packing.avg_weight_per_unit = avg_weight_per_unit
 
-            # Calculate soh_requirement_units_week
-            soh = SOH.query.filter_by(fg_code=packing.product_code, week_commencing=week_commencing).first()
+            # Calculate soh_requirement_units_week using foreign key relationship
+            soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
             min_level = item.min_level or 0.0
             max_level = item.max_level or 0.0
@@ -693,7 +715,10 @@ def packing_edit(id):
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
     # Fetch machinery, products, and related data
-    products = ItemMaster.query.filter(ItemMaster.item_type.in_(["FG", "WIPF"])).order_by(ItemMaster.item_code).all()
+    # Use foreign key relationship to filter by item type
+    products = ItemMaster.query.join(ItemMaster.item_type).filter(
+        ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
+    ).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     
     logger.debug(f"Machinery records: {[m.__dict__ for m in machinery]}")
@@ -750,13 +775,21 @@ def packing_edit(id):
 def packing_delete(id):
     packing = Packing.query.get_or_404(id)
     try:
-        # Adjust corresponding Filling entry
-        item = ItemMaster.query.filter_by(item_code=packing.product_code).first()
+        # Adjust corresponding Filling entry using foreign key relationship
+        item = packing.item if packing.item else ItemMaster.query.filter_by(item_code=packing.product_code).first()
         if item and item.filling_code:
-            filling = Filling.query.filter_by(
-                filling_date=packing.packing_date,
-                fill_code=item.filling_code
-            ).first()
+            # Use foreign key relationship for filling lookup
+            wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code).first()
+            if wipf_item:
+                filling = Filling.query.filter_by(
+                    filling_date=packing.packing_date,
+                    item_id=wipf_item.id
+                ).first()
+            else:
+                filling = Filling.query.filter_by(
+                    filling_date=packing.packing_date,
+                    fill_code=item.filling_code
+                ).first()
             if filling:
                 filling.kilo_per_size -= packing.requirement_kg
                 if filling.kilo_per_size <= 0:
@@ -1156,7 +1189,8 @@ def export_packings():
                 'Total Stock KG': total_stock_kg,
                 'Total Stock Units': total_stock_units,
                 'Calculation Factor': packing.calculation_factor if packing.calculation_factor is not None else '',
-                'Priority': packing.priority or ''
+                'Priority': packing.priority or '',
+                'item_type': item.item_type.type_name if item.item_type else None
             })
 
         if not packing_data:
@@ -1414,7 +1448,7 @@ def get_item_master_info(product_code):
             "calculation_factor": item.calculation_factor or 0.0,
             "filling_code": item.filling_code,
             "production_code": item.production_code,
-            "item_type": item.item_type,
+            "item_type": item.item_type.type_name if item.item_type else None,
             "price_per_kg": item.price_per_kg or 0.0,
             "price_per_uom": item.price_per_uom or 0.0,
             "units_per_bag": item.units_per_bag or 0.0

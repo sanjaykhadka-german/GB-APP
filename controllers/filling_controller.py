@@ -93,7 +93,10 @@ def filling_create():
             week_commencing = get_monday_of_week(filling_date)
 
             # Validate fill_code exists in Item Master as WIPF
-            wipf_item = ItemMaster.query.filter_by(item_code=fill_code, item_type='WIPF').first()
+            wipf_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.item_code == fill_code,
+                ItemMaster.item_type.has(type_name='WIPF')
+            ).first()
             if not wipf_item:
                 flash(f"No WIPF item found for fill_code {fill_code}.", 'error')
                 return render_template('filling/create.html', current_page="filling")
@@ -101,7 +104,8 @@ def filling_create():
             new_filling = Filling(
                 filling_date=filling_date,
                 week_commencing=week_commencing,  # Set week_commencing
-                fill_code=fill_code,
+                item_id=wipf_item.id,  # Use foreign key
+                fill_code=fill_code,  # Keep for backward compatibility
                 description=description,
                 kilo_per_size=kilo_per_size
             )
@@ -146,8 +150,23 @@ def filling_edit(id):
                 return dt - timedelta(days=dt.weekday())
             filling.week_commencing = get_monday_of_week(filling.filling_date)
 
+            # Update item_id if fill_code changed
+            if filling.fill_code != (filling.item.item_code if filling.item else filling.fill_code):
+                new_wipf_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                    ItemMaster.item_code == filling.fill_code,
+                    ItemMaster.item_type.has(type_name='WIPF')
+                ).first()
+                if new_wipf_item:
+                    filling.item_id = new_wipf_item.id
+                else:
+                    flash(f"No WIPF item found for fill_code {filling.fill_code}.", 'error')
+                    return render_template('filling/edit.html', filling=filling, current_page="filling")
+            
             # Validate fill_code exists in Item Master as WIPF
-            wipf_item = ItemMaster.query.filter_by(item_code=filling.fill_code, item_type='WIPF').first()
+            wipf_item = filling.item if filling.item else ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.item_code == filling.fill_code,
+                ItemMaster.item_type.has(type_name='WIPF')
+            ).first()
             if not wipf_item:
                 flash(f"No WIPF item found for fill_code {filling.fill_code}.", 'error')
                 return render_template('filling/edit.html', filling=filling, current_page="filling")

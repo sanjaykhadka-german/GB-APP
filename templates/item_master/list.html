@@ -142,20 +142,9 @@
                                 Price/UOM <i class="fas fa-sort sort-icon"></i>
                             </th>
                             <th class="sortable-header" data-sort="supplier_name">
-                                Supplier Name <i class="fas fa-sort sort-icon"></i>
+                                Supplier <i class="fas fa-sort sort-icon"></i>
                             </th>
-                            <th class="sortable-header" data-sort="calculation_factor">
-                                Calc Factor <i class="fas fa-sort sort-icon"></i>
-                            </th>
-                            <th class="sortable-header" data-sort="units_per_bag">
-                                Units/Bag <i class="fas fa-sort sort-icon"></i>
-                            </th>
-                            <th class="sortable-header" data-sort="avg_weight_per_unit">
-                                Avg Weight/Unit <i class="fas fa-sort sort-icon"></i>
-                            </th>
-                            <th class="sortable-header" data-sort="is_active">
-                                Status <i class="fas fa-sort sort-icon"></i>
-                            </th>
+                            <th>User Info</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -426,7 +415,7 @@ function searchItems() {
                 row.innerHTML = `
                     <td>${item.item_code}</td>
                     <td>${item.description}</td>
-                    <td>${item.item_type}</td>
+                    <td>${item.item_type || ''}</td>
                     <td>${item.category || ''}</td>
                     <td>${item.department || ''}</td>
                     <td>${item.uom || ''}</td>
@@ -435,19 +424,21 @@ function searchItems() {
                     <td>${item.price_per_kg ? '$' + parseFloat(item.price_per_kg).toFixed(2) : ''}</td>
                     <td>${item.price_per_uom ? '$' + parseFloat(item.price_per_uom).toFixed(2) : ''}</td>
                     <td>${item.supplier_name || ''}</td>
-                    <td>${item.calculation_factor || ''}</td>
-                    <td>${item.units_per_bag || ''}</td>
-                    <td>${item.avg_weight_per_unit || ''}</td>
                     <td>
-                        <span class="badge ${item.is_active ? 'bg-success' : 'bg-danger'}">
-                            ${item.is_active ? 'Active' : 'Inactive'}
-                        </span>
+                        <div class="text-muted small">
+                            Created: ${item.created_by ? item.created_by + ' on ' + item.created_at : 'N/A'}<br>
+                            Updated: ${item.updated_by ? item.updated_by + ' on ' + item.updated_at : 'N/A'}
+                        </div>
                     </td>
                     <td>
-                        <a href="/item-master/edit/${item.id}" class="btn btn-warning btn-sm" target="_blank" rel="noopener noreferrer">Edit</a>
-                        <!-- <button class="btn btn-sm btn-delete" onclick="deleteItem(${item.id})">
-                             <i class="fas fa-trash"></i>
-                         </button> -->
+                        <div class="btn-group">
+                            <a href="/item-master/edit/${item.id}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -508,28 +499,28 @@ function resetFilters() {
     searchItems();
 }
 
-// function deleteItem(id) {
-//     if (!confirm('Are you sure you want to delete this item?')) {
-//         return;
-//     }
+function deleteItem(id) {
+    if (!confirm('Are you sure you want to delete this item?')) {
+        return;
+    }
     
-//     fetch(`/delete-item/${id}`, {
-//         method: 'DELETE'
-//     })
-//     .then(response => response.json())
-//     .then(result => {
-//         if (result.error) {
-//             alert(result.error);
-//         } else {
-//             alert(result.message);
-//             searchItems();
-//         }
-//     })
-//     .catch(error => {
-//         console.error('Error:', error);
-//         alert('An error occurred while deleting the item');
-//     });
-// }
+    fetch(`/delete-item/${id}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            alert(result.error);
+        } else {
+            alert(result.message);
+            searchItems();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting the item');
+    });
+}
 
 function uploadExcel() {
     const fileInput = document.getElementById('excel-upload');

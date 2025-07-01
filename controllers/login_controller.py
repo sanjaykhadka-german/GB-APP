@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from models.user import User
+from models.department import Department
 from database import db
 from datetime import datetime
 import re
@@ -22,22 +23,34 @@ def login():
         password = request.form.get('password', '')
         
         if not username or not password:
-            flash('Please enter both username and password', 'error')
+            flash('Username and password are required', 'error')
             return render_template('auth/login.html')
         
         user = User.query.filter_by(username=username).first()
         
-        if user and user.check_password(password) and user.is_active:
+        if user and user.check_password(password):
+            if not user.is_active:
+                flash('Your account is inactive. Please contact an administrator.', 'error')
+                return render_template('auth/login.html')
+            
             session['user_id'] = user.id
             session['username'] = user.username
+            
+            # Update last login time
             user.last_login = datetime.utcnow()
             db.session.commit()
-            flash('Login successful!', 'success')
+            
             return redirect(url_for('index'))
         else:
             flash('Invalid username or password', 'error')
     
     return render_template('auth/login.html')
+
+@login_bp.route('/logout')
+def logout():
+    session.clear()
+    flash('You have been logged out', 'success')
+    return redirect(url_for('login.login'))
 
 @login_bp.route('/register', methods=['GET', 'POST'])
 def register():
@@ -45,10 +58,8 @@ def register():
         username = request.form.get('username', '').strip()
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
         
-        # Validation
-        if not username or not email or not password or not confirm_password:
+        if not username or not email or not password:
             flash('All fields are required', 'error')
             return render_template('auth/register.html')
         
@@ -64,28 +75,20 @@ def register():
             flash('Password must be at least 6 characters long', 'error')
             return render_template('auth/register.html')
         
-        if password != confirm_password:
-            flash('Passwords do not match', 'error')
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'error')
             return render_template('auth/register.html')
         
-        # Check if username or email already exists
-        existing_user = User.query.filter(
-            (User.username == username) | (User.email == email)
-        ).first()
-        
-        if existing_user:
-            if existing_user.username == username:
-                flash('Username already exists', 'error')
-            else:
-                flash('Email already registered', 'error')
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered', 'error')
             return render_template('auth/register.html')
         
-        # Create new user
         try:
-            new_user = User(username=username, email=email)
-            new_user.set_password(password)
-            db.session.add(new_user)
+            user = User(username=username, email=email)
+            user.set_password(password)
+            db.session.add(user)
             db.session.commit()
+            
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login.login'))
         except Exception as e:
@@ -142,11 +145,62 @@ def change_password():
     
     return render_template('auth/change_password.html')
 
-@login_bp.route('/logout')
-def logout():
-    session.clear()
-    flash('You have been logged out successfully', 'success')
-    return redirect(url_for('login.login'))
+@login_bp.route('/profile', methods=['GET'])
+def profile():
+    if 'user_id' not in session:
+        flash('Please login to view profile', 'error')
+        return redirect(url_for('login.login'))
+    
+    user = User.query.get_or_404(session['user_id'])
+    departments = Department.query.all()
+    
+    return render_template('auth/profile.html', user=user, departments=departments)
+
+@login_bp.route('/profile/update', methods=['POST'])
+def update_profile():
+    if 'user_id' not in session:
+        flash('Please login to update profile', 'error')
+        return redirect(url_for('login.login'))
+    
+    user = User.query.get_or_404(session['user_id'])
+    
+    try:
+        # Update email
+        email = request.form.get('email', '').strip()
+        if email != user.email:
+            if not is_valid_email(email):
+                flash('Please enter a valid email address', 'error')
+                return redirect(url_for('login.profile'))
+            if User.query.filter(User.id != user.id, User.email == email).first():
+                flash('Email already registered', 'error')
+                return redirect(url_for('login.profile'))
+            user.email = email
+        
+        # Update department
+        department_id = request.form.get('department_id')
+        user.department_id = int(department_id) if department_id else None
+        
+        # Update mobile
+        mobile = request.form.get('mobile', '').strip()
+        user.mobile = mobile if mobile else None
+        
+        # Update start date
+        start_date = request.form.get('start_date')
+        user.start_date = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
+        
+        # Update status
+        user.is_active = bool(request.form.get('is_active'))
+        
+        # Update timestamp
+        user.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('login.profile'))
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while updating profile. Please try again.', 'error')
+        return redirect(url_for('login.profile'))
 
 @login_bp.route('/check-username')
 def check_username():

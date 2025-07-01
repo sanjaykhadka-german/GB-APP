@@ -107,7 +107,10 @@ def production_create():
             week_commencing = get_week_commencing(production_date)
 
             # Validate production_code exists in Item Master as WIP
-            wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type='WIP').first()
+            wip_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.item_code == production_code,
+                ItemMaster.item_type.has(type_name='WIP')
+            ).first()
             if not wip_item:
                 flash(f"No WIP item found for production code {production_code}.", 'error')
                 return render_template('production/create.html', current_page="production")
@@ -134,7 +137,8 @@ def production_create():
 
             new_production = Production(
                 production_date=production_date,
-                production_code=production_code,
+                item_id=wip_item.id,  # Use foreign key
+                production_code=production_code,  # Keep for backward compatibility
                 description=product_description,
                 batches=batches,
                 total_kg=total_kg,
@@ -172,8 +176,23 @@ def production_edit(id):
                 return dt - timedelta(days=dt.weekday())
             week_commencing = get_monday_of_week(production_date)
 
+            # Update item_id if production_code changed
+            if production_code != (production.item.item_code if production.item else production.production_code):
+                new_wip_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                    ItemMaster.item_code == production_code,
+                    ItemMaster.item_type.has(type_name='WIP')
+                ).first()
+                if new_wip_item:
+                    production.item_id = new_wip_item.id
+                else:
+                    flash(f"No WIP item found for production code {production_code}.", 'error')
+                    return render_template('production/edit.html', production=production, current_page="production")
+            
             # Validate production_code exists in Item Master as WIP
-            wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type='WIP').first()
+            wip_item = production.item if production.item else ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.item_code == production_code,
+                ItemMaster.item_type.has(type_name='WIP')
+            ).first()
             if not wip_item:
                 flash(f"No WIP item found for production code {production_code}.", 'error')
                 return render_template('production/edit.html', production=production, current_page="production")
