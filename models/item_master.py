@@ -9,7 +9,6 @@ class ItemMaster(db.Model):
     
     # Foreign key to ItemType table
     item_type_id = db.Column(db.Integer, db.ForeignKey('item_type.id'), nullable=False)
-    
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=True)
     machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
@@ -27,15 +26,8 @@ class ItemMaster(db.Model):
     supplier_name = db.Column(db.String(255))  # Name of the supplier for this item
     is_make_to_order = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    
-    # Additional fields from joining table migration (can be removed later)
-    fw = db.Column(db.Boolean, default=False)  # FW flag from joining
-    calculation_factor = db.Column(db.Float)  # Calculation factor for stock and production planning (renamed from weekly_average)
-    product_description = db.Column(db.String(255))  # Additional description for products
-    
-    # Cross-reference fields for migration period (will be removed later)
-    filling_code = db.Column(db.String(50))  # Reference to WIPF items
-    production_code = db.Column(db.String(50))  # Reference to WIP items
+    fw = db.Column(db.Boolean, default=False) 
+    calculation_factor = db.Column(db.Float) 
     
     # User tracking fields
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)

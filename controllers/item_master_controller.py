@@ -133,8 +133,6 @@ def get_items():
             "avg_weight_per_unit": item.avg_weight_per_unit,
             "loss_percentage": item.loss_percentage,
             "supplier_name": item.supplier_name,
-            "production_code": item.production_code,
-            "filling_code": item.filling_code,
             "is_active": item.is_active,
             "allergens": [allergen.name for allergen in item.allergens],
             "created_by": item.created_by.username if item.created_by else None,
@@ -205,8 +203,6 @@ def save_item():
         item.price_per_uom = data.get('price_per_uom') if data.get('price_per_uom') else None
         item.calculation_factor = data.get('calculation_factor') if data.get('calculation_factor') else None
         item.supplier_name = data.get('supplier_name') if data.get('supplier_name') else None
-        item.production_code = data.get('production_code') if data.get('production_code') else None
-        item.filling_code = data.get('filling_code') if data.get('filling_code') else None
         item.is_active = data.get('is_active', True)
         
         # Update type-specific fields
@@ -422,8 +418,8 @@ def download_excel():
         headers = [
             'Item Code', 'Description', 'Type', 'Category', 'Department', 
             'UOM', 'Min Level', 'Max Level', 'Price Per Kg', 'Price Per UOM', 
-            'Supplier Name', 'Production Code', 'Filling Code', 'Is Make To Order', 
-            'Kg Per Unit', 'Units Per Bag', 'Loss Percentage', 'Is Active'
+            'Supplier Name', 'Is Make To Order', 'Kg Per Unit', 'Units Per Bag', 
+            'Loss Percentage', 'Is Active'
         ]
         
         # Add headers with styling
@@ -446,13 +442,11 @@ def download_excel():
             sheet.cell(row=row, column=9, value=item.price_per_kg)
             sheet.cell(row=row, column=10, value=item.price_per_uom)
             sheet.cell(row=row, column=11, value=item.supplier_name or '')
-            sheet.cell(row=row, column=12, value=item.production_code or '')
-            sheet.cell(row=row, column=13, value=item.filling_code or '')
-            sheet.cell(row=row, column=14, value='Yes' if item.is_make_to_order else 'No')
-            sheet.cell(row=row, column=15, value=item.kg_per_unit)
-            sheet.cell(row=row, column=16, value=item.units_per_bag)
-            sheet.cell(row=row, column=17, value=item.loss_percentage)
-            sheet.cell(row=row, column=18, value='Yes' if item.is_active else 'No')
+            sheet.cell(row=row, column=12, value='Yes' if item.is_make_to_order else 'No')
+            sheet.cell(row=row, column=13, value=item.kg_per_unit)
+            sheet.cell(row=row, column=14, value=item.units_per_bag)
+            sheet.cell(row=row, column=15, value=item.loss_percentage)
+            sheet.cell(row=row, column=16, value='Yes' if item.is_active else 'No')
         
         # Auto-adjust column widths
         for column in sheet.columns:
