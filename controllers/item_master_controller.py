@@ -80,7 +80,8 @@ def get_items():
     sort_by = request.args.get('sort_by', 'item_code')  # Default sort by item_code
     sort_order = request.args.get('sort_order', 'asc')  # Default ascending
     
-    query = ItemMaster.query
+    # Start with base query and join ItemType for all queries
+    query = ItemMaster.query.join(ItemType, ItemMaster.item_type_id == ItemType.id)
     
     # Apply filters
     if search_code:
@@ -88,15 +89,17 @@ def get_items():
     if search_description:
         query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
     if search_type:
-        query = query.join(ItemType).filter(ItemType.type_name.ilike(f"%{search_type}%"))
+        # Use exact type name matching
+        query = query.filter(ItemType.type_name == search_type)
 
-    # Apply sorting
+    # Apply sorting with proper joins
     if sort_by == 'item_code':
         query = query.order_by(ItemMaster.item_code.asc() if sort_order.lower() == 'asc' else ItemMaster.item_code.desc())
     elif sort_by == 'description':
         query = query.order_by(ItemMaster.description.asc() if sort_order.lower() == 'asc' else ItemMaster.description.desc())
     elif sort_by == 'item_type':
-        query = query.join(ItemType).order_by(ItemType.type_name.asc() if sort_order.lower() == 'asc' else ItemType.type_name.desc())
+        # ItemType is already joined, so we can sort directly
+        query = query.order_by(ItemType.type_name.asc() if sort_order.lower() == 'asc' else ItemType.type_name.desc())
     elif sort_by == 'category':
         query = query.outerjoin(Category).order_by(Category.name.asc() if sort_order.lower() == 'asc' else Category.name.desc())
     elif sort_by == 'department':
@@ -105,6 +108,16 @@ def get_items():
         query = query.outerjoin(Machinery).order_by(Machinery.machineryName.asc() if sort_order.lower() == 'asc' else Machinery.machineryName.desc())
     elif sort_by == 'uom':
         query = query.outerjoin(UOM).order_by(UOM.UOMName.asc() if sort_order.lower() == 'asc' else UOM.UOMName.desc())
+    elif sort_by == 'min_level':
+        query = query.order_by(ItemMaster.min_level.asc() if sort_order.lower() == 'asc' else ItemMaster.min_level.desc())
+    elif sort_by == 'max_level':
+        query = query.order_by(ItemMaster.max_level.asc() if sort_order.lower() == 'asc' else ItemMaster.max_level.desc())
+    elif sort_by == 'price_per_kg':
+        query = query.order_by(ItemMaster.price_per_kg.asc() if sort_order.lower() == 'asc' else ItemMaster.price_per_kg.desc())
+    elif sort_by == 'price_per_uom':
+        query = query.order_by(ItemMaster.price_per_uom.asc() if sort_order.lower() == 'asc' else ItemMaster.price_per_uom.desc())
+    elif sort_by == 'supplier_name':
+        query = query.order_by(ItemMaster.supplier_name.asc() if sort_order.lower() == 'asc' else ItemMaster.supplier_name.desc())
     else:
         # Default sorting
         query = query.order_by(ItemMaster.item_code.asc())
@@ -755,3 +768,24 @@ def item_master_upload():
     
     # GET request - just render the upload page
     return render_template('item_master/upload.html', current_page='item_master')
+
+@item_master_bp.route('/autocomplete-item-code', methods=['GET'])
+def autocomplete_item_code():
+    query = request.args.get('query', '').strip()
+    if not query:
+        return jsonify([])
+    
+    # Search for items matching the query
+    items = ItemMaster.query.filter(
+        ItemMaster.item_code.ilike(f"%{query}%")
+    ).limit(50).all()
+    
+    suggestions = []
+    for item in items:
+        suggestions.append({
+            'item_code': item.item_code,
+            'description': item.description,
+            'item_type': item.item_type.type_name if item.item_type else None
+        })
+    
+    return jsonify(suggestions)

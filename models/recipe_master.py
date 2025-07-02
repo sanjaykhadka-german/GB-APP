@@ -30,15 +30,28 @@ class RecipeMaster(db.Model):
 
     # Prevent duplicate component-assembly pairs
     __table_args__ = (
-        db.UniqueConstraint('recipe_code', 'description', name='uix_recipe_code_description'),
+        db.UniqueConstraint('finished_good_id', 'raw_material_id', name='uix_finished_raw_material'),
     )
 
-    def __repr__(self):
-        return f'<Recipe: {self.raw_material.item_code} -> {self.finished_good.item_code}>'
+    # Relationships with ItemMaster
+    finished_good_item = db.relationship('ItemMaster', foreign_keys=[finished_good_id])
+    raw_material_item = db.relationship('ItemMaster', foreign_keys=[raw_material_id])
 
-# Validation can be added later if needed
-# @event.listens_for(RecipeMaster, 'before_insert')
-# @event.listens_for(RecipeMaster, 'before_update')
-# def validate_recipe_logic(mapper, connection, target):
-#     # Add any business logic validation here
-#     pass
+    def __repr__(self):
+        return f'<Recipe: {self.raw_material_item.item_code} -> {self.finished_good_item.item_code}>'
+
+    @classmethod
+    def check_duplicate_materials(cls, finished_good_id, raw_material_id):
+        """Check if this raw material is already used in this recipe"""
+        existing = cls.query.filter_by(
+            finished_good_id=finished_good_id,
+            raw_material_id=raw_material_id
+        ).first()
+        return existing is not None
+
+# Move these outside the class
+@event.listens_for(RecipeMaster, 'before_insert')
+@event.listens_for(RecipeMaster, 'before_update')
+def validate_recipe_logic(mapper, connection, target):
+    if target.check_duplicate_materials(target.finished_good_id, target.raw_material_id):
+        pass

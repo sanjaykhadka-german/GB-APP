@@ -6,10 +6,13 @@ from sqlalchemy import asc, desc
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import pytz
+import math
 
 from controllers.packing_controller import update_packing_entry
 from models.item_master import ItemMaster
 from models.packing import Packing
+from models.filling import Filling
+from models.production import Production
 
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
@@ -44,45 +47,36 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         
         # Check if packing entry already exists
         existing_packing = Packing.query.filter_by(
-            product_code=fg_code,
+            item_id=item.id,
             week_commencing=week_commencing,
             packing_date=week_commencing  # Use week_commencing as packing_date for SOH-generated entries
         ).first()
         
         if existing_packing:
-            # Update existing packing entry
             packing = existing_packing
-            print(f"✓ Updating existing packing entry for {fg_code}")
+            packing.soh_requirement_units_week = soh_requirement_units_week
+            packing.soh_units = soh_total_units
+            packing.avg_weight_per_unit = avg_weight_per_unit
+            packing.calculation_factor = calculation_factor
         else:
-            # Create new packing entry
             packing = Packing(
-                product_code=fg_code,
-                product_description=description,
                 packing_date=week_commencing,
+                item_id=item.id,
                 week_commencing=week_commencing,
-                special_order_kg=0.0,
+                soh_requirement_units_week=soh_requirement_units_week,
+                soh_units=soh_total_units,
                 avg_weight_per_unit=avg_weight_per_unit,
-                calculation_factor=calculation_factor,
-                priority=0,
-                machinery=None
+                calculation_factor=calculation_factor
             )
             db.session.add(packing)
-            print(f"✓ Creating new packing entry for {fg_code}")
-        
-        # Perform all calculations
-        packing.avg_weight_per_unit = avg_weight_per_unit
-        packing.soh_requirement_units_week = soh_requirement_units_week
-        packing.soh_units = soh_total_units
         
         # Calculate derived values
-        special_order_kg = packing.special_order_kg or 0.0
-        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit > 0 else 0
-        packing.soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit > 0 else 0
-        packing.soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit > 0 else 0
-        packing.total_stock_kg = packing.soh_requirement_kg_week * calculation_factor if calculation_factor > 0 else 0
-        packing.total_stock_units = round(packing.total_stock_kg / avg_weight_per_unit, 0) if avg_weight_per_unit > 0 else 0
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
-        packing.requirement_unit = packing.total_stock_units - soh_total_units + packing.special_order_unit if (packing.total_stock_units - soh_total_units + packing.special_order_unit) > 0 else 0
+        packing.soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        packing.soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.total_stock_kg = packing.soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
+        packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + (packing.special_order_kg or 0), 0) if (packing.total_stock_kg - packing.soh_kg + (packing.special_order_kg or 0)) > 0 else 0
+        packing.requirement_unit = packing.total_stock_units - soh_total_units + (packing.special_order_unit or 0) if (packing.total_stock_units - soh_total_units + (packing.special_order_unit or 0)) > 0 else 0
         
         db.session.commit()
         print(f"✓ Packing entry saved: requirement_kg={packing.requirement_kg}, requirement_unit={packing.requirement_unit}")
@@ -90,72 +84,68 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         # Create related Filling and Production entries (similar to what packing controller does)
         created_entries = ["Packing"]
         
-        if item.filling_code and packing.requirement_kg > 0:
-            # Create/update Filling entry
-            wipf_item = ItemMaster.query.filter_by(item_code=item.filling_code, item_type='WIPF').first()
-            if wipf_item:
-                filling = Filling.query.filter_by(
-                    filling_date=week_commencing,
-                    fill_code=item.filling_code,
-                    week_commencing=week_commencing
-                ).first()
-                
-                if filling:
-                    filling.kilo_per_size = packing.requirement_kg
-                    filling.description = wipf_item.description
-                    print(f"✓ Updated Filling entry for {item.filling_code}")
-                else:
-                    filling = Filling(
+        # Check if this item is used in any WIPF recipes
+        wipf_recipes = item.recipes_where_raw_material.filter(
+            ItemMaster.item_type.has(type_name='WIPF')
+        ).all()
+        
+        if wipf_recipes and packing.requirement_kg > 0:
+            for recipe in wipf_recipes:
+                wipf_item = recipe.raw_material_item
+                if wipf_item:
+                    filling = Filling.query.filter_by(
                         filling_date=week_commencing,
-                        fill_code=item.filling_code,
-                        description=wipf_item.description,
-                        kilo_per_size=packing.requirement_kg,
+                        item_id=wipf_item.id,
                         week_commencing=week_commencing
-                    )
-                    db.session.add(filling)
-                    print(f"✓ Created Filling entry for {item.filling_code}")
-                created_entries.append("Filling")
+                    ).first()
+                    
+                    if filling:
+                        filling.kilo_per_size = packing.requirement_kg
+                        print(f"✓ Updated Filling entry for {wipf_item.item_code}")
+                    else:
+                        filling = Filling(
+                            filling_date=week_commencing,
+                            item_id=wipf_item.id,
+                            fill_code=wipf_item.item_code,  # Keep for backward compatibility
+                            description=wipf_item.description,
+                            kilo_per_size=packing.requirement_kg,
+                            week_commencing=week_commencing
+                        )
+                        db.session.add(filling)
+                        print(f"✓ Created Filling entry for {wipf_item.item_code}")
+                    created_entries.append("Filling")
         
         if item.production_code and packing.requirement_kg > 0:
             # Create/update Production entry
-            wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
-            if wip_item:
-                production = Production.query.filter_by(
+            production = Production.query.filter_by(
+                production_date=week_commencing,
+                production_code=item.production_code,
+                week_commencing=week_commencing
+            ).first()
+            
+            if production:
+                production.total_kg = packing.requirement_kg
+                print(f"✓ Updated Production entry for {item.production_code}")
+            else:
+                wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
+                production = Production(
                     production_date=week_commencing,
                     production_code=item.production_code,
+                    description=wip_item.description if wip_item else f"{item.production_code} - WIP",
+                    total_kg=packing.requirement_kg,
                     week_commencing=week_commencing
-                ).first()
-                
-                batch_size = 100.0  # Default batch size
-                batches = packing.requirement_kg / batch_size if packing.requirement_kg > 0 else 0
-                
-                if production:
-                    production.total_kg = packing.requirement_kg
-                    production.batches = batches
-                    production.description = wip_item.description
-                    print(f"✓ Updated Production entry for {item.production_code}")
-                else:
-                    production = Production(
-                        production_date=week_commencing,
-                        production_code=item.production_code,
-                        description=wip_item.description,
-                        batches=batches,
-                        total_kg=packing.requirement_kg,
-                        week_commencing=week_commencing
-                    )
-                    db.session.add(production)
-                    print(f"✓ Created Production entry for {item.production_code}")
-                created_entries.append("Production")
+                )
+                db.session.add(production)
+                print(f"✓ Created Production entry for {item.production_code}")
+            created_entries.append("Production")
         
         db.session.commit()
-        entries_created = ", ".join(created_entries)
-        print(f"✓ Successfully processed {fg_code}: Created/Updated {entries_created} entries")
-        return True, f"Created/Updated {entries_created} entries for {fg_code}"
-        
+        print(f"✓ Created/updated entries: {', '.join(created_entries)}")
+        return True, "Success"
     except Exception as e:
         db.session.rollback()
-        print(f"✗ Error creating packing entry for {fg_code}: {str(e)}")
-        return False, f"Error creating packing entry for {fg_code}: {str(e)}"
+        print(f"✗ Error creating packing entry: {str(e)}")
+        return False, str(e)
 
 @soh_bp.route('/soh_upload', methods=['GET', 'POST'])
 def soh_upload():

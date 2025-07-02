@@ -71,9 +71,8 @@ def production_list():
             packing_total = 0.0
             items = ItemMaster.query.filter_by(production_code=production.production_code).all()
             if items:
-                item_codes = [item.item_code for item in items]
-                packings = Packing.query.filter(
-                    Packing.product_code.in_(item_codes),
+                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
+                    ItemMaster.id.in_([item.id for item in items]),
                     Packing.week_commencing == production.week_commencing,
                     Packing.packing_date == production.production_date
                 ).all()
@@ -119,9 +118,8 @@ def production_create():
             total_kg = 0.0
             items = ItemMaster.query.filter_by(production_code=production_code).all()
             if items:
-                item_codes = [item.item_code for item in items]
-                packings = Packing.query.filter(
-                    Packing.product_code.in_(item_codes),
+                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
+                    ItemMaster.id.in_([item.id for item in items]),
                     Packing.week_commencing == week_commencing,
                     Packing.packing_date == production_date
                 ).all()
@@ -201,9 +199,8 @@ def production_edit(id):
             total_kg = 0.0
             items = ItemMaster.query.filter_by(production_code=production_code).all()
             if items:
-                item_codes = [item.item_code for item in items]
-                packings = Packing.query.filter(
-                    Packing.product_code.in_(item_codes),
+                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
+                    ItemMaster.id.in_([item.id for item in items]),
                     Packing.week_commencing == week_commencing,
                     Packing.packing_date == production_date
                 ).all()

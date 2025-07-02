@@ -9,12 +9,10 @@ class Packing(db.Model):
     week_commencing = db.Column(db.Date, nullable=True)  # Matches DEFAULT NULL
     packing_date = db.Column(db.Date, nullable=False)
     
-    # Foreign key to ItemMaster instead of product_code string
+    # Foreign key to ItemMaster
     item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
-    
-    # Keep product_code temporarily for migration compatibility (will be removed later)
-    product_code = db.Column(db.String(50), nullable=True)
-    product_description = db.Column(db.String(255), nullable=True)
+    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id', ondelete='SET NULL'), nullable=True)
     
     special_order_kg = db.Column(db.Float, default=0.0, nullable=True)
     special_order_unit = db.Column(db.Integer, default=0, nullable=True)
@@ -29,25 +27,18 @@ class Packing(db.Model):
     total_stock_units = db.Column(db.Integer, default=0, nullable=True)
     calculation_factor = db.Column(db.Float, default=0.0, nullable=True)
     priority = db.Column(db.Integer, default=0, nullable=True)
-    machinery = db.Column(db.Integer, nullable=True)
 
     # Relationships
     item = db.relationship('ItemMaster', backref='packing_records')
+    machinery = db.relationship('Machinery', backref='packing_records')
+    department = db.relationship('Department', backref='packing_records')
 
     __table_args__ = (
-        # New foreign key constraints using item_id
-        ForeignKeyConstraint(
-            ['machinery'],
-            ['machinery.machineID'],
-            name='packing_ibfk_1'
-        ),
         UniqueConstraint(
-            'week_commencing', 'item_id', 'packing_date', 'machinery',
+            'week_commencing', 'item_id', 'packing_date', 'machinery_id',
             name='uq_packing_week_item_date_machinery'
         ),
-        # Keep old constraint temporarily for migration
-        db.Index('idx_packing_product_code', 'product_code'),
     )
 
     def __repr__(self):
-        return f"<Packing {self.item.item_code if self.item else self.product_code} - {self.packing_date}>"
+        return f"<Packing {self.item.item_code} - {self.packing_date}>"

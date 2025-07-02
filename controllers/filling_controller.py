@@ -83,8 +83,7 @@ def filling_create():
         try:
             filling_date_str = request.form['filling_date']
             filling_date = datetime.strptime(filling_date_str, '%Y-%m-%d').date()
-            fill_code = request.form['fill_code']
-            description = request.form['description']
+            wipf_id = int(request.form['wipf_id'])
             kilo_per_size = float(request.form['kilo_per_size']) if request.form.get('kilo_per_size') else 0.0
 
             # Calculate week_commencing (Monday of the week for filling_date)
@@ -92,44 +91,48 @@ def filling_create():
                 return dt - timedelta(days=dt.weekday())
             week_commencing = get_monday_of_week(filling_date)
 
-            # Validate fill_code exists in Item Master as WIPF
+            # Validate WIPF item exists
             wipf_item = ItemMaster.query.join(ItemMaster.item_type).filter(
-                ItemMaster.item_code == fill_code,
+                ItemMaster.id == wipf_id,
                 ItemMaster.item_type.has(type_name='WIPF')
             ).first()
             if not wipf_item:
-                flash(f"No WIPF item found for fill_code {fill_code}.", 'error')
+                flash(f"No WIPF item found with ID {wipf_id}.", 'error')
                 return render_template('filling/create.html', current_page="filling")
 
             new_filling = Filling(
                 filling_date=filling_date,
                 week_commencing=week_commencing,  # Set week_commencing
                 item_id=wipf_item.id,  # Use foreign key
-                fill_code=fill_code,  # Keep for backward compatibility
-                description=description,
                 kilo_per_size=kilo_per_size
             )
             db.session.add(new_filling)
             db.session.commit()
 
-            # Update or create corresponding Production entry
-            # Find finished good that uses this filling code
-            fg_item = ItemMaster.query.filter_by(filling_code=fill_code).first()
-            if fg_item:
-                update_production_entry(filling_date, fill_code, fg_item, week_commencing)
+            # Update or create corresponding Production entries
+            # Find finished goods that use this WIPF item in their recipes
+            fg_items = ItemMaster.query.filter(
+                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
+            ).all()
+            for fg_item in fg_items:
+                update_production_entry(filling_date, wipf_item.item_code, fg_item, week_commencing)
 
-            flash("Filling entry created successfully!", "success")
+            flash('Filling entry created successfully!', 'success')
             return redirect(url_for('filling.filling_list'))
         except ValueError as e:
-            db.session.rollback()
-            flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/create.html', current_page="filling")
+            flash(f"Invalid data format: {str(e)}", 'error')
         except Exception as e:
-            db.session.rollback()
-            flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/create.html', current_page="filling")
+            flash(f"Error creating filling entry: {str(e)}", 'error')
 
-    return render_template('filling/create.html', current_page="filling")
+    # GET request: Display the form
+    try:
+        wipf_items = ItemMaster.query.join(ItemMaster.item_type).filter(
+            ItemMaster.item_type.has(type_name='WIPF')
+        ).all()
+        return render_template('filling/create.html', wipf_items=wipf_items, current_page="filling")
+    except Exception as e:
+        flash(f"Error loading WIPF items: {str(e)}", 'error')
+        return render_template('filling/create.html', wipf_items=[], current_page="filling")
 
 @filling_bp.route('/filling_edit/<int:id>', methods=['GET', 'POST'])
 def filling_edit(id):
@@ -139,10 +142,9 @@ def filling_edit(id):
         try:
             filling_date_str = request.form['filling_date']
             old_filling_date = filling.filling_date
-            old_fill_code = filling.fill_code
+            old_wipf_item = filling.item
             filling.filling_date = datetime.strptime(filling_date_str, '%Y-%m-%d').date()
-            filling.fill_code = request.form['fill_code']
-            filling.description = request.form['description']
+            filling.item_id = int(request.form['wipf_id'])
             filling.kilo_per_size = float(request.form['kilo_per_size']) if request.form.get('kilo_per_size') else 0.0
 
             # Calculate week_commencing (Monday of the week for filling_date)
@@ -150,64 +152,67 @@ def filling_edit(id):
                 return dt - timedelta(days=dt.weekday())
             filling.week_commencing = get_monday_of_week(filling.filling_date)
 
-            # Update item_id if fill_code changed
-            if filling.fill_code != (filling.item.item_code if filling.item else filling.fill_code):
-                new_wipf_item = ItemMaster.query.join(ItemMaster.item_type).filter(
-                    ItemMaster.item_code == filling.fill_code,
-                    ItemMaster.item_type.has(type_name='WIPF')
-                ).first()
-                if new_wipf_item:
-                    filling.item_id = new_wipf_item.id
-                else:
-                    flash(f"No WIPF item found for fill_code {filling.fill_code}.", 'error')
-                    return render_template('filling/edit.html', filling=filling, current_page="filling")
-            
-            # Validate fill_code exists in Item Master as WIPF
-            wipf_item = filling.item if filling.item else ItemMaster.query.join(ItemMaster.item_type).filter(
-                ItemMaster.item_code == filling.fill_code,
+            # Validate WIPF item exists
+            wipf_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.id == filling.item_id,
                 ItemMaster.item_type.has(type_name='WIPF')
             ).first()
             if not wipf_item:
-                flash(f"No WIPF item found for fill_code {filling.fill_code}.", 'error')
+                flash(f"No WIPF item found with ID {filling.item_id}.", 'error')
                 return render_template('filling/edit.html', filling=filling, current_page="filling")
 
             db.session.commit()
 
-            # Update or create corresponding Production entry for new values
-            fg_item = ItemMaster.query.filter_by(filling_code=filling.fill_code).first()
-            if fg_item:
-                update_production_entry(filling.filling_date, filling.fill_code, fg_item, filling.week_commencing)
-            # Update Production entry for old values (in case date or fill_code changed)
-            old_fg_item = ItemMaster.query.filter_by(filling_code=old_fill_code).first()
-            if old_fg_item and (old_filling_date != filling.filling_date or old_fill_code != filling.fill_code):
-                update_production_entry(old_filling_date, old_fill_code, old_fg_item, filling.week_commencing)
+            # Update corresponding Production entries
+            # Find finished goods that use this WIPF item in their recipes
+            fg_items = ItemMaster.query.filter(
+                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
+            ).all()
+            for fg_item in fg_items:
+                update_production_entry(filling.filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
 
-            flash("Filling entry updated successfully!", "success")
+            # If date changed or WIPF item changed, also update old production entries
+            if old_filling_date != filling.filling_date or old_wipf_item != filling.item:
+                if old_wipf_item:
+                    old_fg_items = ItemMaster.query.filter(
+                        ItemMaster.recipes_where_raw_material.any(raw_material_id=old_wipf_item.id)
+                    ).all()
+                    for old_fg_item in old_fg_items:
+                        update_production_entry(old_filling_date, old_wipf_item.item_code, old_fg_item, filling.week_commencing)
+
+            flash('Filling entry updated successfully!', 'success')
             return redirect(url_for('filling.filling_list'))
         except ValueError as e:
-            db.session.rollback()
-            flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('filling/edit.html', filling=filling, current_page="filling")
+            flash(f"Invalid data format: {str(e)}", 'error')
         except Exception as e:
-            db.session.rollback()
-            flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('filling/edit.html', filling=filling, current_page="filling")
+            flash(f"Error updating filling entry: {str(e)}", 'error')
 
-    return render_template('filling/edit.html', filling=filling, current_page="filling")
+    # GET request: Display the form with existing data
+    try:
+        wipf_items = ItemMaster.query.join(ItemMaster.item_type).filter(
+            ItemMaster.item_type.has(type_name='WIPF')
+        ).all()
+        return render_template('filling/edit.html', filling=filling, wipf_items=wipf_items, current_page="filling")
+    except Exception as e:
+        flash(f"Error loading WIPF items: {str(e)}", 'error')
+        return render_template('filling/edit.html', filling=filling, wipf_items=[], current_page="filling")
 
 @filling_bp.route('/filling_delete/<int:id>', methods=['POST'])
 def filling_delete(id):
     filling = Filling.query.get_or_404(id)
     try:
         filling_date = filling.filling_date
-        fill_code = filling.fill_code
+        wipf_item = filling.item
         db.session.delete(filling)
         db.session.commit()
 
-        # Update corresponding Production entry
-        fg_item = ItemMaster.query.filter_by(filling_code=fill_code).first()
-        if fg_item:
-            update_production_entry(filling_date, fill_code, fg_item, filling.week_commencing)
+        # Update corresponding Production entries
+        if wipf_item:
+            fg_items = ItemMaster.query.filter(
+                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
+            ).all()
+            for fg_item in fg_items:
+                update_production_entry(filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
 
         flash("Filling entry deleted successfully!", "danger")
     except Exception as e:
@@ -373,19 +378,21 @@ def update_production_entry(filling_date, fill_code, fg_item, week_commencing=No
         wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
         description = wip_item.description if wip_item else f"{production_code} - WIP"
 
-        fill_code_prefix = fill_code.split('.')[0] if '.' in fill_code else fill_code
-        if len(fill_code_prefix) > 1:
-            # Aggregate total_kg for all Filling entries with the same filling_date and fill_code prefix
-            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
+        # Get all WIPF items that are used in this FG's recipes
+        wipf_items = [recipe.raw_material_item for recipe in fg_item.recipes_where_finished_good 
+                     if recipe.raw_material_item.item_type.has(type_name='WIPF')]
+        
+        if not wipf_items:
+            return  # No WIPF items in recipe, nothing to update
+
+        # Get the total kg from all filling entries for these WIPF items
+        total_kg = 0.0
+        for wipf_item in wipf_items:
+            filling_total = db.session.query(func.sum(Filling.kilo_per_size)).filter(
                 Filling.filling_date == filling_date,
-                func.substring_index(Filling.fill_code, '.', 1) == fill_code_prefix
+                Filling.item_id == wipf_item.id
             ).scalar() or 0.0
-        else:
-            # Aggregate total_kg for Filling entries with matching fill_code and filling_date
-            total_kg = db.session.query(func.sum(Filling.kilo_per_size)).filter(
-                Filling.filling_date == filling_date,
-                Filling.fill_code == fill_code
-            ).scalar() or 0.0
+            total_kg += filling_total
 
         # If total_kg is 0, delete the Production entry if it exists
         if total_kg == 0.0:
@@ -398,34 +405,29 @@ def update_production_entry(filling_date, fill_code, fg_item, week_commencing=No
                 db.session.commit()
             return
 
-        # Calculate batches
-        batches = total_kg / 300 if total_kg > 0 else 0.0
-
-        # Check for existing Production entry
+        # Create or update Production entry
         production = Production.query.filter_by(
             production_date=filling_date,
             production_code=production_code
         ).first()
 
         if production:
-            # Update existing Production entry
-            production.description = description
             production.total_kg = total_kg
-            production.batches = batches
-            production.week_commencing = week_commencing  # Set week_commencing
+            production.description = description
+            production.week_commencing = week_commencing
         else:
-            # Create new Production entry
             production = Production(
                 production_date=filling_date,
                 production_code=production_code,
                 description=description,
-                batches=batches,
                 total_kg=total_kg,
-                week_commencing=week_commencing  # Set week_commencing
+                week_commencing=week_commencing
             )
             db.session.add(production)
 
         db.session.commit()
+        print(f"✓ Updated Production entry for {production_code}: {total_kg} kg")
+
     except Exception as e:
+        print(f"Error updating Production entry: {str(e)}")
         db.session.rollback()
-        flash(f"Error updating Production entry: {str(e)}", 'error')

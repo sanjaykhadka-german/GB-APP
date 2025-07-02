@@ -61,7 +61,7 @@
     <div class="fixed-production-list" style="position: sticky; top: 0; z-index: 1000;">
         <div class="row">
             <div class="col-md-12">
-                <h3>Production List (Recipe Family: {{ packing.product_code.split('.')[0] if '.' in packing.product_code else packing.product_code }})</h3>
+                <h3>Production List (Recipe Family: {{ packing.item.item_code.split('.')[0] if '.' in packing.item.item_code else packing.item.item_code }})</h3>
                 <table class="table table-bordered table-striped">
                     <thead>
                         <tr>
@@ -145,13 +145,13 @@
                     <td><input type="checkbox" name="packing_ids" value="{{ packing.id }}"></td>
                     <td>{{ packing.week_commencing | format_date }}</td>
                     <td>{{ packing.packing_date | format_date }}</td>
-                    <td>{{ packing.product_code }}</td>
-                    <td>{{ packing.product_description }}</td>
+                    <td>{{ packing.item.item_code }}</td>
+                    <td>{{ packing.item.description }}</td>
                     <td class="editable" data-field="special_order_kg" data-original="{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}">{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}</td>
                     <td>{{ packing.special_order_unit }}</td>
                     <td>{{ packing.requirement_kg }}</td>
                     <td>{{ packing.requirement_unit }}</td>
-                    <td>{{ packing.avg_weight_per_unit }}</td>
+                    <td>{{ packing.item.avg_weight_per_unit }}</td>
                     <td>{{ packing.soh_requirement_units_week }}</td>
                     <td class="editable" data-field="calculation_factor" data-original="{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}">{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}</td>
                     <td>

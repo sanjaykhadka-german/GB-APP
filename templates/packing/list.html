@@ -95,8 +95,8 @@
                         <th data-col-index="1"><input type="checkbox" id="selectAll"></th>
                         <th data-column="week_commencing" data-col-index="2">Week Commencing <span class="sort-arrow"></span></th>
                         <th data-column="packing_date" data-col-index="3">Packing Date <span class="sort-arrow"></span></th>
-                        <th data-column="product_code" data-col-index="4">Product Code <span class="sort-arrow"></span></th>
-                        <th data-column="product_description" data-col-index="5">Product Description <span class="sort-arrow"></span></th>
+                        <th data-column="item_code" data-col-index="4">Product Code <span class="sort-arrow"></span></th>
+                        <th data-column="description" data-col-index="5">Product Description <span class="sort-arrow"></span></th>
                         <th data-column="special_order_kg" data-col-index="6">Special Order KG <span class="sort-arrow"></span></th>
                         <th data-column="special_order_unit" data-col-index="7">Special Order Unit <span class="sort-arrow"></span></th>
                         <th data-column="requirement_kg" data-col-index="8">Requirement KG <span class="sort-arrow"></span></th>
@@ -115,13 +115,43 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="20" class="no-results">Loading...</td></tr>
+                    {% for data in packing_data %}
+                    <tr>
+                        <td><input type="checkbox" class="packing-select" value="{{ data.packing.id }}"></td>
+                        <td>{{ data.week_commencing }}</td>
+                        <td>{{ data.packing.packing_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ data.packing.item.item_code }}</td>
+                        <td>{{ data.packing.item.description }}</td>
+                        <td>{{ data.packing.special_order_kg }}</td>
+                        <td>{{ data.special_order_unit }}</td>
+                        <td>{{ data.requirement_kg }}</td>
+                        <td>{{ data.requirement_unit }}</td>
+                        <td>{{ data.packing.item.avg_weight_per_unit }}</td>
+                        <td>{{ data.soh_requirement_kg_week }}</td>
+                        <td>{{ data.packing.soh_requirement_units_week }}</td>
+                        <td>{{ data.soh_kg }}</td>
+                        <td>{{ data.soh_units }}</td>
+                        <td>{{ data.packing.machinery.machine_name if data.packing.machinery else '' }}</td>
+                        <td>{{ data.total_stock_kg }}</td>
+                        <td>{{ data.total_stock_units }}</td>
+                        <td>{{ data.packing.calculation_factor }}</td>
+                        <td>{{ data.packing.priority }}</td>
+                        <td>
+                            <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                            <form action="{{ url_for('packing.packing_delete', id=data.packing.id) }}" method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="20" class="no-results">No packing records found.</td></tr>
+                    {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr>
                         <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
-                        <td id="total_requirement_kg" style="border-left: none;"></td>
-                        <td id="total_requirement_unit"></td>
+                        <td id="total_requirement_kg" style="border-left: none;">{{ total_requirement_kg }}</td>
+                        <td id="total_requirement_unit">{{ total_requirement_unit }}</td>
                         <td colspan="11"></td>
                     </tr>
                 </tfoot>
@@ -248,884 +278,320 @@
     }
     
     .toggle-actions {
+        margin-top: 10px;
         display: flex;
         gap: 8px;
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid #dee2e6;
     }
     
-    /* Packing List Section */
-    #list {
-        margin-top: 0;
+    .toggle-actions button {
+        font-size: 0.85rem;
+        padding: 4px 8px;
     }
     
-    #list h2 {
-        margin-top: 10px;
-        margin-bottom: 10px;
-    }
-    
-    .btn.my-3 {
-        margin: 5px 0;
-    }
-    
-    /* Responsive Table Styles */
+    /* Table Styles */
     .table-container {
         overflow-x: auto;
-        width: 100%;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        margin-top: 0;
+        margin-top: 20px;
     }
     
-    #packingListTable {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        margin: 0;
-    }
-    
-    #packingListTable th,
-    #packingListTable td {
-        border: 1px solid #ddd;
-        padding: 6px 8px;
-        text-align: left;
+    .table th {
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    #packingListTable th {
         background-color: #f8f9fa;
-        font-weight: bold;
-        font-size: 11px;
-        position: sticky;
-        top: 0;
-        z-index: 5;
+        position: relative;
+        cursor: pointer;
     }
     
-    /* Optimize specific column widths */
-    #packingListTable th:nth-child(1),
-    #packingListTable td:nth-child(1) { 
-        width: 40px; 
-        max-width: 40px; 
-        text-align: center;
+    .sort-arrow {
+        display: inline-block;
+        width: 0;
+        height: 0;
+        margin-left: 5px;
+        vertical-align: middle;
     }
     
-    #packingListTable th:nth-child(4),
-    #packingListTable td:nth-child(4) { 
-        width: 100px; 
-        max-width: 120px; 
+    .sort-arrow.asc {
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-bottom: 4px solid #333;
     }
     
-    #packingListTable th:nth-child(5),
-    #packingListTable td:nth-child(5) { 
-        width: 150px; 
-        max-width: 200px; 
+    .sort-arrow.desc {
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 4px solid #333;
     }
     
-    #packingListTable th:nth-child(20),
-    #packingListTable td:nth-child(20) { 
-        width: 120px; 
-        max-width: 120px; 
-        text-align: center;
-    }
-    
-    /* Responsive breakpoints */
-    @media (max-width: 1600px) {
-        #packingListTable {
-            font-size: 11px;
-        }
-        #packingListTable th,
-        #packingListTable td {
-            padding: 4px 6px;
-        }
-    }
-    
-    @media (max-width: 1400px) {
-        #packingListTable {
-            font-size: 10px;
-        }
-        #packingListTable th,
-        #packingListTable td {
-            padding: 3px 4px;
-        }
-        .toggle-row {
-            flex-direction: column;
-            gap: 5px;
-        }
-        .column-toggle label {
-            min-width: auto;
-        }
-    }
-    
-    @media (max-width: 1200px) {
-        #packingListTable {
-            font-size: 9px;
-        }
-        #packingListTable th,
-        #packingListTable td {
-            padding: 2px 3px;
-        }
+    .table td {
+        white-space: nowrap;
     }
     
     .no-results {
         text-align: center;
-        padding: 20px;
-    }
-    .add-packing-btn {
-        background-color: #007bff;
-        color: white;
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .add-packing-btn:hover {
-        background-color: #0056b3;
-    }
-    .hidden {
-        display: none;
-    }
-    tfoot tr {
-        background-color: #f8f9fa;
-        font-weight: bold;
-    }
-    th[data-column] {
-        cursor: pointer;
-        position: relative;
-    }
-    .sort-arrow {
-        display: inline-block;
-        margin-left: 5px;
-        font-size: 0.8em;
-        vertical-align: middle;
-    }
-    .sort-arrow.asc::after {
-        content: '▲';
-    }
-    .sort-arrow.desc::after {
-        content: '▼';
-    }
-    .sort-arrow.multi-sort-order::before {
-        font-size: 0.7em;
-        vertical-align: super;
-        margin-right: 2px;
+        font-style: italic;
         color: #666;
-        font-weight: bold;
-    }
-
-    /* New styles for double-click editing */
-    .editable {
-        cursor: pointer;
-        transition: background-color 0.2s ease-in-out;
-    }
-
-    .editable:hover {
-        background-color: #e9ecef; /* Bootstrap bg-light */
-    }
-
-    .editing {
-        background-color: #e7f3ff; /* Light blue for editing state */
-    }
-
-    td input[type="text"],
-    td input[type="date"],
-    td input[type="number"] {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #ced4da; /* Bootstrap border color */
-        border-radius: 0.25rem;
-        box-sizing: border-box;
-        font-size: inherit;
-        font-family: inherit;
-    }
-
-    td input:focus {
-        outline: 2px solid transparent;
-        outline-offset: 2px;
-        border-color: #007bff; /* Bootstrap primary */
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25); /* Bootstrap focus ring */
-    }
-
-    /* Style for the total row */
-    #packingListTable tfoot tr td {
-        background-color: #f8f9fa;
-    }
-    
-    /* Ensure the total cells are always visible and aligned properly */
-    #packingListTable tfoot tr td[id^="total_"] {
-        display: table-cell !important;
-        text-align: left;
-        font-weight: bold;
-    }
-
-    /* Hide borders between Total: text and the first total value */
-    #packingListTable tfoot tr td[style*="border-right: none"],
-    #packingListTable tfoot tr td[style*="border-left: none"] {
-        border-color: transparent;
     }
 </style>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
-let sortCriteria = [];
-// Track column visibility (true = visible, false = hidden)
-let columnVisibility = Array(20).fill(true); // Initialize all 20 columns as visible
-let machineryOptions = []; // Store machinery options for dropdowns
-
-$(document).ready(function() {
-    // Fetch machinery options for dropdowns
-    fetchMachineryOptions();
-
-    // Autocomplete for Product Code
-    $("#search_fg_code").keyup(function() {
-        var fgCode = $(this).val().trim();
-        if (fgCode.length > 0) {
-            $.ajax({
-                url: "{{ url_for('packing.autocomplete_packing') }}",
-                type: "GET",
-                data: { query: fgCode },
-                success: function(response) {
-                    console.log("Autocomplete response:", response);
-                    var suggestionsHtml = "<ul>";
-                    response.forEach(function(packing) {
-                        suggestionsHtml += `<li data-fg-code="${packing.fg_code}" data-description="${packing.description}">${packing.fg_code} - ${packing.description}</li>`;
-                    });
-                    suggestionsHtml += "</ul>";
-                    $("#fg_code_suggestions").html(suggestionsHtml).show();
-                },
-                error: function(xhr, status, error) {
-                    console.error("Autocomplete error:", status, error, xhr.responseText);
-                    $("#fg_code_suggestions").empty().hide();
-                }
+    // Initialize machinery filter options
+    fetch('/packing/machinery_options')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('search_machinery');
+            const bulkSelect = document.getElementById('bulk_machinery');
+            data.forEach(machinery => {
+                const option = new Option(machinery.machineryName, machinery.machineID);
+                select.add(option.cloneNode(true));
+                bulkSelect.add(option);
             });
-        } else {
-            $("#fg_code_suggestions").empty().hide();
-        }
-    });
+        })
+        .catch(error => console.error('Error loading machinery options:', error));
 
-    // Click suggestion to fill input
-    $(document).on('click', '#fg_code_suggestions li', function() {
-        $('#search_fg_code').val($(this).data('fg-code'));
-        $('#search_description').val($(this).data('description'));
-        $('#fg_code_suggestions').empty().hide();
-        fetchPackings();
+    // Product code autocomplete
+    let typingTimer;
+    const doneTypingInterval = 300;
+
+    document.getElementById('search_fg_code').addEventListener('input', function() {
+        clearTimeout(typingTimer);
+        const query = this.value.trim();
+        
+        if (query) {
+            typingTimer = setTimeout(() => {
+                fetch(`/packing/autocomplete_packing?query=${encodeURIComponent(query)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const suggestionList = document.getElementById('fg_code_suggestions');
+                        if (data.length > 0) {
+                            const ul = document.createElement('ul');
+                            data.forEach(item => {
+                                const li = document.createElement('li');
+                                li.textContent = `${item.fg_code} - ${item.description}`;
+                                li.addEventListener('click', () => {
+                                    document.getElementById('search_fg_code').value = item.fg_code;
+                                    document.getElementById('search_description').value = item.description;
+                                    suggestionList.innerHTML = '';
+                                });
+                                ul.appendChild(li);
+                            });
+                            suggestionList.innerHTML = '';
+                            suggestionList.appendChild(ul);
+            } else {
+                            suggestionList.innerHTML = '';
+            }
+                    })
+                    .catch(error => console.error('Error:', error));
+            }, doneTypingInterval);
+        } else {
+            document.getElementById('fg_code_suggestions').innerHTML = '';
+        }
     });
 
     // Hide suggestions when clicking outside
-    $(document).click(function(event) {
-        if (!$(event.target).closest('#fg_code_suggestions, #search_fg_code').length) {
-            $('#fg_code_suggestions').empty().hide();
+    document.addEventListener('click', function(e) {
+        if (!e.target.matches('#search_fg_code')) {
+            document.getElementById('fg_code_suggestions').innerHTML = '';
         }
     });
 
-    // Select/Deselect all checkboxes
-    $('#selectAll').on('change', function() {
-        $('#packingListTable tbody input[type="checkbox"]').prop('checked', this.checked);
-    });
+    // Fetch packings with search parameters and sorting
+    function fetchPackings() {
+        const searchParams = new URLSearchParams({
+            fg_code: document.getElementById('search_fg_code').value,
+            description: document.getElementById('search_description').value,
+            packing_date_start: document.getElementById('search_packing_date_start').value,
+            packing_date_end: document.getElementById('search_packing_date_end').value,
+            week_commencing: document.getElementById('search_week_commencing').value,
+            machinery: document.getElementById('search_machinery').value,
+            sort_by: currentSortColumn,
+            sort_order: currentSortOrder
+        });
 
-    // Sorting columns
-    $('#packingListTable th[data-column]').on('click', function(event) {
-        const column = $(this).data('column');
-        const isCtrlClick = event.ctrlKey || event.metaKey;
-        console.log(`Clicked column: ${column}, Ctrl+Click: ${isCtrlClick}`);
+        fetch(`/packing/search?${searchParams}`)
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.querySelector('#packingListTable tbody');
+                tbody.innerHTML = '';
 
-        if (isCtrlClick) {
-            const existingCriterionIndex = sortCriteria.findIndex(c => c.column === column);
-            if (existingCriterionIndex !== -1) {
-                sortCriteria[existingCriterionIndex].direction =
-                    sortCriteria[existingCriterionIndex].direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                sortCriteria.push({ column: column, direction: 'asc' });
-            }
-        } else {
-            const isCurrentPrimary = sortCriteria.length > 0 && sortCriteria[0].column === column;
-            sortCriteria = [];
-            if (isCurrentPrimary) {
-                sortCriteria.push({
-                    column: column,
-                    direction: $(this).find('.sort-arrow').hasClass('asc') ? 'desc' : 'asc'
-                });
-            } else {
-                sortCriteria.push({ column: column, direction: 'asc' });
-            }
-        }
-        console.log('Sort Criteria:', sortCriteria);
-        fetchPackings();
-        updateSortUI();
-    });
-
-    // Trigger search on input change
-    $("#search_packing_date_start, #search_packing_date_end, #search_week_commencing, #search_fg_code, #search_description, #search_machinery").on('change', function() {
-        fetchPackings();
-    });
-
-    // Add date range validation
-    $("#search_packing_date_start, #search_packing_date_end").change(function() {
-        var startDate = $("#search_packing_date_start").val();
-        var endDate = $("#search_packing_date_end").val();
-        
-        if (startDate && endDate && startDate > endDate) {
-            alert("End date must be after start date");
-            $(this).val('');
-        }
-    });
-
-    // Add week commencing date validation
-    $("#search_week_commencing").on('change', function() {
-        const selectedDate = $(this).val();
-        if (selectedDate) {
-            const mondayDate = getMonday(selectedDate);
-            if (selectedDate !== mondayDate) {
-                $(this).val(mondayDate);
-                alert("Week commencing date has been adjusted to Monday: " + mondayDate);
-            }
-        }
-    });
-
-    // Initial fetch
-    console.log("Initiating initial fetchPackings");
-    fetchPackings();
-
-    // Add CSS rule for sort order number
-    $('<style>.sort-arrow.multi-sort-order::before { content: var(--sort-order); }</style>').appendTo('head');
-});
-
-// Fetch machinery options for dropdowns
-function fetchMachineryOptions() {
-    $.ajax({
-        url: "{{ url_for('packing.get_machinery_options') }}",
-        type: "GET",
-        success: function(response) {
-            machineryOptions = response.data || [];
-            populateMachineryDropdown();
-        },
-        error: function(xhr, status, error) {
-            console.error("Error fetching machinery options:", status, error);
-            alert("Failed to load machinery options. Please try again later.");
-        }
-    });
-}
-
-// Populate machinery dropdowns (for bulk edit and search filter)
-function populateMachineryDropdown() {
-    const bulkSelect = $("#bulk_machinery");
-    const searchSelect = $("#search_machinery");
-    
-    bulkSelect.empty();
-    searchSelect.empty();
-    
-    bulkSelect.append('<option value="">Select Machinery</option>');
-    searchSelect.append('<option value="">All Machinery</option>');
-    
-    machineryOptions.forEach(function(machine) {
-        bulkSelect.append(`<option value="${machine.id}">${machine.name}</option>`);
-        searchSelect.append(`<option value="${machine.id}">${machine.name}</option>`);
-    });
-}
-
-// Utility function to convert YYYY-MM-DD to DD-MM-YYYY
-function formatDateToDDMMYYYY(dateString) {
-    if (!dateString) return '';
-    const parts = dateString.split('-');
-    if (parts.length === 3 && parts[0].length === 4) {
-        return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-    return dateString;
-}
-
-// Utility function to convert DD-MM-YYYY to YYYY-MM-DD
-function formatDateToYYYYMMDD(dateString) {
-    if (!dateString) return '';
-    const parts = dateString.split('-');
-    if (parts.length === 3 && parts[0].length === 2) {
-        return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-    return dateString;
-}
-
-// Utility function to get Monday of the week
-function getMonday(date) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    return new Date(d.setDate(diff)).toISOString().split('T')[0];
-}
-
-// Fetch packing entries based on search and sorting
-function fetchPackings() {
-    let packingDateStart = $("#search_packing_date_start").val().trim();
-    let packingDateEnd = $("#search_packing_date_end").val().trim();
-    let weekCommencing = $("#search_week_commencing").val().trim();
-    let fgCode = $("#search_fg_code").val().trim();
-    let description = $("#search_description").val().trim();
-    let machinery = $("#search_machinery").val().trim(); // Add machinery filter
-    let sortBy = sortCriteria.map(criterion => criterion.column);
-    let sortOrder = sortCriteria.map(criterion => criterion.direction);
-
-    // Validate date range
-    if (packingDateStart && packingDateEnd && packingDateStart > packingDateEnd) {
-        alert("End date must be after start date");
+                if (data.packings.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="20" class="no-results">No packing records found.</td></tr>';
+                    document.getElementById('total_requirement_kg').textContent = '0';
+                    document.getElementById('total_requirement_unit').textContent = '0';
         return;
     }
-
-    console.log("Fetching packings with data:", { 
-        packing_date_start: packingDateStart, 
-        packing_date_end: packingDateEnd, 
-        week_commencing: weekCommencing, 
-        fg_code: fgCode, 
-        description: description, 
-        machinery: machinery, 
-        sort_by: sortBy, 
-        sort_order: sortOrder 
-    });
-
-    $('#packingListTable tbody').html('<tr><td colspan="20" class="no-results">Loading...</td></tr>');
-
-    $.ajax({
-        url: "{{ url_for('packing.get_search_packings') }}",
-        type: "GET",
-        data: {
-            packing_date_start: packingDateStart,
-            packing_date_end: packingDateEnd,
-            week_commencing: weekCommencing,
-            fg_code: fgCode,
-            description: description,
-            machinery: machinery, // Add machinery to AJAX data
-            sort_by: sortBy,
-            sort_order: sortOrder
-        },
-        success: function(response) {
-            console.log("Fetch packings response:", response);
-            let tableBody = $("#packingListTable tbody");
-            tableBody.empty();
-            $("#resultSection").removeClass("hidden");
 
             let totalRequirementKg = 0;
             let totalRequirementUnit = 0;
 
-            if (response.error) {
-                tableBody.append(`<tr><td colspan="20" class="no-results">Error: ${response.error}</td></tr>`);
-                $("#total_requirement_kg").text('');
-                $("#total_requirement_unit").text('');
-                alert('Error fetching packing entries: ' + response.error);
-                sortCriteria = [];
-                updateSortUI();
-                return;
-            }
+                data.packings.forEach(packing => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
+                        <td>${packing.week_commencing}</td>
+                        <td>${packing.packing_date}</td>
+                        <td>${packing.item.item_code}</td>
+                        <td>${packing.item.description}</td>
+                        <td>${packing.special_order_kg}</td>
+                        <td>${packing.special_order_unit}</td>
+                        <td>${packing.requirement_kg}</td>
+                        <td>${packing.requirement_unit}</td>
+                        <td>${packing.item.avg_weight_per_unit}</td>
+                        <td>${packing.soh_requirement_kg_week}</td>
+                        <td>${packing.soh_requirement_units_week}</td>
+                        <td>${packing.soh_kg}</td>
+                        <td>${packing.soh_units}</td>
+                        <td>${packing.machinery ? packing.machinery.machine_name : ''}</td>
+                        <td>${packing.total_stock_kg}</td>
+                        <td>${packing.total_stock_units}</td>
+                        <td>${packing.calculation_factor}</td>
+                        <td>${packing.priority}</td>
+                        <td>
+                            <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
+                            <form action="/packing/delete/${packing.id}" method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing?')">Delete</button>
+                            </form>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
 
-            if (response.data && response.data.length > 0) {
-                response.data.forEach(function(packing) {
                     totalRequirementKg += parseFloat(packing.requirement_kg) || 0;
                     totalRequirementUnit += parseInt(packing.requirement_unit) || 0;
-
-                    console.log("Packing ID:", packing.id);
-                    const editUrl = "{{ url_for('packing.packing_edit', id=0) | replace('0', '{}') }}".replace('{}', packing.id || '');
-
-                    // Create machinery dropdown for inline editing
-                    let machineryHtml = `<select data-id="${packing.id}" data-field="machinery" onchange="updateCellSelect(this)">`;
-                    machineryHtml += '<option value="">Select</option>';
-                    machineryOptions.forEach(function(machine) {
-                        machineryHtml += `<option value="${machine.id}" ${packing.machinery == machine.id ? 'selected' : ''}>${machine.name}</option>`;
-                    });
-                    machineryHtml += '</select>';
-
-                    tableBody.append(`
-                        <tr data-id="${packing.id || ''}">
-                            <td><input type="checkbox" class="packing-select" value="${packing.id || ''}"></td>
-                            <td>${packing.week_commencing || ''}</td>
-                            <td>${formatDateToDDMMYYYY(packing.packing_date) || ''}</td>
-                            <td>${packing.product_code || ''}</td>
-                            <td>${packing.product_description || ''}</td>
-                            <td class="editable" data-field="special_order_kg" data-original="${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}">${packing.special_order_kg !== null && packing.special_order_kg !== undefined ? packing.special_order_kg : ''}</td>
-                            <td>${packing.special_order_unit || ''}</td>
-                            <td>${packing.requirement_kg || ''}</td>
-                            <td>${packing.requirement_unit || ''}</td>
-                            <td>${packing.avg_weight_per_unit || ''}</td>
-                            <td>${packing.soh_requirement_kg_week || ''}</td>
-                            <td>${packing.soh_requirement_units_week || ''}</td>
-                            <td>${packing.soh_kg || ''}</td>
-                            <td>${packing.soh_units || ''}</td>
-                            <td>${machineryHtml}</td>
-                            <td>${packing.total_stock_kg || ''}</td>
-                            <td>${packing.total_stock_units || ''}</td>
-                            <td class="editable" data-field="calculation_factor" data-original="${packing.calculation_factor !== null && packing.calculation_factor !== undefined ? packing.calculation_factor : ''}">${packing.calculation_factor !== null && packing.calculation_factor !== undefined ? packing.calculation_factor : ''}</td>
-                            <td class="editable" data-field="priority" data-original="${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}">${packing.priority !== null && packing.priority !== undefined ? packing.priority : ''}</td>
-                            <td>
-                                <a href="${editUrl}" class="btn btn-sm btn-secondary" target="_blank" rel="noopener noreferrer">Edit</a>
-                                <button type="button" class="btn btn-sm btn-danger" onclick="deletePacking(${packing.id})">Delete</button>
-                            </td>
-                        </tr>
-                    `);
                 });
-            } else {
-                tableBody.append(`<tr><td colspan="20" class="no-results">No results found.</td></tr>`);
-            }
 
-            $("#total_requirement_kg").text(totalRequirementKg.toFixed(2));
-            $("#total_requirement_unit").text(totalRequirementUnit);
-            initEditableTable();
-            applyColumnVisibility();
-        },
-        error: function(xhr, status, error) {
-            console.error("Fetch packings error:", status, error, xhr.responseText);
-            $("#packingListTable tbody").html(`<tr><td colspan="20" class="no-results">Error loading data: ${xhr.responseText || error}</td></tr>`);
-            $("#total_requirement_kg").text('');
-            $("#total_requirement_unit").text('');
-            applyColumnVisibility();
-        }
-    });
-}
-
-// Apply column visibility based on the columnVisibility array
-function applyColumnVisibility() {
-    // First, handle all columns except the total row
-    for (let i = 1; i <= 20; i++) {
-        const selector = `#packingListTable th[data-col-index="${i}"], #packingListTable tbody td:nth-child(${i})`;
-        if (!columnVisibility[i - 1]) {
-            $(selector).hide();
-        } else {
-            $(selector).show();
-        }
+                document.getElementById('total_requirement_kg').textContent = totalRequirementKg.toFixed(2);
+                document.getElementById('total_requirement_unit').textContent = totalRequirementUnit;
+            })
+            .catch(error => console.error('Error:', error));
     }
 
-    // Special handling for the footer to keep totals under Requirement KG and Unit
-    let visibleColsBeforeReq = 0;
-    for (let i = 0; i < 7; i++) {
-        if (columnVisibility[i]) {
-            visibleColsBeforeReq++;
-        }
-    }
+    // Sorting functionality
+    let currentSortColumn = '';
+    let currentSortOrder = '';
 
-    // Always ensure the total cells are visible and properly aligned
-    $('#packingListTable tfoot tr td:first').attr('colspan', visibleColsBeforeReq);
-    $('#packingListTable tfoot tr td[id^="total_"]').show();
-
-    // Ensure the total row cells are properly aligned with their respective columns
-    const reqKgColVisible = columnVisibility[7]; // Index 7 is Requirement KG
-    const reqUnitColVisible = columnVisibility[8]; // Index 8 is Requirement Unit
-
-    if (reqKgColVisible) {
-        $('#total_requirement_kg').show();
-    } else {
-        $('#total_requirement_kg').hide();
-    }
-
-    if (reqUnitColVisible) {
-        $('#total_requirement_unit').show();
-    } else {
-        $('#total_requirement_unit').hide();
-    }
-
-    // Update the colspan of the remaining columns
-    let remainingColspan = 0;
-    for (let i = 9; i < 20; i++) {
-        if (columnVisibility[i]) {
-            remainingColspan++;
-        }
-    }
-    $('#packingListTable tfoot tr td:last').attr('colspan', remainingColspan);
-}
-
-// Initialize double-click editable table
-function initEditableTable() {
-    const table = document.getElementById('packingListTable');
-    if (!table) return;
-
-    $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
-        const cell = $(this);
-        if (cell.find('input').length) return;
-
-        const originalText = cell.text().trim();
-        const field = cell.data('field');
-
-        console.log(`Editing field: ${field}, Original value: ${originalText}`);
-
-        cell.empty().addClass('editing');
-
-        const input = $('<input>').css({
-            width: '100%',
-            padding: '0.5rem',
-            border: '1px solid #ced4da',
-            borderRadius: '0.25rem',
-            boxSizing: 'border-box',
-            fontSize: 'inherit',
-            fontFamily: 'inherit'
-        }).attr('type', 'number').attr('step', 'any');
-
-        input.val(originalText);
-
-        cell.append(input);
-        input.focus();
-        input.select();
-
-        function saveChanges() {
-            let newValue = input.val().trim();
-            let displayValue = newValue;
-
-            console.log(`Saving field: ${field}, New value: ${newValue}`);
-
-            cell.text(displayValue).removeClass('editing');
-
-            if (newValue && isNaN(parseFloat(newValue))) {
-                alert('Please enter a valid number.');
-                cell.text(originalText);
-                return;
-            }
-
-            const packingId = cell.closest('tr').data('id');
-            const updateData = {
-                id: packingId,
-                field: field,
-                value: newValue
-            };
-
-            console.log('Sending update data:', updateData);
-
-            $.ajax({
-                url: "{{ url_for('packing.update_cell') }}",
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify(updateData),
-                success: function(response) {
-                    console.log('Server response:', response);
-                    if (response.success) {
-                        cell.data('original', displayValue);
-                        fetchPackings();
-                    } else {
-                        alert('Error updating packing entry: ' + response.message);
-                        cell.text(originalText);
-                    }
-                },
-                error: function(xhr) {
-                    console.error('AJAX error:', xhr.responseText);
-                    alert('Error updating packing entry.');
-                    cell.text(originalText);
-                }
+    document.querySelectorAll('th[data-column]').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.column;
+            
+            // Reset all arrows
+            document.querySelectorAll('.sort-arrow').forEach(arrow => {
+                arrow.textContent = '';
             });
-        }
 
-        function revertChanges() {
-            cell.text(originalText).removeClass('editing');
-        }
-
-        input.on('blur', function() {
-            setTimeout(saveChanges, 100);
-        });
-
-        input.on('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                saveChanges();
-            } else if (e.key === 'Escape') {
-                revertChanges();
+            if (currentSortColumn === column) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+                currentSortColumn = column;
+                currentSortOrder = 'asc';
             }
+
+            // Update arrow
+            th.querySelector('.sort-arrow').textContent = currentSortOrder === 'asc' ? ' ↑' : ' ↓';
+
+            fetchPackings();
         });
     });
-}
 
-// Update cell for select dropdowns (machinery)
-function updateCellSelect(select) {
-    const packingId = select.getAttribute('data-id');
-    const field = select.getAttribute('data-field');
-    const value = select.value;
+    // Column visibility functions
+    function toggleColumn(colIndex) {
+    const table = document.getElementById('packingListTable');
+        const cells = table.getElementsByTagName('tr');
+        
+        for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i].getElementsByTagName('td')[colIndex-1] || 
+                        cells[i].getElementsByTagName('th')[colIndex-1];
+            if (cell) {
+                cell.style.display = document.querySelector(`input[data-col-index="${colIndex}"]`).checked ? '' : 'none';
+            }
+        }
+    }
 
-    updateCell(packingId, field, value);
-}
+    function showEssentialColumns() {
+        const essentialColumns = [2, 3, 4, 5, 8, 9, 15, 19, 20]; // Week Commencing, Date, Product, Description, Req KG, Req Unit, Machinery, Priority, Actions
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            const colIndex = parseInt(checkbox.dataset.colIndex);
+            checkbox.checked = essentialColumns.includes(colIndex);
+            toggleColumn(colIndex);
+        });
+    }
 
-// Column toggle logic
-function toggleColumn(colIndex) {
-    columnVisibility[colIndex - 1] = !columnVisibility[colIndex - 1];
-    applyColumnVisibility();
-    fetchPackings();
-}
-
-function showEssentialColumns() {
-    const essentialColumns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 20];
-    columnVisibility = Array(20).fill(false);
-    essentialColumns.forEach(idx => {
-        columnVisibility[idx - 1] = true;
-    });
-    applyColumnVisibility();
-    $('#column-toggle input[type="checkbox"]').each(function() {
-        let idx = parseInt($(this).attr('data-col-index'));
-        $(this).prop('checked', [2, 3, 6, 7].includes(idx));
-    });
-    fetchPackings();
+    function showAllColumns() {
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = true;
+            toggleColumn(parseInt(checkbox.dataset.colIndex));
+        });
 }
 
 function resetToDefault() {
-    const defaultVisible = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 18, 19, 20];
-    columnVisibility = Array(20).fill(false);
-    defaultVisible.forEach(idx => {
-        columnVisibility[idx - 1] = true;
-    });
-    applyColumnVisibility();
-    $('#column-toggle input[type="checkbox"]').each(function() {
-        let idx = parseInt($(this).attr('data-col-index'));
-        let defaultVisibleCols = [2, 3, 6, 7, 10, 12, 15, 18, 19];
-        $(this).prop('checked', defaultVisibleCols.includes(idx));
-    });
-    fetchPackings();
-}
+        const defaultColumns = [2, 3, 6, 7, 10, 12, 15, 18, 19]; // Your default visible columns
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            const colIndex = parseInt(checkbox.dataset.colIndex);
+            checkbox.checked = defaultColumns.includes(colIndex);
+            toggleColumn(colIndex);
+        });
+    }
 
-function showAllColumns() {
-    columnVisibility = Array(20).fill(true);
-    applyColumnVisibility();
-    $('#column-toggle input[type="checkbox"]').prop('checked', true);
-    fetchPackings();
-}
-
-// Export to Excel
-function exportToExcel() {
-    let packingDateStart = $("#search_packing_date_start").val().trim();
-    let packingDateEnd = $("#search_packing_date_end").val().trim();
-    let weekCommencing = $("#search_week_commencing").val().trim();
-    let fgCode = $("#search_fg_code").val().trim();
-    let description = $("#search_description").val().trim();
-    let machinery = $("#search_machinery").val().trim();
-    let sortBy = sortCriteria.map(criterion => criterion.column);
-    let sortOrder = sortCriteria.map(criterion => criterion.direction);
-
-    let url = "{{ url_for('packing.export_packings') }}?" +
-              "packing_date_start=" + encodeURIComponent(packingDateStart) +
-              "&packing_date_end=" + encodeURIComponent(packingDateEnd) +
-              "&week_commencing=" + encodeURIComponent(weekCommencing) +
-              "&fg_code=" + encodeURIComponent(fgCode) +
-              "&description=" + encodeURIComponent(description) +
-              "&machinery=" + encodeURIComponent(machinery);
-    
-    sortBy.forEach((sort, index) => {
-        url += `&sort_by=${encodeURIComponent(sort)}&sort_order=${encodeURIComponent(sortOrder[index])}`;
+    // Initialize column visibility
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            toggleColumn(parseInt(checkbox.dataset.colIndex));
+        });
     });
 
-    window.location.href = url;
-}
-
-// Bulk edit logic
+    // Bulk edit functionality
 function submitBulkEdit() {
-    let selectedIds = $(".packing-select:checked").map(function() {
-        return $(this).val();
-    }).get();
-
+        const selectedIds = Array.from(document.querySelectorAll('.packing-select:checked')).map(cb => cb.value);
     if (selectedIds.length === 0) {
-        alert("Please select at least one packing entry.");
+            alert('Please select at least one packing entry to edit.');
         return;
     }
 
-    let formData = {
+        const data = {
         ids: selectedIds,
-        special_order_kg: $("#bulk_special_order_kg").val(),
-        calculation_factor: $("#bulk_calculation_factor").val(),
-        machinery: $("#bulk_machinery").val(),
-        priority: $("#bulk_priority").val()
-    };
+            special_order_kg: document.getElementById('bulk_special_order_kg').value || null,
+            calculation_factor: document.getElementById('bulk_calculation_factor').value || null,
+            machinery: document.getElementById('bulk_machinery').value || null,
+            priority: document.getElementById('bulk_priority').value || null
+        };
 
-    $.ajax({
-        url: "{{ url_for('packing.bulk_edit') }}",
-        type: "POST",
-        contentType: "application/json",
-        data: JSON.stringify(formData),
-        success: function(response) {
-            console.log("Bulk edit response:", response);
-            if (response.success) {
-                $("#bulkEditModal").modal("hide");
-                fetchPackings();
-                alert("Packing entries updated successfully!");
+        fetch('/packing/bulk_edit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
             } else {
-                alert("Error: " + response.message);
+                alert('Error: ' + data.message);
             }
-        },
-        error: function(xhr, status, error) {
-            console.error("Bulk edit error:", status, error, xhr.responseText);
-            alert("Error updating packing entries.");
-        }
-    });
-}
-
-// Update sort UI
-function updateSortUI() {
-    $("#packingListTable th[data-column]").each(function() {
-        const arrow = $(this).find('.sort-arrow');
-        arrow.removeClass('asc desc multi-sort-order');
-        arrow.css('--sort-order', '');
-
-        const column = $(this).data("column");
-        const criterionIndex = sortCriteria.findIndex(c => c.column === column);
-
-        if (criterionIndex !== -1) {
-            const criterion = sortCriteria[criterionIndex];
-            arrow.addClass(criterion.direction);
-            if (sortCriteria.length > 1) {
-                arrow.addClass('multi-sort-order');
-                arrow.css('--sort-order', `'${criterionIndex + 1}'`);
-            }
-        }
-    });
-}
-
-// Update cell for select dropdowns (machinery)
-function updateCell(packingId, field, value) {
-    if (value === '' || value == null) {
-        value = field === 'priority' ? 0 : (field === 'machinery' ? null : 0);
-    } else {
-        value = field === 'priority' || field === 'machinery' ? parseInt(value) : parseFloat(value);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating entries');
+        });
     }
 
-    $.ajax({
-        url: "{{ url_for('packing.update_cell') }}",
-        type: "POST",
-        contentType: "application/json",
-        data: JSON.stringify({
-            id: packingId,
-            field: field,
-            value: value
-        }),
-        success: function(response) {
-            console.log("Update cell response:", response);
-            if (response.success) {
-                fetchPackings();
-            } else {
-                alert("Error updating cell: " + response.message);
-                fetchPackings();
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error("Update cell error:", status, error, xhr.responseText);
-            alert("Error updating cell.");
-            fetchPackings();
-        }
+    // Select all functionality
+    document.getElementById('selectAll').addEventListener('change', function() {
+        document.querySelectorAll('.packing-select').forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
     });
-}
 
-// Delete packing entry
-function deletePacking(packingId) {
-    if (!packingId) {
-        alert('Invalid packing ID');
-        return;
-    }
+    // Export to Excel functionality
+    function exportToExcel() {
+        const searchParams = new URLSearchParams({
+            fg_code: document.getElementById('search_fg_code').value,
+            description: document.getElementById('search_description').value,
+            packing_date_start: document.getElementById('search_packing_date_start').value,
+            packing_date_end: document.getElementById('search_packing_date_end').value,
+            week_commencing: document.getElementById('search_week_commencing').value,
+            machinery: document.getElementById('search_machinery').value
+        });
 
-    if (confirm('Are you sure you want to delete this packing entry? This action cannot be undone.')) {
-        // Create a temporary form to submit POST request
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `{{ url_for('packing.packing_delete', id=0) }}`.replace('0', packingId);
-        form.style.display = 'none';
-        
-        // Add CSRF token if needed (assuming Flask-WTF is used)
-        const csrfToken = document.querySelector('meta[name=csrf-token]');
-        if (csrfToken) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = csrfToken.getAttribute('content');
-            form.appendChild(csrfInput);
-        }
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
+        window.location.href = `/packing/export?${searchParams}`;
 }
 </script>
 {% endblock %}

@@ -19,7 +19,10 @@
         <form id="searchForm" onsubmit="return false;">
             <div class="search-field">
                 <label for="search-input">Recipe Code:</label>
-                <input type="text" id="search-input" name="recipe_code" class="search-input-lg" value="{{ search_recipe_code | default('') }}" autocomplete="off">
+                <div class="position-relative">
+                    <input type="text" id="search-input" name="recipe_code" class="search-input-lg" value="{{ search_recipe_code | default('') }}" autocomplete="off">
+                    <div id="recipe_code_suggestions" class="suggestion-list"></div>
+                </div>
             </div>
             <div class="search-field">
                 <label for="search_description">Description:</label>
@@ -37,7 +40,6 @@
                     <i class="fas fa-download"></i> Export Excel
                 </a>
             </div>
-            <div id="recipe_code_suggestions" class="suggestion-list"></div>
         </form>
         <div id="search-results-container" class="table-container">
             <table id="search-results-table">
@@ -237,6 +239,49 @@
         padding: 4px;
         border: 1px solid #ddd;
         border-radius: 4px;
+    }
+    .suggestion-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ccc;
+        border-top: none;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        display: none;
+    }
+
+    .suggestion-list ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .suggestion-list li {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+    }
+
+    .suggestion-list li:last-child {
+        border-bottom: none;
+    }
+
+    .suggestion-list li:hover {
+        background-color: #f8f9fa;
+    }
+
+    .search-field {
+        position: relative;
+        margin-bottom: 1rem;
+    }
+
+    .position-relative {
+        position: relative;
     }
 </style>
 
@@ -549,6 +594,56 @@ function deleteRecipeHandler(id) {
 // Load recipes on page load
 document.addEventListener('DOMContentLoaded', function() {
     fetchRecipes();
+});
+
+$(document).ready(function() {
+    // Auto-suggestion for recipe code
+    $("#search-input").keyup(function() {
+        var query = $(this).val().trim();
+        if (query.length > 0) {
+            $.ajax({
+                url: "{{ url_for('recipe.autocomplete_recipe') }}",
+                type: "GET",
+                data: { query: query },
+                success: function(response) {
+                    if (response.length > 0) {
+                        var suggestionsHtml = "<ul>";
+                        response.forEach(function(recipe) {
+                            suggestionsHtml += `<li data-recipe-code="${recipe.recipe_code}" data-description="${recipe.description || ''}">
+                                ${recipe.recipe_code}
+                                <br>
+                                <small class="text-muted">${recipe.description || ''}</small>
+                            </li>`;
+                        });
+                        suggestionsHtml += "</ul>";
+                        $("#recipe_code_suggestions").html(suggestionsHtml).show();
+                    } else {
+                        $("#recipe_code_suggestions").hide();
+                    }
+                },
+                error: function() {
+                    $("#recipe_code_suggestions").hide();
+                }
+            });
+        } else {
+            $("#recipe_code_suggestions").hide();
+        }
+    });
+
+    // Handle suggestion click
+    $(document).on("click", "#recipe_code_suggestions li", function() {
+        $("#search-input").val($(this).data("recipe-code"));
+        $("#search_description").val($(this).data("description"));
+        $("#recipe_code_suggestions").hide();
+        fetchRecipes(); // Automatically search when a suggestion is selected
+    });
+
+    // Hide suggestions when clicking outside
+    $(document).click(function(event) {
+        if (!$(event.target).closest("#search-input, #recipe_code_suggestions").length) {
+            $("#recipe_code_suggestions").hide();
+        }
+    });
 });
 </script>
 {% endblock %}

@@ -198,8 +198,8 @@
 }
 
 .btn-secondary {
-    background-color: #858796;
-    border-color: #858796;
+    background-color: #6c757d;
+    border-color: #6c757d;
 }
 
 .btn-success {
@@ -215,14 +215,17 @@
 .progress {
     height: 1rem;
     background-color: #f8f9fc;
+    border-radius: 0.35rem;
 }
 
 .progress-bar {
     background-color: #4e73df;
+    transition: width 0.3s ease;
 }
 
 .table {
     font-size: 0.875rem;
+    margin-bottom: 0;
 }
 
 .table thead th {
@@ -259,11 +262,11 @@
     cursor: pointer;
     user-select: none;
     position: relative;
-    padding-right: 25px !important;
+    padding-right: 20px !important;
 }
 
 .sortable-header:hover {
-    background-color: rgba(78, 115, 223, 0.1) !important;
+    background-color: #e3e6f0 !important;
 }
 
 .sort-icon {
@@ -271,9 +274,8 @@
     right: 8px;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 12px;
-    color: #858796;
-    transition: color 0.2s;
+    color: #6c757d;
+    font-size: 0.75rem;
 }
 
 .sortable-header.sort-asc .sort-icon {
@@ -285,11 +287,11 @@
 }
 
 .sortable-header.sort-asc .sort-icon:before {
-    content: "\f0de"; /* fa-sort-up */
+    content: '\f0de'; /* fa-sort-up */
 }
 
 .sortable-header.sort-desc .sort-icon:before {
-    content: "\f0dd"; /* fa-sort-down */
+    content: '\f0dd'; /* fa-sort-down */
 }
 
 .sort-icon:before {
@@ -298,25 +300,21 @@
 
 /* Column Toggle Styles */
 #column-toggle {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    border: 1px solid #dee2e6;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: #f8f9fc;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 #column-toggle h5 {
-    color: #495057;
-    margin-bottom: 15px;
-    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #5a5c69;
     font-weight: 600;
 }
 
 .column-toggle {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    width: 100%;
 }
 
 .toggle-row {
@@ -329,18 +327,12 @@
 .toggle-row label {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 14px;
-    color: #495057;
+    color: #5a5c69;
     cursor: pointer;
-    padding: 5px 10px;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-    min-width: 140px;
-}
-
-.toggle-row label:hover {
-    background-color: rgba(78, 115, 223, 0.1);
+    min-width: 150px;
+    margin: 0;
 }
 
 .toggle-row input[type="checkbox"] {
@@ -374,6 +366,20 @@
     .toggle-actions {
         flex-direction: column;
     }
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+.small {
+    font-size: 0.75rem;
+}
+
+.alert {
+    border-radius: 0.35rem;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1rem;
 }
 </style>
 

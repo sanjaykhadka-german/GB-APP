@@ -7,6 +7,8 @@ class SOH(db.Model):
     
     # Foreign key to ItemMaster instead of fg_code string
     item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
+    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID', ondelete='SET NULL'), nullable=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id', ondelete='SET NULL'), nullable=True)
     
     # Keep fg_code temporarily for migration compatibility (will be removed later)
     fg_code = db.Column(db.String(50), nullable=True)
@@ -22,6 +24,8 @@ class SOH(db.Model):
 
     # Relationships
     item = db.relationship('ItemMaster', backref='soh_records')
+    machinery = db.relationship('Machinery', backref='soh_records')
+    department = db.relationship('Department', backref='soh_records')
 
     __table_args__ = (
         db.UniqueConstraint('week_commencing', 'item_id', name='uix_soh_week_commencing_item_id'),

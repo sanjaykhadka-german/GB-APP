@@ -1147,37 +1147,38 @@ def update_cell():
             return jsonify({'error': 'Packing entry not found'}), 404
 
         # Handle different field types
-        if field == 'special_order_kg':
-            packing.special_order_kg = float(value) if value else 0.0
-        elif field == 'calculation_factor':
-            packing.calculation_factor = float(value) if value else 0.0
-        elif field == 'priority':
-            packing.priority = int(value) if value else 0
-        elif field == 'machinery':
-            packing.machinery = int(value) if value else None
-        else:
-            return jsonify({'error': f'Invalid field: {field}'}), 400
+        try:
+            if field == 'special_order_kg':
+                packing.special_order_kg = float(value) if value else 0.0
+            elif field == 'calculation_factor':
+                packing.calculation_factor = float(value) if value else 0.0
+            elif field == 'priority':
+                packing.priority = int(value) if value else 0
+            elif field == 'machinery':
+                packing.machinery = int(value) if value else None
+            else:
+                return jsonify({'error': f'Invalid field: {field}'}), 400
 
-        # Recalculate values
-        item = packing.item
-        avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
-        soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
-        soh_units = soh.soh_total_units if soh else 0
+            # Recalculate values
+            item = packing.item
+            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+            soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
 
-        # Calculate derived values
-        special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        total_stock_kg = soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            # Calculate derived values
+            special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+            total_stock_kg = soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
+            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
 
-        # Update packing values
-        packing.special_order_unit = special_order_unit
-        packing.soh_kg = soh_kg
-        packing.total_stock_kg = total_stock_kg
-        packing.total_stock_units = total_stock_units
-        packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-        packing.requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+            # Update packing values
+            packing.special_order_unit = special_order_unit
+            packing.soh_kg = soh_kg
+            packing.total_stock_kg = total_stock_kg
+            packing.total_stock_units = total_stock_units
+            packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
+            packing.requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
 
         db.session.commit()
         

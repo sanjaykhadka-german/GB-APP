@@ -29,10 +29,6 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="product_description">Product Description</label>
-            <input type="text" class="form-control" id="product_description" name="product_description" required readonly>
-        </div>
-        <div class="form-group">
             <label for="special_order_kg">Special Order KG</label>
             <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="0.0">
         </div>
@@ -247,208 +243,122 @@
 
     function updateDescription() {
         const select = document.getElementById('product_code');
-        const descriptionInput = document.getElementById('product_description');
         const selectedOption = select.options[select.selectedIndex];
+        const description = selectedOption.getAttribute('data-description');
         
-        if (selectedOption && selectedOption.value !== "") {
-            const productCode = selectedOption.value;
-            descriptionInput.value = selectedOption.getAttribute('data-description');
-            
-            // Fetch and display ItemMaster information
-            fetchItemMasterInfo(productCode);
+        // Update ItemMaster info display
+        if (select.value) {
+            fetch(`/packing/item_master_info/${select.value}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit || '-';
+                    document.getElementById('displayMinLevel').textContent = data.min_level || '-';
+                    document.getElementById('displayMaxLevel').textContent = data.max_level || '-';
+                    document.getElementById('displayCalcFactor').textContent = data.calculation_factor || '-';
+                    document.getElementById('itemMasterInfo').style.display = 'block';
+                    
+                    // Update calculation factor if it's 0 or empty
+                    const calcFactorInput = document.getElementById('calculation_factor');
+                    if (!calcFactorInput.value || calcFactorInput.value === '0' || calcFactorInput.value === '0.0') {
+                        calcFactorInput.value = data.calculation_factor || '0.0';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching item master info:', error);
+                    document.getElementById('itemMasterInfo').style.display = 'none';
+                });
         } else {
-            descriptionInput.value = '';
-            hideItemMasterInfo();
-        }
-    }
-
-    function fetchItemMasterInfo(productCode) {
-        fetch(`/packing/item_master_info/${productCode}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Error fetching item master info:', data.error);
-                    hideItemMasterInfo();
-                } else {
-                    displayItemMasterInfo(data);
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching item master info:', error);
-                hideItemMasterInfo();
-            });
-    }
-
-    function displayItemMasterInfo(data) {
-        // Update the display elements
-        document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit || '0.0';
-        document.getElementById('displayMinLevel').textContent = data.min_level || '0.0';
-        document.getElementById('displayMaxLevel').textContent = data.max_level || '0.0';
-        document.getElementById('displayCalcFactor').textContent = data.calculation_factor || '0.0';
-        
-        // Auto-fill calculation factor if user hasn't entered one
-        const calcFactorInput = document.getElementById('calculation_factor');
-        if (calcFactorInput.value == '0.0' || calcFactorInput.value == '') {
-            calcFactorInput.value = data.calculation_factor || '0.0';
-        }
-        
-        // Show the info panel
-        document.getElementById('itemMasterInfo').style.display = 'block';
-        
-        // Add visual feedback for missing values
-        updateFieldWarnings(data);
-    }
-
-    function hideItemMasterInfo() {
-        document.getElementById('itemMasterInfo').style.display = 'none';
-    }
-
-    function updateFieldWarnings(data) {
-        // Remove existing warnings
-        document.querySelectorAll('.field-warning').forEach(el => el.remove());
-        
-        const warnings = [];
-        if (!data.avg_weight_per_unit || data.avg_weight_per_unit == 0) {
-            warnings.push('Average weight per unit is missing or zero');
-        }
-        if (!data.calculation_factor || data.calculation_factor == 0) {
-            warnings.push('Calculation factor is missing or zero');
-        }
-        if (!data.min_level || data.min_level == 0) {
-            warnings.push('Minimum level is missing or zero');
-        }
-        if (!data.max_level || data.max_level == 0) {
-            warnings.push('Maximum level is missing or zero');
-        }
-        
-        if (warnings.length > 0) {
-            const warningDiv = document.createElement('div');
-            warningDiv.className = 'alert alert-warning field-warning mt-2';
-            warningDiv.innerHTML = `
-                <strong>Missing ItemMaster Data:</strong>
-                <ul class="mb-0">
-                    ${warnings.map(w => `<li>${w}</li>`).join('')}
-                </ul>
-                <small>Please update the Item Master record for accurate calculations.</small>
-            `;
-            document.getElementById('itemMasterInfo').appendChild(warningDiv);
+            document.getElementById('itemMasterInfo').style.display = 'none';
         }
     }
 
     function updateWeekCommencing() {
-        const packingDateInput = document.getElementById('packing_date');
-        const weekCommencingInput = document.getElementById('week_commencing');
-
-        if (packingDateInput.value) {
-            const packingDate = new Date(packingDateInput.value);
-            const dayOfWeek = packingDate.getDay();
-            const daysToMonday = dayOfWeek === 0 ? -6 : -dayOfWeek + 1; // Adjust to Monday
-            const monday = new Date(packingDate);
-            monday.setDate(packingDate.getDate() + daysToMonday);
-
-            // Format date as YYYY-MM-DD
-            const year = monday.getFullYear();
-            const month = String(monday.getMonth() + 1).padStart(2, '0');
-            const day = String(monday.getDate()).padStart(2, '0');
-            weekCommencingInput.value = `${year}-${month}-${day}`;
-        } else {
-            weekCommencingInput.value = '';
+        const packingDate = document.getElementById('packing_date').value;
+        if (packingDate) {
+            const date = new Date(packingDate);
+            const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+            const monday = new Date(date.setDate(diff));
+            document.getElementById('week_commencing').value = monday.toISOString().split('T')[0];
         }
     }
 
     function checkDuplicate() {
-        const weekCommencing = document.getElementById('week_commencing').value;
-        const packingDate = document.getElementById('packing_date').value;
-        const productCode = document.getElementById('product_code').value;
+        const product_code = document.getElementById('product_code').value;
+        const packing_date = document.getElementById('packing_date').value;
         const machinery = document.getElementById('machinery').value;
-        const submitButton = document.getElementById('submitButton');
-        const alertContainer = document.getElementById('packingForm').parentElement;
-
-        // Remove any existing alerts
-        const existingAlert = alertContainer.querySelector('.alert');
-        if (existingAlert) {
-            existingAlert.remove();
-        }
-
-        // Only check duplicates if we have the required fields (machinery is now optional)
-        if (weekCommencing && productCode && packingDate) {
-            const machineParam = machinery ? `&machinery=${machinery}` : '&machinery=';
-            fetch(`/packing/check_duplicate?week_commencing=${weekCommencing}&product_code=${productCode}&packing_date=${packingDate}${machineParam}`)
+        const week_commencing = document.getElementById('week_commencing').value;
+        
+        if (product_code && packing_date && week_commencing) {
+            const params = new URLSearchParams({
+                product_code: product_code,
+                packing_date: packing_date,
+                machinery: machinery || '',
+                week_commencing: week_commencing
+            });
+            
+            fetch(`/packing/check_duplicate?${params}`)
                 .then(response => response.json())
                 .then(data => {
+                    const submitButton = document.getElementById('submitButton');
                     if (data.exists) {
                         submitButton.disabled = true;
-                        const machineText = machinery ? ` with machinery ${machinery}` : '';
-                        const alert = document.createElement('div');
-                        alert.className = 'alert alert-danger border-danger';
-                        alert.style.cssText = 'border-width: 3px; font-size: 1.1em; padding: 1.5rem;';
-                        alert.innerHTML = `
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-exclamation-circle fa-2x text-danger me-3"></i>
-                                <div>
-                                    <h5 class="alert-heading mb-2">🚫 Duplicate Entry Detected!</h5>
-                                    <p class="mb-2">A packing entry already exists for product <strong>${productCode}</strong> on <strong>${packingDate}</strong>${machineText}.</p>
-                                    <p class="mb-0"><strong>You cannot create a duplicate entry.</strong> Please change the date, machinery, or edit the existing entry instead.</p>
-                                </div>
-                            </div>
-                        `;
-                        alertContainer.insertBefore(alert, document.getElementById('packingForm'));
+                        alert(`A packing entry already exists for ${product_code} on ${packing_date}. Please choose a different date or product.`);
                     } else {
                         submitButton.disabled = false;
                     }
                 })
                 .catch(error => {
-                    console.error('Error checking duplicate:', error);
-                    // Don't disable submit on error
-                    submitButton.disabled = false;
+                    console.error('Error checking for duplicates:', error);
                 });
-        } else {
-            // Enable submit if we don't have enough info to check duplicates
-            submitButton.disabled = false;
         }
     }
 
-    // Simple SOH checkbox validation
-    document.addEventListener('DOMContentLoaded', function() {
-        const sohCheckbox = document.getElementById('create_soh_entry');
-        
-        // Simple warning when user tries to uncheck SOH checkbox
-        sohCheckbox.addEventListener('change', function() {
-            if (!this.checked) {
-                const userConfirmed = confirm(
-                    "Are you sure you want to uncheck 'Create SOH entry'?\n\n" +
-                    "This may prevent packing entry creation if no SOH entry exists for this product.\n\n" +
-                    "Click 'Cancel' to keep it checked (recommended)."
-                );
-                
-                if (!userConfirmed) {
-                    this.checked = true; // Re-check the box
-                }
-            }
-        });
-    });
-
-    // Allergen modal functionality (disabled for now - route not implemented)
+    // Add new allergen functionality
     document.getElementById('save-new-allergen').addEventListener('click', function() {
-        const allergenName = document.getElementById('new-allergen-name').value.trim();
+        const allergenName = document.getElementById('new-allergen-name').value;
         if (!allergenName) {
             alert('Please enter an allergen name');
             return;
         }
 
-        // TODO: Implement allergen creation route
-        alert('Allergen creation is not yet implemented. Please create allergens through the allergen management section.');
-        
-        // Close modal and reset form
-        bootstrap.Modal.getInstance(document.getElementById('newAllergenModal')).hide();
-        document.getElementById('new-allergen-form').reset();
-    });
-
-    // Initialize page when DOM is loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        updateDescription();
-        updateWeekCommencing();
-        checkDuplicate();
+        fetch('/allergens/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: allergenName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add new allergen to the list
+                const allergenCheckboxes = document.querySelector('.allergen-checkboxes');
+                const newAllergenWrapper = document.createElement('div');
+                newAllergenWrapper.className = 'allergen-checkbox-wrapper';
+                newAllergenWrapper.innerHTML = `
+                    <input class="form-check-input allergen-checkbox" type="checkbox" 
+                           id="allergen_${data.allergen.id}" 
+                           name="allergen_ids" 
+                           value="${data.allergen.id}">
+                    <label class="form-check-label" for="allergen_${data.allergen.id}">
+                        ${data.allergen.name}
+                    </label>
+                `;
+                allergenCheckboxes.insertBefore(newAllergenWrapper, document.querySelector('.allergen-add-btn'));
+                
+                // Close modal and clear input
+                document.getElementById('new-allergen-name').value = '';
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newAllergenModal'));
+                modal.hide();
+            } else {
+                alert('Error creating allergen: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error creating allergen');
+        });
     });
 </script>
 {% endblock %}

@@ -48,8 +48,6 @@ def create_app():
     from controllers.filling_controller import filling_bp
     from controllers.production_controller import production_bp
     from controllers.recipe_controller import recipe_bp
-    from controllers.production_plan_controller import production_plan_bp
-    from controllers.inject_products_controller import injected_products_bp
     from controllers.inventory_controller import inventory_bp
     from controllers.department_controller import department_bp
     from controllers.machinery_controller import machinery_bp
@@ -66,8 +64,6 @@ def create_app():
     app.register_blueprint(filling_bp)
     app.register_blueprint(production_bp)
     app.register_blueprint(recipe_bp)
-    app.register_blueprint(production_plan_bp, url_prefix='/production_plan')
-    app.register_blueprint(injected_products_bp)
     app.register_blueprint(inventory_bp)
     app.register_blueprint(department_bp)
     app.register_blueprint(machinery_bp)    

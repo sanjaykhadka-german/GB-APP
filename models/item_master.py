@@ -43,11 +43,14 @@ class ItemMaster(db.Model):
     uom = db.relationship('UOM', backref='items')
     allergens = db.relationship('Allergen', secondary='item_allergen', backref='items')
 
-    # This relationship defines what this item is a component OF
-    used_in_recipes = db.relationship('RecipeMaster', foreign_keys='RecipeMaster.raw_material_id', backref='raw_material')
+    # Recipe relationships
+    recipes_where_raw_material = db.relationship('RecipeMaster', 
+                                               foreign_keys='RecipeMaster.raw_material_id',
+                                               primaryjoin='ItemMaster.id == RecipeMaster.raw_material_id')
     
-    # This relationship defines the recipe TO MAKE this item
-    recipe = db.relationship('RecipeMaster', foreign_keys='RecipeMaster.finished_good_id', backref='finished_good')
+    recipes_where_finished_good = db.relationship('RecipeMaster',
+                                                foreign_keys='RecipeMaster.finished_good_id',
+                                                primaryjoin='ItemMaster.id == RecipeMaster.finished_good_id')
 
     def __repr__(self):
         return f'<ItemMaster {self.item_code} - {self.description}>'
@@ -70,11 +73,11 @@ class ItemMaster(db.Model):
 
     def get_recipe_components(self):
         """Get all components needed to make this item"""
-        return [recipe.raw_material for recipe in self.recipe if recipe.is_active]
+        return [recipe.raw_material_item for recipe in self.recipes_where_finished_good if recipe.is_active]
     
     def get_used_in_assemblies(self):
         """Get all assemblies that use this item as a component"""
-        return [recipe.finished_good for recipe in self.used_in_recipes if recipe.is_active]
+        return [recipe.finished_good_item for recipe in self.recipes_where_raw_material if recipe.is_active]
 
 class ItemAllergen(db.Model):
     __tablename__ = 'item_allergen'
