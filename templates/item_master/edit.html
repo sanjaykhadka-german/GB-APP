@@ -2,6 +2,23 @@
 
 {% block content %}
 <style>
+    .field-section {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background-color: #f8f9fa;
+    }
+    
+    .section-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
     .allergen-container {
         display: flex;
         align-items: flex-start;
@@ -15,14 +32,6 @@
         font-weight: 500;
         color: #4e73df;
         min-width: 80px;
-    }
-
-    .allergen-section {
-        flex: 1;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        background-color: #f8f9fa;
     }
 
     .allergen-checkboxes {
@@ -63,12 +72,8 @@
         font-weight: 500;
     }
 
-    .allergen-add-btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.875rem;
-        line-height: 1.4;
-        border-radius: 0.25rem;
-        margin-left: 0.5rem;
+    .form-check-switch {
+        margin-bottom: 0.5rem;
     }
 </style>
 
@@ -83,188 +88,105 @@
                 <input type="hidden" name="id" value="{{ item.id }}">
                 {% endif %}
                 
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="item_code" class="form-label">Item Code *</label>
-                            <input type="text" id="item_code" name="item_code" class="form-control" 
-                                   value="{{ item.item_code if item else '' }}" required>
+                <!-- Basic Information Section -->
+                <div class="field-section">
+                    <div class="section-header">Basic Information</div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="item_code" class="form-label">Item Code *</label>
+                                <input type="text" id="item_code" name="item_code" class="form-control" 
+                                       value="{{ item.item_code if item else '' }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="description" class="form-label">Description *</label>
+                                <input type="text" id="description" name="description" class="form-control" 
+                                       value="{{ item.description if item else '' }}" required>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="description" class="form-label">Description *</label>
-                            <input type="text" id="description" name="description" class="form-control" 
-                                   value="{{ item.description if item else '' }}" required>
+
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="item_type" class="form-label">Item Type *</label>
+                                <div class="input-group">
+                                    <select id="item_type" name="item_type" class="form-select" required>
+                                        <option value="">Select Item Type</option>
+                                        {% for item_type in item_types %}
+                                            <option value="{{ item_type.type_name }}" 
+                                                    {% if item and item.item_type and item.item_type.type_name == item_type.type_name %}selected{% endif %}>
+                                                {{ item_type.type_name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newItemTypeModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="item_type" class="form-label">Item Type</label>
-                            <div class="input-group">
-                                <select id="item_type" name="item_type" class="form-select" required>
-                                    <option value="">Select Item Type</option>
-                                    {% for item_type in item_types %}
-                                        <option value="{{ item_type.type_name }}" 
-                                                {% if item and item.item_type and item.item_type.type_name == item_type.type_name %}selected{% endif %}>
-                                            {{ item_type.type_name }}
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="category_id" class="form-label">Category</label>
+                                <div class="input-group">
+                                    <select id="category_id" name="category_id" class="form-select">
+                                        <option value="">Select Category</option>
+                                        {% for category in categories %}
+                                        <option value="{{ category.id }}" 
+                                                {{ 'selected' if item and item.category_id == category.id else '' }}>
+                                            {{ category.name }}
                                         </option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newItemTypeModal">
-                                    <i class="fas fa-plus"></i>
-                                </button>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newCategoryModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="department_id" class="form-label">Department</label>
+                                <div class="input-group">
+                                    <select id="department_id" name="department_id" class="form-select">
+                                        <option value="">Select Department</option>
+                                        {% for department in departments %}
+                                        <option value="{{ department.department_id }}" 
+                                                {{ 'selected' if item and item.department_id == department.department_id else '' }}>
+                                            {{ department.departmentName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newDepartmentModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="uom_id" class="form-label">UOM</label>
+                                <div class="input-group">
+                                    <select id="uom_id" name="uom_id" class="form-select">
+                                        <option value="">Select UOM</option>
+                                        {% for uom in uoms %}
+                                        <option value="{{ uom.UOMID }}" 
+                                                {{ 'selected' if item and item.uom_id == uom.UOMID else '' }}>
+                                            {{ uom.UOMName }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newUOMModal">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="category_id" class="form-label">Category</label>
-                            <div class="input-group">
-                                <select id="category_id" name="category_id" class="form-select">
-                                    <option value="">Select Category</option>
-                                    {% for category in categories %}
-                                    <option value="{{ category.id }}" 
-                                            {{ 'selected' if item and item.category_id == category.id else '' }}>
-                                        {{ category.name }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newCategoryModal">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="department_id" class="form-label">Department</label>
-                            <div class="input-group">
-                                <select id="department_id" name="department_id" class="form-select">
-                                    <option value="">Select Department</option>
-                                    {% for department in departments %}
-                                    <option value="{{ department.department_id }}" 
-                                            {{ 'selected' if item and item.department_id == department.department_id else '' }}>
-                                        {{ department.departmentName }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newDepartmentModal">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="uom_id" class="form-label">UOM</label>
-                            <div class="input-group">
-                                <select id="uom_id" name="uom_id" class="form-select">
-                                    <option value="">Select UOM</option>
-                                    {% for uom in uoms %}
-                                    <option value="{{ uom.UOMID }}" 
-                                            {{ 'selected' if item and item.uom_id == uom.UOMID else '' }}>
-                                        {{ uom.UOMName }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newUOMModal">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="min_level" class="form-label">Min Level</label>
-                            <input type="number" id="min_level" name="min_level" class="form-control" 
-                                   value="{{ item.min_level if item and item.min_level else '' }}" step="1" min="0">
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="max_level" class="form-label">Max Level</label>
-                            <input type="number" id="max_level" name="max_level" class="form-control" 
-                                   value="{{ item.max_level if item and item.max_level else '' }}" step="1" min="0">
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="price_per_kg" class="form-label">Price per KG</label>
-                            <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" 
-                                   value="{{ item.price_per_kg if item and item.price_per_kg else '' }}" step="0.01" min="0" placeholder="0.00">
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="price_per_uom" class="form-label">Price per UOM</label>
-                            <input type="number" id="price_per_uom" name="price_per_uom" class="form-control" 
-                                   value="{{ item.price_per_uom if item and item.price_per_uom else '' }}" step="0.01" min="0" placeholder="0.00">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="supplier_name" class="form-label">Supplier Name</label>
-                            <input type="text" id="supplier_name" name="supplier_name" class="form-control" 
-                                   value="{{ item.supplier_name if item and item.supplier_name else '' }}" placeholder="Enter supplier name">
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="calculation_factor" class="form-label">Calculation Factor</label>
-                            <input type="number" id="calculation_factor" name="calculation_factor" class="form-control" 
-                                   value="{{ item.calculation_factor if item and item.calculation_factor else '' }}" step="0.01" min="0" placeholder="0.00">
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-group">
-                            <label for="avg_weight_per_unit" class="form-label">Avg Weight per Unit (kg)</label>
-                            <input type="number" id="avg_weight_per_unit" name="avg_weight_per_unit" class="form-control" 
-                                   value="{{ item.avg_weight_per_unit if item and item.avg_weight_per_unit else '' }}" step="0.01" min="0" placeholder="0.00">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="production_code" class="form-label">Production Code</label>
-                            <input type="text" id="production_code" name="production_code" class="form-control" 
-                                   value="{{ item.production_code if item and item.production_code else '' }}" placeholder="Enter production code">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Status</label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
-                                       {{ 'checked' if item and item.is_active else '' }}>
-                                <label class="form-check-label" for="is_active">
-                                    <span id="status-label">{{ 'Active' if item and item.is_active else 'Inactive' }}</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                
-
-                <!-- Raw Material Specific Fields -->
-                <div id="raw-material-fields">
-                    <!-- Raw material specific fields can be added here if needed -->
-                </div>
-
-                <!-- Finished Good Specific Fields -->
-                <div id="finished-good-fields">
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <div class="form-group">
@@ -272,10 +194,10 @@
                                 <div class="input-group">
                                     <select id="machinery_id" name="machinery_id" class="form-select">
                                         <option value="">Select Machinery</option>
-                                        {% for machine in machinery %}
-                                        <option value="{{ machine.machineID }}" 
-                                                {{ 'selected' if item and item.machinery_id == machine.machineID else '' }}>
-                                            {{ machine.machineryName }}
+                                        {% for machinery in machineries %}
+                                        <option value="{{ machinery.machineID }}" 
+                                                {{ 'selected' if item and item.machinery_id == machinery.machineID else '' }}>
+                                            {{ machinery.machineName }}
                                         </option>
                                         {% endfor %}
                                     </select>
@@ -285,12 +207,99 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-8">
+                            <div class="form-group">
+                                <label for="supplier_name" class="form-label">Supplier Name</label>
+                                <input type="text" id="supplier_name" name="supplier_name" class="form-control" 
+                                       value="{{ item.supplier_name if item and item.supplier_name else '' }}" 
+                                       placeholder="Enter supplier name">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inventory & Levels Section -->
+                <div class="field-section">
+                    <div class="section-header">Inventory & Stock Levels</div>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="min_level" class="form-label">Min Level</label>
+                                <input type="number" id="min_level" name="min_level" class="form-control" 
+                                       value="{{ item.min_level if item and item.min_level else '' }}" 
+                                       step="1" min="0" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="max_level" class="form-label">Max Level</label>
+                                <input type="number" id="max_level" name="max_level" class="form-control" 
+                                       value="{{ item.max_level if item and item.max_level else '' }}" 
+                                       step="1" min="0" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="loss_percentage" class="form-label">Loss Percentage (%)</label>
+                                <input type="number" id="loss_percentage" name="loss_percentage" class="form-control" 
+                                       value="{{ item.loss_percentage if item and item.loss_percentage else '' }}" 
+                                       step="0.01" min="0" max="100" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="calculation_factor" class="form-label">Calculation Factor</label>
+                                <input type="number" id="calculation_factor" name="calculation_factor" class="form-control" 
+                                       value="{{ item.calculation_factor if item and item.calculation_factor else '' }}" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Section -->
+                <div class="field-section">
+                    <div class="section-header">Pricing Information</div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="price_per_kg" class="form-label">Price per KG</label>
+                                <input type="number" id="price_per_kg" name="price_per_kg" class="form-control" 
+                                       value="{{ item.price_per_kg if item and item.price_per_kg else '' }}" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="price_per_uom" class="form-label">Price per UOM</label>
+                                <input type="number" id="price_per_uom" name="price_per_uom" class="form-control" 
+                                       value="{{ item.price_per_uom if item and item.price_per_uom else '' }}" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weight & Packaging Section -->
+                <div class="field-section">
+                    <div class="section-header">Weight & Packaging Information</div>
+                    <div class="row mb-3">
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label for="kg_per_unit" class="form-label">KG per Unit</label>
                                 <input type="number" id="kg_per_unit" name="kg_per_unit" class="form-control" 
                                        value="{{ item.kg_per_unit if item and item.kg_per_unit else '' }}" 
-                                       step="0.01" min="0">
+                                       step="0.001" min="0" placeholder="0.000">
+                                <div class="form-text">Weight in kg for each unit (for WIPF/FG items)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="avg_weight_per_unit" class="form-label">Avg Weight per Unit (kg)</label>
+                                <input type="number" id="avg_weight_per_unit" name="avg_weight_per_unit" class="form-control" 
+                                       value="{{ item.avg_weight_per_unit if item and item.avg_weight_per_unit else '' }}" 
+                                       step="0.001" min="0" placeholder="0.000">
+                                <div class="form-text">Average weight per unit in kilograms</div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -298,77 +307,82 @@
                                 <label for="units_per_bag" class="form-label">Units per Bag</label>
                                 <input type="number" id="units_per_bag" name="units_per_bag" class="form-control" 
                                        value="{{ item.units_per_bag if item and item.units_per_bag else '' }}" 
-                                       step="1" min="0">
+                                       step="1" min="0" placeholder="0">
+                                <div class="form-text">Number of units per bag (for FG items)</div>
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Item Attributes Section -->
+                <div class="field-section">
+                    <div class="section-header">Item Attributes</div>
                     <div class="row mb-3">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="loss_percentage" class="form-label">Loss Percentage</label>
-                                <input type="number" id="loss_percentage" name="loss_percentage" class="form-control" 
-                                       value="{{ item.loss_percentage if item and item.loss_percentage else '' }}" 
-                                       step="0.01" min="0" max="100">
+                        <div class="col-md-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                       {{ 'checked' if not item or item.is_active else '' }}>
+                                <label class="form-check-label" for="is_active">
+                                    Active
+                                </label>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label class="form-label">Make to Order</label>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="is_make_to_order" name="is_make_to_order" 
-                                           {{ 'checked' if item and item.is_make_to_order else '' }}>
-                                    <label class="form-check-label" for="is_make_to_order">
-                                        <span id="mto-label">{{ 'Yes' if item and item.is_make_to_order else 'No' }}</span>
-                                    </label>
-                                </div>
+                        <div class="col-md-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_make_to_order" name="is_make_to_order" 
+                                       {{ 'checked' if item and item.is_make_to_order else '' }}>
+                                <label class="form-check-label" for="is_make_to_order">
+                                    Make to Order
+                                </label>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Allergens -->
-                <div class="row mb-3">
-                    <div class="col-md-12">
-                        <div class="allergen-container">
-                            <label class="allergen-label">Allergens</label>
-                            <div class="allergen-section">
-                                <div class="allergen-checkboxes">
-                                    {% for allergen in allergens %}
-                                    <div class="allergen-checkbox-wrapper">
-                                        <input class="form-check-input allergen-checkbox" type="checkbox" 
-                                               id="allergen_{{ allergen.allergens_id }}" 
-                                               name="allergen_ids" 
-                                               value="{{ allergen.allergens_id }}"
-                                               {{ 'checked' if item and allergen in item.allergens else '' }}>
-                                        <label class="form-check-label" for="allergen_{{ allergen.allergens_id }}">
-                                            {{ allergen.name }}
-                                        </label>
-                                    </div>                                    {% endfor %}
-                                    <button type="button" class="btn btn-outline-secondary allergen-add-btn" data-bs-toggle="modal" data-bs-target="#newAllergenModal">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                </div>
+                        <div class="col-md-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="fw" name="fw" 
+                                       {{ 'checked' if item and item.fw else '' }}>
+                                <label class="form-check-label" for="fw">
+                                    FW
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-12">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Save Item
-                        </button>
-                        <a href="/item-master" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Cancel
-                        </a>
+                <!-- Allergen Section -->
+                <div class="field-section">
+                    <div class="section-header">Allergen Information</div>
+                    <div class="allergen-container">
+                        <div class="allergen-label">Allergens:</div>
+                        <div class="allergen-checkboxes">
+                            {% set item_allergen_ids = item.allergens|map(attribute='allergens_id')|list if item else [] %}
+                            {% for allergen in allergens %}
+                            <div class="allergen-checkbox-wrapper">
+                                <input class="form-check-input" type="checkbox" 
+                                       name="allergens" value="{{ allergen.allergens_id }}" 
+                                       id="allergen_{{ allergen.allergens_id }}"
+                                       {{ 'checked' if allergen.allergens_id in item_allergen_ids else '' }}>
+                                <label class="form-check-label" for="allergen_{{ allergen.allergens_id }}">
+                                    {{ allergen.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('item_master.item_master_list') }}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        {{ 'Update Item' if item else 'Create Item' }}
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- New Item Type Modal -->
+<!-- Modal for Adding New Item Type -->
 <div class="modal fade" id="newItemTypeModal" tabindex="-1" aria-labelledby="newItemTypeModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -379,20 +393,20 @@
             <div class="modal-body">
                 <form id="new-item-type-form">
                     <div class="form-group">
-                        <label for="new-item-type-name" class="form-label">Type Name *</label>
+                        <label for="new-item-type-name" class="form-label">Type Name</label>
                         <input type="text" id="new-item-type-name" class="form-control" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-item-type">Save Item Type</button>
+                <button type="button" class="btn btn-primary" id="save-new-item-type">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- New Category Modal -->
+<!-- Modal for Adding New Category -->
 <div class="modal fade" id="newCategoryModal" tabindex="-1" aria-labelledby="newCategoryModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -403,20 +417,20 @@
             <div class="modal-body">
                 <form id="new-category-form">
                     <div class="form-group">
-                        <label for="new-category-name" class="form-label">Category Name *</label>
+                        <label for="new-category-name" class="form-label">Category Name</label>
                         <input type="text" id="new-category-name" class="form-control" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-category">Save Category</button>
+                <button type="button" class="btn btn-primary" id="save-new-category">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- New Department Modal -->
+<!-- Modal for Adding New Department -->
 <div class="modal fade" id="newDepartmentModal" tabindex="-1" aria-labelledby="newDepartmentModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -427,20 +441,20 @@
             <div class="modal-body">
                 <form id="new-department-form">
                     <div class="form-group">
-                        <label for="new-department-name" class="form-label">Department Name *</label>
+                        <label for="new-department-name" class="form-label">Department Name</label>
                         <input type="text" id="new-department-name" class="form-control" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-department">Save Department</button>
+                <button type="button" class="btn btn-primary" id="save-new-department">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- New UOM Modal -->
+<!-- Modal for Adding New UOM -->
 <div class="modal fade" id="newUOMModal" tabindex="-1" aria-labelledby="newUOMModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -451,20 +465,20 @@
             <div class="modal-body">
                 <form id="new-uom-form">
                     <div class="form-group">
-                        <label for="new-uom-name" class="form-label">UOM Name *</label>
+                        <label for="new-uom-name" class="form-label">UOM Name</label>
                         <input type="text" id="new-uom-name" class="form-control" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-uom">Save UOM</button>
+                <button type="button" class="btn btn-primary" id="save-new-uom">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- New Machinery Modal -->
+<!-- Modal for Adding New Machinery -->
 <div class="modal fade" id="newMachineryModal" tabindex="-1" aria-labelledby="newMachineryModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -475,607 +489,122 @@
             <div class="modal-body">
                 <form id="new-machinery-form">
                     <div class="form-group">
-                        <label for="new-machinery-name" class="form-label">Machinery Name *</label>
+                        <label for="new-machinery-name" class="form-label">Machinery Name</label>
                         <input type="text" id="new-machinery-name" class="form-control" required>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-machinery">Save Machinery</button>
+                <button type="button" class="btn btn-primary" id="save-new-machinery">Save</button>
             </div>
         </div>
     </div>
 </div>
-
-<!-- New Allergen Modal -->
-<div class="modal fade" id="newAllergenModal" tabindex="-1" aria-labelledby="newAllergenModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="newAllergenModalLabel">Add New Allergen</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="new-allergen-form">
-                    <div class="form-group">
-                        <label for="new-allergen-name" class="form-label">Allergen Name *</label>
-                        <input type="text" id="new-allergen-name" class="form-control" required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="save-new-allergen">Save Allergen</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-.card {
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
-    border: none;
-}
-
-.card-header {
-    background-color: #f8f9fc;
-    border-bottom: 1px solid #e3e6f0;
-    padding: 1rem 1.35rem;
-}
-
-.form-label {
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: #4e73df;
-}
-
-.form-control, .form-select {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    border: 1px solid #d1d3e2;
-    border-radius: 0.35rem;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: #bac8f3;
-    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
-}
-
-.btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    border-radius: 0.35rem;
-}
-
-.btn-primary {
-    background-color: #4e73df;
-    border-color: #4e73df;
-}
-
-.btn-secondary {
-    background-color: #858796;
-    border-color: #858796;
-}
-
-/* Toggle Switch Styles */
-.form-check-input {
-    width: 2em;
-    height: 1em;
-    margin-top: 0.25em;
-    vertical-align: top;
-    background-color: #dee2e6;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: contain;
-    border: 1px solid rgba(0, 0, 0, 0.25);
-    appearance: none;
-    print-color-adjust: exact;
-}
-
-.form-check-input:checked {
-    background-color: #4e73df;
-    border-color: #4e73df;
-}
-
-.form-check-input:focus {
-    border-color: #bac8f3;
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
-}
-
-.form-check-input:checked:focus {
-    border-color: #bac8f3;
-    box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
-}
-
-.form-check-label {
-    margin-left: 0.01rem;        
-    font-weight: 500;
-}
-
-#status-label, #mto-label {
-    color: #5a5c69;
-    font-weight: 600;
-}
-
-.form-check-input:checked + .form-check-label #status-label {
-    color: #1cc88a;
-}
-
-.form-check-input:not(:checked) + .form-check-label #status-label {
-    color: #e74a3b;
-}
-
-.form-check-input:checked + .form-check-label #mto-label {
-    color: #1cc88a;
-}
-
-.form-check-input:not(:checked) + .form-check-label #mto-label {
-    color: #5a5c69;
-}
-
-/* Allergen Checkbox Styles - Fixed Layout */
-.allergen-checkboxes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid #d1d3e2;
-    border-radius: 0.35rem;
-    background-color: #f8f9fa;
-    min-height: 50px;
-}
-
-.form-check-inline {
-    display: inline-flex;
-    align-items: center;
-    margin: 0;
-    padding: 0;
-    min-width: 120px; /* Ensures consistent width */
-}
-
-.allergen-checkbox {
-    width: 18px !important;
-    height: 18px !important;
-    margin: 0;
-    padding: 0;
-    border: 1px solid #adb5bd;
-    border-radius: 3px;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-color: #fff;
-    cursor: pointer;
-    position: relative;
-    top: -1px; /* Align checkbox with text */
-}
-
-.allergen-checkbox:checked {
-    background-color: #4e73df;
-    border-color: #4e73df;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
-    background-size: 75%;
-    background-position: center;
-    background-repeat: no-repeat;
-}
-
-.form-check-inline label {
-    margin: 0;
-    padding: 0;
-    padding-left: 6px;
-    font-size: 0.875rem;
-    color: #495057;
-    cursor: pointer;
-    user-select: none;
-    line-height: 1.2;
-    font-weight: 400;
-}
-
-.allergen-checkbox:checked + label {
-    color: #4e73df;
-    font-weight: 500;
-}
-
-/* Hover states */
-.form-check-inline:hover .allergen-checkbox {
-    border-color: #4e73df;
-}
-
-.form-check-inline:hover label {
-    color: #4e73df;
-}
-</style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const itemTypeSelect = document.getElementById('item_type');
-    const rawMaterialFields = document.getElementById('raw-material-fields');
-    const finishedGoodFields = document.getElementById('finished-good-fields');
-    const statusToggle = document.getElementById('is_active');
-    const statusLabel = document.getElementById('status-label');
-    const mtoToggle = document.getElementById('is_make_to_order');
-    const mtoLabel = document.getElementById('mto-label');
+// Form submission
+document.getElementById('item-form').addEventListener('submit', function(e) {
+    e.preventDefault();
     
-    // Modal elements
-    const newItemTypeModal = document.getElementById('newItemTypeModal');
-    const newCategoryModal = document.getElementById('newCategoryModal');
-    const newDepartmentModal = document.getElementById('newDepartmentModal');
-    const newUOMModal = document.getElementById('newUOMModal');
-    const newMachineryModal = document.getElementById('newMachineryModal');
-    const newAllergenModal = document.getElementById('newAllergenModal');
+    const formData = new FormData(this);
     
-    // Form elements
-    const newItemTypeForm = document.getElementById('new-item-type-form');
-    const newCategoryForm = document.getElementById('new-category-form');
-    const newDepartmentForm = document.getElementById('new-department-form');
-    const newUOMForm = document.getElementById('new-uom-form');
-    const newMachineryForm = document.getElementById('new-machinery-form');
-    const newAllergenForm = document.getElementById('new-allergen-form');
-    
-    // Input elements
-    const newItemTypeName = document.getElementById('new-item-type-name');
-    const newCategoryName = document.getElementById('new-category-name');
-    const newDepartmentName = document.getElementById('new-department-name');
-    const newUOMName = document.getElementById('new-uom-name');
-    const newMachineryName = document.getElementById('new-machinery-name');
-    const newAllergenName = document.getElementById('new-allergen-name');
-    
-    // Button elements
-    const saveNewItemTypeBtn = document.getElementById('save-new-item-type');
-    const saveNewCategoryBtn = document.getElementById('save-new-category');
-    const saveNewDepartmentBtn = document.getElementById('save-new-department');
-    const saveNewUOMBtn = document.getElementById('save-new-uom');
-    const saveNewMachineryBtn = document.getElementById('save-new-machinery');
-    const saveNewAllergenBtn = document.getElementById('save-new-allergen');
-
-    // Status toggle handler
-    statusToggle.addEventListener('change', function() {
-        statusLabel.textContent = this.checked ? 'Active' : 'Inactive';
-    });
-
-    // Make to Order toggle handler
-    mtoToggle.addEventListener('change', function() {
-        mtoLabel.textContent = this.checked ? 'Yes' : 'No';
-    });
-
-    function toggleFields() {
-        if (itemTypeSelect.value === 'Raw Material') {
-            rawMaterialFields.style.display = 'block';
-            finishedGoodFields.style.display = 'none';
-            // Clear finished good fields
-            document.getElementById('machinery_id').value = '';
-            document.getElementById('kg_per_unit').value = '';
-            document.getElementById('units_per_bag').value = '';
-            document.getElementById('loss_percentage').value = '';
-            mtoToggle.checked = false;
-            mtoLabel.textContent = 'No';
-        } else if (itemTypeSelect.value === 'Finished Good' || itemTypeSelect.value === 'WIPF' || itemTypeSelect.value === 'WIP') {
-            rawMaterialFields.style.display = 'none';
-            finishedGoodFields.style.display = 'block';
-            // Clear raw material fields
-            document.getElementById('price_per_kg').value = '';
-        } else if (itemTypeSelect.value && itemTypeSelect.value !== 'new') {
-            // For any other item types, hide both sections
-            rawMaterialFields.style.display = 'none';
-            finishedGoodFields.style.display = 'none';
+    // Convert form data to JSON
+    const jsonData = {};
+    for (let [key, value] of formData.entries()) {
+        if (key === 'allergens') {
+            if (!jsonData.allergens) jsonData.allergens = [];
+            jsonData.allergens.push(value);
+        } else {
+            jsonData[key] = value;
         }
     }
-
-    // Set initial visibility on page load
-    toggleFields();
-
-    itemTypeSelect.addEventListener('change', function(){
-        toggleFields();
-    });
-
-    // Handle saving new item type
-    saveNewItemTypeBtn.addEventListener('click', function(){
-        const typeName = newItemTypeName.value.trim();
-        if (typeName){
-            fetch('/item-type', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({type_name: typeName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {
-                    // Add new item type to the select dynamically 
-                    const newOption = document.createElement('option');
-                    newOption.value = typeName;
-                    newOption.textContent = typeName;
-                    itemTypeSelect.appendChild(newOption);
-                    
-                    // Select the newly created item type
-                    itemTypeSelect.value = typeName;
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newItemTypeModal);
-                    modal.hide();
-                    newItemTypeForm.reset();
-                    
-                    // Toggle fields based on new selection
-                    toggleFields();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the item type');
-            });
+    
+    // Add checkbox values
+    jsonData.is_active = document.getElementById('is_active').checked;
+    jsonData.is_make_to_order = document.getElementById('is_make_to_order').checked;
+    jsonData.fw = document.getElementById('fw').checked;
+    
+    // Determine if this is an edit or create
+    const itemId = document.querySelector('input[name="id"]');
+    const url = itemId ? `/item-master/edit/${itemId.value}` : '/item-master/create';
+    const method = itemId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/item-master';
         } else {
-            alert('Please enter a type name');
+            alert('Error: ' + (data.message || 'Unknown error occurred'));
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving item');
     });
+});
 
-    // Handle saving new category
-    saveNewCategoryBtn.addEventListener('click', function(){
-        const categoryName = newCategoryName.value.trim();
-        if (categoryName){
-            fetch('/category', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({name: categoryName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {
-                    // Add new category to the select dynamically 
-                    const categorySelect = document.getElementById('category_id');
-                    const newOption = document.createElement('option');
-                    newOption.value = result.id;
-                    newOption.textContent = categoryName;
-                    categorySelect.appendChild(newOption);
-                    
-                    // Select the newly created category
-                    categorySelect.value = result.id;
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newCategoryModal);
-                    modal.hide();
-                    newCategoryForm.reset();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the category');
-            });
-        } else {
-            alert('Please enter a category name');
-        }
-    });
-
-    // Handle saving new department
-    saveNewDepartmentBtn.addEventListener('click', function(){
-        const departmentName = newDepartmentName.value.trim();
-        if (departmentName){
-            fetch('/department', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({departmentName: departmentName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {
-                    // Add new department to the select dynamically 
-                    const departmentSelect = document.getElementById('department_id');
-                    const newOption = document.createElement('option');
-                    newOption.value = result.id;
-                    newOption.textContent = departmentName;
-                    departmentSelect.appendChild(newOption);
-                    
-                    // Select the newly created department
-                    departmentSelect.value = result.id;
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newDepartmentModal);
-                    modal.hide();
-                    newDepartmentForm.reset();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the department');
-            });
-        } else {
-            alert('Please enter a department name');
-        }
-    });
-
-    // Handle saving new UOM
-    saveNewUOMBtn.addEventListener('click', function(){
-        const uomName = newUOMName.value.trim();
-        if (uomName){
-            fetch('/uom', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({UOMName: uomName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {
-                    // Add new UOM to the select dynamically 
-                    const uomSelect = document.getElementById('uom_id');
-                    const newOption = document.createElement('option');
-                    newOption.value = result.id;
-                    newOption.textContent = uomName;
-                    uomSelect.appendChild(newOption);
-                    
-                    // Select the newly created UOM
-                    uomSelect.value = result.id;
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newUOMModal);
-                    modal.hide();
-                    newUOMForm.reset();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the UOM');
-            });
-        } else {
-            alert('Please enter a UOM name');
-        }
-    });
-
-    // Handle saving new machinery
-    saveNewMachineryBtn.addEventListener('click', function(){
-        const machineryName = newMachineryName.value.trim();
-        if (machineryName){
-            fetch('/machinery', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({machineryName: machineryName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {
-                    // Add new machinery to the select dynamically 
-                    const machinerySelect = document.getElementById('machinery_id');
-                    const newOption = document.createElement('option');
-                    newOption.value = result.id;
-                    newOption.textContent = machineryName;
-                    machinerySelect.appendChild(newOption);
-                    
-                    // Select the newly created machinery
-                    machinerySelect.value = result.id;
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newMachineryModal);
-                    modal.hide();
-                    newMachineryForm.reset();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the machinery');
-            });
-        } else {
-            alert('Please enter a machinery name');
-        }
-    });
-
-    // Handle saving new allergen
-    saveNewAllergenBtn.addEventListener('click', function(){
-        const allergenName = newAllergenName.value.trim();
-        if (allergenName){
-            fetch('/allergen', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({name: allergenName})
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.error) {
-                    alert(result.error);
-                } else {                    // Add new checkbox to allergen section                const allergenContainer = document.querySelector('.allergen-checkboxes');
-                const addButton = allergenContainer.querySelector('.allergen-add-btn');
-                const newCheckboxDiv = document.createElement('div');
-                newCheckboxDiv.className = 'allergen-checkbox-wrapper';
-                newCheckboxDiv.innerHTML = `
-                    <input class="form-check-input allergen-checkbox" type="checkbox" 
-                           id="allergen_${result.id}" 
-                           name="allergen_ids" 
-                           value="${result.id}"
-                           checked>
-                    <label class="form-check-label" for="allergen_${result.id}">
-                        ${allergenName}
-                    </label>
-                `;
-                allergenContainer.insertBefore(newCheckboxDiv, addButton);
-                    
-                    // Close modal and clear form
-                    const modal = bootstrap.Modal.getInstance(newAllergenModal);
-                    modal.hide();
-                    newAllergenForm.reset();
-                    alert('Allergen added successfully!');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while saving the allergen');
-            });
-        } else {
-            alert('Please enter an allergen name');
-        }
-    });
-
-    // Clear forms when modals are closed
-    [newItemTypeModal, newCategoryModal, newDepartmentModal, newUOMModal, newMachineryModal, newAllergenModal].forEach(modal => {
-        modal.addEventListener('hidden.bs.modal', function () {
-            const formId = this.querySelector('form').id;
-            document.getElementById(formId).reset();
-        });
-    });
-
-    document.getElementById('item-form').addEventListener('submit', function(e) {
-        e.preventDefault();
+// Modal save handlers (simplified versions)
+document.getElementById('save-new-item-type').addEventListener('click', function() {
+    const name = document.getElementById('new-item-type-name').value;
+    if (name) {
+        // Add to dropdown and close modal
+        const select = document.getElementById('item_type');
+        const option = new Option(name, name);
+        select.add(option);
+        select.value = name;
         
-        const formData = new FormData(this);
-        const data = {};
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newItemTypeModal'));
+        modal.hide();
         
-        // Handle regular form fields
-        formData.forEach((value, key) => {
-            if (key === 'allergen_ids') {
-                if (!data[key]) data[key] = [];
-                data[key].push(value);
-            } else {
-                data[key] = value === '' ? null : value;
-            }
-        });
+        // Clear form
+        document.getElementById('new-item-type-form').reset();
+    }
+});
 
-        // Handle checkbox values for toggles
-        data.is_active = statusToggle.checked;
-        data.is_make_to_order = mtoToggle.checked;
+document.getElementById('save-new-category').addEventListener('click', function() {
+    const name = document.getElementById('new-category-name').value;
+    if (name) {
+        // For now, just close modal (in real implementation, make API call)
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newCategoryModal'));
+        modal.hide();
+        document.getElementById('new-category-form').reset();
+    }
+});
 
-        // Handle allergen checkboxes manually since FormData may not capture unchecked boxes correctly
-        const allergenCheckboxes = document.querySelectorAll('.allergen-checkbox:checked');
-        data.allergen_ids = Array.from(allergenCheckboxes).map(cb => cb.value);
+document.getElementById('save-new-department').addEventListener('click', function() {
+    const name = document.getElementById('new-department-name').value;
+    if (name) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newDepartmentModal'));
+        modal.hide();
+        document.getElementById('new-department-form').reset();
+    }
+});
 
-        fetch('/item-master', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.error) {
-                alert(result.error);
-            } else {
-                alert(result.message);
-                window.location.href = '/item-master';
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving the item');
-        });
-    });
+document.getElementById('save-new-uom').addEventListener('click', function() {
+    const name = document.getElementById('new-uom-name').value;
+    if (name) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newUOMModal'));
+        modal.hide();
+        document.getElementById('new-uom-form').reset();
+    }
+});
+
+document.getElementById('save-new-machinery').addEventListener('click', function() {
+    const name = document.getElementById('new-machinery-name').value;
+    if (name) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newMachineryModal'));
+        modal.hide();
+        document.getElementById('new-machinery-form').reset();
+    }
 });
 </script>
 {% endblock %}

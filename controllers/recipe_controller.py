@@ -151,7 +151,8 @@ def autocomplete_recipe():
     if not search:
         return jsonify([])
     try:
-        query = text("SELECT recipe_code, description FROM recipe_master WHERE recipe_code LIKE :search LIMIT 10")
+        # Use DISTINCT to get unique recipe codes and their descriptions
+        query = text("SELECT DISTINCT recipe_code, description FROM recipe_master WHERE recipe_code LIKE :search ORDER BY recipe_code LIMIT 10")
         results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
         suggestions = [{"recipe_code": row[0], "description": row[1]} for row in results]
         return jsonify(suggestions)

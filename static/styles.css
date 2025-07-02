@@ -395,6 +395,8 @@ input[type="checkbox"] {
 .no-results {
     text-align: center;
     padding: 20px;
+    color: #666;
+    font-style: italic;
 }
 
 .suggestion-list {
@@ -458,4 +460,73 @@ nav ul li.active a {
 .card .form-control {
     width: 100%;
     overflow: hidden;
+}
+
+/* Allergen Section Styles */
+.allergen-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.allergen-label {
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.allergen-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    max-width: 100%;
+}
+
+.allergen-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    padding: 5px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+}
+
+.allergen-checkbox-wrapper:hover {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+}
+
+.allergen-checkbox-wrapper input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.allergen-checkbox-wrapper label {
+    margin: 0;
+    cursor: pointer;
+    font-size: 14px;
+    color: #555;
+    min-width: auto;
+    text-align: left;
+}
+
+/* Field Section Styles */
+.field-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #fafafa;
+}
+
+.section-header {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #007bff;
 }
