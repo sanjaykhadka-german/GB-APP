@@ -9,10 +9,12 @@ import pytz
 import math
 
 from controllers.packing_controller import update_packing_entry
+from controllers.enhanced_bom_service import EnhancedBOMService
 from models.item_master import ItemMaster
 from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
+from models.joining import Joining
 
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
@@ -26,7 +28,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     """
     Create or update a packing entry when SOH data is uploaded.
     This is a simplified version specifically for SOH uploads.
-    Also creates related Filling and Production entries as needed.
+    Now uses the enhanced BOM service with joining table for optimized performance.
     """
     from app import db
     from models.packing import Packing
@@ -81,67 +83,82 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         db.session.commit()
         print(f"✓ Packing entry saved: requirement_kg={packing.requirement_kg}, requirement_unit={packing.requirement_unit}")
         
-        # Create related Filling and Production entries (similar to what packing controller does)
-        created_entries = ["Packing"]
-        
-        # Check if this item is used in any WIPF recipes
-        wipf_recipes = item.recipes_where_raw_material.filter(
-            ItemMaster.item_type.has(type_name='WIPF')
-        ).all()
-        
-        if wipf_recipes and packing.requirement_kg > 0:
-            for recipe in wipf_recipes:
-                wipf_item = recipe.raw_material_item
-                if wipf_item:
-                    filling = Filling.query.filter_by(
-                        filling_date=week_commencing,
-                        item_id=wipf_item.id,
-                        week_commencing=week_commencing
-                    ).first()
-                    
-                    if filling:
-                        filling.kilo_per_size = packing.requirement_kg
-                        print(f"✓ Updated Filling entry for {wipf_item.item_code}")
-                    else:
-                        filling = Filling(
-                            filling_date=week_commencing,
-                            item_id=wipf_item.id,
-                            fill_code=wipf_item.item_code,  # Keep for backward compatibility
-                            description=wipf_item.description,
-                            kilo_per_size=packing.requirement_kg,
-                            week_commencing=week_commencing
-                        )
-                        db.session.add(filling)
-                        print(f"✓ Created Filling entry for {wipf_item.item_code}")
-                    created_entries.append("Filling")
-        
-        if item.production_code and packing.requirement_kg > 0:
-            # Create/update Production entry
-            production = Production.query.filter_by(
-                production_date=week_commencing,
-                production_code=item.production_code,
-                week_commencing=week_commencing
-            ).first()
-            
-            if production:
-                production.total_kg = packing.requirement_kg
-                print(f"✓ Updated Production entry for {item.production_code}")
-            else:
-                wip_item = ItemMaster.query.filter_by(item_code=item.production_code, item_type='WIP').first()
-                production = Production(
-                    production_date=week_commencing,
-                    production_code=item.production_code,
-                    description=wip_item.description if wip_item else f"{item.production_code} - WIP",
-                    total_kg=packing.requirement_kg,
-                    week_commencing=week_commencing
+        # Use Enhanced BOM Service for downstream requirements creation
+        if packing.requirement_kg > 0:
+            try:
+                # Calculate downstream requirements using joining table
+                requirements = EnhancedBOMService.calculate_downstream_requirements(
+                    fg_code, packing.requirement_kg
                 )
-                db.session.add(production)
-                print(f"✓ Created Production entry for {item.production_code}")
-            created_entries.append("Production")
-        
-        db.session.commit()
-        print(f"✓ Created/updated entries: {', '.join(created_entries)}")
-        return True, "Success"
+                
+                if requirements:
+                    created_entries = []
+                    
+                    # Create filling entry if needed
+                    if 'filling' in requirements:
+                        filling_req = requirements['filling']
+                        existing_filling = Filling.query.filter_by(
+                            item_code=filling_req['item_code'],
+                            week_commencing=week_commencing
+                        ).first()
+                        
+                        if not existing_filling:
+                            filling = Filling(
+                                item_code=filling_req['item_code'],
+                                description=filling_req['description'],
+                                week_commencing=week_commencing,
+                                calculation_factor=calculation_factor or 1.0,
+                                requirement_kg=filling_req['requirement_kg'],
+                                requirement_unit=filling_req['requirement_unit']
+                            )
+                            db.session.add(filling)
+                            created_entries.append(f"Filling: {filling_req['item_code']}")
+                    
+                    # Create production entry if needed
+                    if 'production' in requirements:
+                        production_req = requirements['production']
+                        existing_production = Production.query.filter_by(
+                            item_code=production_req['item_code'],
+                            week_commencing=week_commencing
+                        ).first()
+                        
+                        if not existing_production:
+                            production = Production(
+                                item_code=production_req['item_code'],
+                                description=production_req['description'],
+                                production_code=production_req['item_code'],  # Required field
+                                week_commencing=week_commencing,
+                                calculation_factor=calculation_factor or 1.0,
+                                requirement_kg=production_req['requirement_kg'],
+                                requirement_unit=production_req['requirement_unit']
+                            )
+                            db.session.add(production)
+                            created_entries.append(f"Production: {production_req['item_code']}")
+                    
+                    # Commit downstream entries
+                    db.session.commit()
+                    
+                    if created_entries:
+                        message = f"Packing created. Downstream entries: {', '.join(created_entries)}"
+                        print(f"✓ Enhanced BOM successful: {message}")
+                        return True, message
+                    else:
+                        print("✓ Enhanced BOM: No new downstream entries needed")
+                        return True, "Packing created (existing downstream entries found)"
+                        
+                else:
+                    # No hierarchy found, fall back to direct production
+                    print(f"✓ No hierarchy found for {fg_code}, direct production flow")
+                    return True, "Packing created (direct production flow)"
+                    
+            except Exception as e:
+                print(f"✗ Enhanced BOM failed: {str(e)}")
+                # Don't fail the whole operation, packing was still created
+                return True, f"Packing created but enhanced BOM failed: {str(e)}"
+        else:
+            print("✓ Packing entry created (no downstream requirements due to zero kg)")
+            return True, "Packing entry created"
+            
     except Exception as e:
         db.session.rollback()
         print(f"✗ Error creating packing entry: {str(e)}")

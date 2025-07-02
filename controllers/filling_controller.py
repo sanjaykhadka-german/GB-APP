@@ -4,6 +4,7 @@ from database import db
 from models.filling import Filling
 from models.item_master import ItemMaster
 from models.production import Production
+from models.recipe_master import RecipeMaster
 from sqlalchemy import func
 from sqlalchemy.sql import text
 import openpyxl
@@ -111,9 +112,11 @@ def filling_create():
 
             # Update or create corresponding Production entries
             # Find finished goods that use this WIPF item in their recipes
-            fg_items = ItemMaster.query.filter(
-                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
-            ).all()
+            from models.recipe_master import RecipeMaster
+            fg_items_query = db.session.query(ItemMaster).join(
+                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
+            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
+            fg_items = fg_items_query.all()
             for fg_item in fg_items:
                 update_production_entry(filling_date, wipf_item.item_code, fg_item, week_commencing)
 
@@ -165,18 +168,21 @@ def filling_edit(id):
 
             # Update corresponding Production entries
             # Find finished goods that use this WIPF item in their recipes
-            fg_items = ItemMaster.query.filter(
-                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
-            ).all()
+            from models.recipe_master import RecipeMaster
+            fg_items_query = db.session.query(ItemMaster).join(
+                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
+            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
+            fg_items = fg_items_query.all()
             for fg_item in fg_items:
                 update_production_entry(filling.filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
 
             # If date changed or WIPF item changed, also update old production entries
             if old_filling_date != filling.filling_date or old_wipf_item != filling.item:
                 if old_wipf_item:
-                    old_fg_items = ItemMaster.query.filter(
-                        ItemMaster.recipes_where_raw_material.any(raw_material_id=old_wipf_item.id)
-                    ).all()
+                    old_fg_items_query = db.session.query(ItemMaster).join(
+                        RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
+                    ).filter(RecipeMaster.raw_material_id == old_wipf_item.id)
+                    old_fg_items = old_fg_items_query.all()
                     for old_fg_item in old_fg_items:
                         update_production_entry(old_filling_date, old_wipf_item.item_code, old_fg_item, filling.week_commencing)
 
@@ -208,9 +214,11 @@ def filling_delete(id):
 
         # Update corresponding Production entries
         if wipf_item:
-            fg_items = ItemMaster.query.filter(
-                ItemMaster.recipes_where_raw_material.any(raw_material_id=wipf_item.id)
-            ).all()
+            from models.recipe_master import RecipeMaster
+            fg_items_query = db.session.query(ItemMaster).join(
+                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
+            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
+            fg_items = fg_items_query.all()
             for fg_item in fg_items:
                 update_production_entry(filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
 
@@ -366,6 +374,133 @@ def export_fillings_excel():
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('filling.filling_list'))
 
+# Usage Report for Filling
+@filling_bp.route('/usage')
+def filling_usage():
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    
+    # Query to get filling and recipe usage data
+    from sqlalchemy.orm import aliased
+    
+    # Create aliases for the two ItemMaster references
+    FillingItem = aliased(ItemMaster)
+    ComponentItem = aliased(ItemMaster)
+    
+    query = db.session.query(
+        Filling,
+        RecipeMaster,
+        ComponentItem.description.label('component_name')
+    ).join(
+        FillingItem, Filling.item_id == FillingItem.id
+    ).join(
+        RecipeMaster, RecipeMaster.raw_material_id == FillingItem.id
+    ).join(
+        ComponentItem, RecipeMaster.raw_material_id == ComponentItem.id
+    )
+    
+    # Apply date filters if provided
+    if from_date and to_date:
+        query = query.filter(
+            Filling.filling_date >= from_date,
+            Filling.filling_date <= to_date
+        )
+    
+    # Get the results
+    usage_data = query.all()
+    
+    # Group data by filling date
+    grouped_usage_data = {}
+    for filling, recipe, component_name in usage_data:
+        date = filling.filling_date
+        # Calculate the Monday of the week for the filling_date
+        def get_monday_date(date_str):
+            from datetime import datetime, timedelta
+            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            return date - timedelta(days=date.weekday())
+        
+        week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
+        
+        if date not in grouped_usage_data:
+            grouped_usage_data[date] = []
+            
+        grouped_usage_data[date].append({
+            'week_commencing': week_commencing.strftime('%Y-%m-%d'),
+            'filling_date': filling.filling_date.strftime('%Y-%m-%d'),
+            'fill_code': filling.item.item_code,
+            'recipe_code': recipe.recipe_code,
+            'component_material': component_name,
+            'usage_kg': recipe.kg_per_batch * (filling.kilo_per_size / 100) if filling.kilo_per_size else 0,
+            'kg_per_batch': recipe.kg_per_batch,
+            'percentage': recipe.percentage if recipe.percentage else 0.0
+        })
+    
+    return render_template('filling/usage.html',
+                         grouped_usage_data=grouped_usage_data,
+                         from_date=from_date,
+                         to_date=to_date,
+                         current_page='filling_usage')
+
+# Raw Material Report for Filling
+@filling_bp.route('/raw_material_report', methods=['GET'])
+def filling_raw_material_report():
+    try:
+        # Get week commencing filter from request
+        week_commencing = request.args.get('week_commencing')
+        
+        # Base query for weekly data
+        raw_material_query = """
+        SELECT 
+            DATE(f.filling_date - INTERVAL (WEEKDAY(f.filling_date)) DAY) as week_commencing,
+            im_component.description as component_material,
+            im_component.id as component_item_id,
+            SUM(f.kilo_per_size * r.percentage / 100) as total_usage
+        FROM filling f
+        JOIN item_master im_wipf ON f.item_id = im_wipf.id
+        JOIN recipe_master r ON r.raw_material_id = im_wipf.id
+        JOIN item_master im_component ON r.raw_material_id = im_component.id
+        """
+        
+        # Add date filter to the query
+        params = {}
+        if week_commencing:
+            raw_material_query += """ 
+            WHERE DATE(f.filling_date - INTERVAL (WEEKDAY(f.filling_date)) DAY) = :week_commencing
+            """
+            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+        
+        raw_material_query += """
+        GROUP BY 
+            DATE(f.filling_date - INTERVAL (WEEKDAY(f.filling_date)) DAY),
+            im_component.description,
+            im_component.id
+        ORDER BY week_commencing DESC, im_component.description
+        """
+        
+        results = db.session.execute(text(raw_material_query), params).fetchall()
+        
+        # Convert to list of dictionaries for template
+        raw_material_data = [
+            {
+                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
+                'raw_material': result.component_material,
+                'usage': round(float(result.total_usage), 2)
+            }
+            for result in results
+        ]
+        
+        return render_template('filling/raw_material_report.html', 
+                             raw_material_data=raw_material_data,
+                             week_commencing=week_commencing,
+                             current_page='filling_raw_material_report')
+        
+    except Exception as e:
+        flash(f"An error occurred: {str(e)}", 'error')
+        return render_template('filling/raw_material_report.html', 
+                             raw_material_data=[],
+                             week_commencing=week_commencing,
+                             current_page='filling_raw_material_report')
+
 def update_production_entry(filling_date, fill_code, fg_item, week_commencing=None):
     """Helper function to create or update a Production entry."""
     try:
@@ -379,8 +514,15 @@ def update_production_entry(filling_date, fill_code, fg_item, week_commencing=No
         description = wip_item.description if wip_item else f"{production_code} - WIP"
 
         # Get all WIPF items that are used in this FG's recipes
-        wipf_items = [recipe.raw_material_item for recipe in fg_item.recipes_where_finished_good 
-                     if recipe.raw_material_item.item_type.has(type_name='WIPF')]
+        from models.recipe_master import RecipeMaster
+        from models.item_type import ItemType
+        wipf_recipes = RecipeMaster.query.filter(
+            RecipeMaster.finished_good_id == fg_item.id
+        ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).join(
+            ItemType, ItemMaster.item_type_id == ItemType.id
+        ).filter(ItemType.type_name == 'WIPF').all()
+        
+        wipf_items = [recipe.raw_material_item for recipe in wipf_recipes]
         
         if not wipf_items:
             return  # No WIPF items in recipe, nothing to update

@@ -150,8 +150,8 @@
                 <tfoot>
                     <tr>
                         <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
-                        <td id="total_requirement_kg" style="border-left: none;">{{ total_requirement_kg }}</td>
-                        <td id="total_requirement_unit">{{ total_requirement_unit }}</td>
+                        <td id="total_requirement_kg" style="border-left: none; font-weight: bold;">{{ total_requirement_kg }}</td>
+                        <td id="total_requirement_unit" style="font-weight: bold;">{{ total_requirement_unit }}</td>
                         <td colspan="11"></td>
                     </tr>
                 </tfoot>
@@ -511,6 +511,22 @@
             checkbox.checked = essentialColumns.includes(colIndex);
             toggleColumn(colIndex);
         });
+        
+        // Update total row positioning for essential columns view
+        updateTotalRowForEssentialView();
+    }
+    
+    function updateTotalRowForEssentialView() {
+        const totalRow = document.querySelector('tfoot tr');
+        if (totalRow) {
+            // For essential view, adjust the total row to align with requirement columns
+            totalRow.innerHTML = `
+                <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
+                <td id="total_requirement_kg" style="border-left: none; font-weight: bold;">${document.getElementById('total_requirement_kg').textContent}</td>
+                <td id="total_requirement_unit" style="font-weight: bold;">${document.getElementById('total_requirement_unit').textContent}</td>
+                <td colspan="11"></td>
+            `;
+        }
     }
 
     function showAllColumns() {

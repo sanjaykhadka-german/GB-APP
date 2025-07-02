@@ -427,13 +427,6 @@ def upload_recipe_excel():
                 recipe.kg_per_batch = kg_per_batch
                 recipe.quantity_uom_id = uom_id
                 
-                # Set active status
-                if row_data.get('Is Active'):
-                    value = str(row_data['Is Active']).strip().lower()
-                    recipe.is_active = value in ['true', '1', 'yes', 'y']
-                else:
-                    recipe.is_active = True  # Default to active
-                
                 db.session.add(recipe)
                 success_count += 1
                 
@@ -520,7 +513,7 @@ def download_recipe_excel():
         headers = [
             'Recipe Code', 'Description', 'Finished Good Code', 'Finished Good Name',
             'Raw Material Code', 'Raw Material Name', 'Kg Per Batch', 'Percentage', 
-            'UOM', 'Is Active'
+            'UOM'
         ]
         
         # Add headers with styling
@@ -550,8 +543,6 @@ def download_recipe_excel():
                 if uom:
                     uom_name = uom.UOMName
             sheet.cell(row=row, column=9, value=uom_name)
-            
-            sheet.cell(row=row, column=10, value='Yes' if recipe.is_active else 'No')
         
         # Auto-adjust column widths
         for column in sheet.columns:
@@ -597,7 +588,7 @@ def download_recipe_template():
         # Define headers
         headers = [
             'Recipe Code', 'Description', 'Finished Good Code', 'Raw Material Code',
-            'Kg Per Batch', 'UOM', 'Is Active'
+            'Kg Per Batch', 'UOM'
         ]
         
         # Add headers with styling
@@ -609,7 +600,7 @@ def download_recipe_template():
         
         # Add sample data row
         sample_data = [
-            'REC001', 'Sample Recipe Description', 'FG001', 'RM001', '10.5', 'KG', 'Yes'
+            'REC001', 'Sample Recipe Description', 'FG001', 'RM001', '10.5', 'KG'
         ]
         
         for col, value in enumerate(sample_data, 1):
@@ -808,13 +799,6 @@ def recipe_upload():
                     recipe.raw_material_id = raw_material.id
                     recipe.kg_per_batch = kg_per_batch
                     recipe.quantity_uom_id = uom_id
-                    
-                    # Set active status
-                    if row_data.get('Is Active'):
-                        value = str(row_data['Is Active']).strip().lower()
-                        recipe.is_active = value in ['true', '1', 'yes', 'y']
-                    else:
-                        recipe.is_active = True  # Default to active
                     
                     db.session.add(recipe)
                     success_count += 1

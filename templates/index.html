@@ -177,7 +177,9 @@
                     <li class="{% if current_page == 'recipe' %}active{% endif %}">
                     <a href="{{ url_for('recipe.recipe_page') }}">Recipe</a>
                 </li>
-                <!-- Joining section removed - functionality migrated to Item Master -->
+                <li class="{% if current_page == 'joining' %}active{% endif %}">
+                    <a href="{{ url_for('joining.list_joining') }}">Joining Table</a>
+                </li>
                 <li
                     class="{% if current_page == 'soh' or current_page == 'ingredients' %}active{% endif %}">
                     <div class="dropdown">

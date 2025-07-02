@@ -72,12 +72,151 @@ class ItemMaster(db.Model):
         return self.item_type and self.item_type.type_name == 'FG'
 
     def get_recipe_components(self):
-        """Get all components needed to make this item"""
-        return [recipe.raw_material_item for recipe in self.recipes_where_finished_good if recipe.is_active]
+        """Get all raw materials used in recipes for this item."""
+        return [recipe.raw_material_item for recipe in self.recipes_where_finished_good]
+
+    def get_recipes_using_this_item(self):
+        """Get all recipes where this item is used as a raw material/component."""
+        return [recipe.finished_good_item for recipe in self.recipes_where_raw_material]
     
-    def get_used_in_assemblies(self):
-        """Get all assemblies that use this item as a component"""
-        return [recipe.finished_good_item for recipe in self.recipes_where_raw_material if recipe.is_active]
+    def get_raw_material_components(self):
+        """Get all Raw Material components used in recipes for this item"""
+        components = []
+        for recipe in self.recipes_where_finished_good:
+            if recipe.raw_material_item and recipe.raw_material_item.is_raw_material:
+                components.append(recipe.raw_material_item)
+        return components
+
+    def get_wip_components(self):
+        """Get all WIP (Work In Progress) components used in recipes for this item"""
+        components = []
+        for recipe in self.recipes_where_finished_good:
+            if recipe.raw_material_item and recipe.raw_material_item.is_wip:
+                components.append(recipe.raw_material_item)
+        return components
+
+    def get_wipf_components(self):
+        """Get all WIPF (Work In Progress - Filling) components used in recipes for this item"""
+        components = []
+        for recipe in self.recipes_where_finished_good:
+            if recipe.raw_material_item and recipe.raw_material_item.is_wipf:
+                components.append(recipe.raw_material_item)
+        return components
+
+    def get_all_components_by_type(self):
+        """Get all components categorized by type (RM, WIP, WIPF)"""
+        return {
+            'raw_materials': self.get_raw_material_components(),
+            'wip': self.get_wip_components(),
+            'wipf': self.get_wipf_components()
+        }
+
+    def get_component_summary(self):
+        """Get a summary of component counts by type"""
+        components = self.get_all_components_by_type()
+        return {
+            'raw_material_count': len(components['raw_materials']),
+            'wip_count': len(components['wip']),
+            'wipf_count': len(components['wipf']),
+            'total_components': len(components['raw_materials']) + len(components['wip']) + len(components['wipf'])
+        }
+
+    def get_production_flow_type(self):
+        """Determine the production flow type based on components"""
+        if not self.is_finished_good:
+            return "Not a finished good"
+        
+        summary = self.get_component_summary()
+        
+        if summary['total_components'] == 0:
+            return "No recipe defined"
+        elif summary['wip_count'] > 0 and summary['wipf_count'] > 0:
+            return "Complex flow (RM → WIP → WIPF → FG)"
+        elif summary['wip_count'] > 0:
+            return "Production flow (RM → WIP → FG)"
+        elif summary['wipf_count'] > 0:
+            return "Filling flow (RM → WIPF → FG)"
+        else:
+            return "Direct production (RM → FG)"
+
+    def get_manufacturing_hierarchy(self):
+        """Get the complete manufacturing hierarchy for this item"""
+        hierarchy = {
+            'item': self,
+            'flow_type': self.get_production_flow_type(),
+            'components_by_type': self.get_all_components_by_type(),
+            'summary': self.get_component_summary()
+        }
+        return hierarchy
+
+    # NEW: Enhanced BOM explosion methods
+    def get_components_recursive(self, processed_items=None):
+        """Get all components needed recursively (supports multi-level BOM)"""
+        if processed_items is None:
+            processed_items = set()
+        
+        if self.id in processed_items:
+            return []  # Prevent circular references
+        
+        processed_items.add(self.id)
+        all_components = []
+        
+        # Get direct components
+        direct_components = self.get_all_components_by_type()
+        
+        # Add direct components
+        for component_type, components in direct_components.items():
+            for comp_data in components:
+                all_components.append({
+                    'item': comp_data['item'],
+                    'level': 1,
+                    'type': component_type,
+                    'kg_per_batch': comp_data['kg_per_batch'],
+                    'percentage': comp_data['percentage']
+                })
+                
+                # Recursively get components of components
+                sub_components = comp_data['item'].get_components_recursive(processed_items.copy())
+                for sub_comp in sub_components:
+                    sub_comp['level'] += 1
+                    all_components.append(sub_comp)
+        
+        return all_components
+
+    def calculate_total_requirements(self, required_kg):
+        """Calculate total requirements for all components to make required_kg of this item"""
+        requirements = {}
+        components = self.get_components_recursive()
+        
+        for comp in components:
+            item_code = comp['item'].item_code
+            if item_code not in requirements:
+                requirements[item_code] = {
+                    'item': comp['item'],
+                    'total_kg': 0,
+                    'type': comp['type'],
+                    'levels': []
+                }
+            
+            # Calculate requirement based on recipe
+            comp_requirement = required_kg * (comp['kg_per_batch'] or comp['percentage'] or 0)
+            requirements[item_code]['total_kg'] += comp_requirement
+            requirements[item_code]['levels'].append(comp['level'])
+        
+        return requirements
+
+    def get_downstream_items(self):
+        """Get all items that use this item as a component (what this feeds into)"""
+        downstream = []
+        for recipe in self.recipes_where_raw_material:
+            if recipe.finished_good_item:
+                downstream.append({
+                    'item': recipe.finished_good_item,
+                    'recipe': recipe,
+                    'kg_per_batch': recipe.kg_per_batch,
+                    'percentage': recipe.percentage
+                })
+        return downstream
 
 class ItemAllergen(db.Model):
     __tablename__ = 'item_allergen'

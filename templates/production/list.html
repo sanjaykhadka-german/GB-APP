@@ -34,7 +34,17 @@
     <!-- Production List Section -->
     <section id="list">
         <h2>Production List</h2>
-        <a href="{{ url_for('production.production_create') }}" class="btn btn-primary my-3">Add New Production Entry</a>
+        <div class="btn-group mb-3" role="group">
+            <a href="{{ url_for('production.production_create') }}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Add New Production Entry
+            </a>
+            <a href="{{ url_for('production.production_usage') }}" class="btn btn-secondary">
+                <i class="fas fa-chart-line"></i> Usage Report
+            </a>
+            <a href="{{ url_for('production.production_raw_material_report') }}" class="btn btn-primary">
+                <i class="fas fa-file-alt"></i> Raw Material Report
+            </a>
+        </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

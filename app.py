@@ -41,7 +41,7 @@ def create_app():
     migrate = Migrate(app, db)
 
     # Register Blueprints
-    # from controllers.joining_controller import joining_bp  # REMOVED - joining table deprecated
+    from controllers.joining_controller import joining_bp
     from controllers.soh_controller import soh_bp
     from controllers.ingredients_controller import ingredients_bp
     from controllers.packing_controller import packing
@@ -57,7 +57,7 @@ def create_app():
     from controllers.uom_controller import uom_bp
     from controllers.login_controller import login_bp
 
-    # app.register_blueprint(joining_bp)  # REMOVED - joining table deprecated
+    app.register_blueprint(joining_bp)
     app.register_blueprint(soh_bp)
     app.register_blueprint(ingredients_bp)
     app.register_blueprint(packing)
@@ -74,7 +74,7 @@ def create_app():
     app.register_blueprint(login_bp)
 
     # Import models
-    from models import soh, finished_goods, item_master, recipe_master, usage_report
+    from models import soh, finished_goods, item_master, recipe_master, usage_report, joining
     from models import machinery, department, category, production, packing, filling, allergen
     # joining_allergen removed - table dropped
     
@@ -103,12 +103,7 @@ def create_app():
 
     
 
-    # Create database tables within app context
-    with app.app_context():
-        db.create_all()
-
-
-
+    # Database tables already exist - no need to create them
     return app
 
 # Create the app

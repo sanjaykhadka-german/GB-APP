@@ -69,7 +69,7 @@ def production_list():
         if production.total_kg is not None:
             # Get all packing entries that share this production code
             packing_total = 0.0
-            items = ItemMaster.query.filter_by(production_code=production.production_code).all()
+            items = ItemMaster.query.filter_by(item_code=production.production_code).all()
             if items:
                 packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
                     ItemMaster.id.in_([item.id for item in items]),
@@ -116,7 +116,7 @@ def production_create():
 
             # Calculate total from packing entries
             total_kg = 0.0
-            items = ItemMaster.query.filter_by(production_code=production_code).all()
+            items = ItemMaster.query.filter_by(item_code=production_code).all()
             if items:
                 packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
                     ItemMaster.id.in_([item.id for item in items]),
@@ -197,7 +197,7 @@ def production_edit(id):
 
             # Calculate total from packing entries
             total_kg = 0.0
-            items = ItemMaster.query.filter_by(production_code=production_code).all()
+            items = ItemMaster.query.filter_by(item_code=production_code).all()
             if items:
                 packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
                     ItemMaster.id.in_([item.id for item in items]),
@@ -420,3 +420,129 @@ def export_productions_excel():
         print("Error generating Excel file:", e)
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('production.production_list'))
+
+# Usage Report for Production
+@production_bp.route('/usage')
+def production_usage():
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    
+    # Query to get production and recipe usage data
+    from models.recipe_master import RecipeMaster
+    from sqlalchemy.orm import aliased
+    
+    # Create alias for ItemMaster to avoid conflicts
+    ComponentItem = aliased(ItemMaster)
+    
+    query = db.session.query(
+        Production,
+        RecipeMaster,
+        ComponentItem.description.label('component_name')
+    ).join(
+        RecipeMaster,
+        Production.production_code == RecipeMaster.recipe_code  # Join Production to RecipeMaster
+    ).join(
+        ComponentItem,
+        RecipeMaster.raw_material_id == ComponentItem.id  # Join RecipeMaster to ItemMaster for raw material
+    )
+    
+    # Apply date filters if provided
+    if from_date and to_date:
+        query = query.filter(
+            Production.production_date >= from_date,
+            Production.production_date <= to_date
+        )
+    
+    # Get the results
+    usage_data = query.all()
+    
+    # Group data by production date
+    grouped_usage_data = {}
+    for production, recipe, component_name in usage_data:
+        date = production.production_date  # production_date is already a date object
+        # Calculate the Monday of the week for the production_date
+        def get_monday_date(date_str):
+            from datetime import datetime, timedelta
+            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            return date - timedelta(days=date.weekday())
+        
+        week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
+        
+        if date not in grouped_usage_data:
+            grouped_usage_data[date] = []
+            
+        grouped_usage_data[date].append({
+            'week_commencing': week_commencing.strftime('%Y-%m-%d'),
+            'production_date': production.production_date.strftime('%Y-%m-%d'),
+            'production_code': production.production_code,
+            'recipe_code': recipe.recipe_code,
+            'component_material': component_name,
+            'usage_kg': recipe.kg_per_batch * production.batches if production.batches else 0,  # Scale by batches
+            'kg_per_batch': recipe.kg_per_batch,
+            'percentage': recipe.percentage if recipe.percentage else 0.0
+        })
+    
+    return render_template('production/usage.html',
+                         grouped_usage_data=grouped_usage_data,
+                         from_date=from_date,
+                         to_date=to_date,
+                         current_page='production_usage')
+
+# Raw Material Report for Production
+@production_bp.route('/raw_material_report', methods=['GET'])
+def production_raw_material_report():
+    try:
+        # Get week commencing filter from request
+        week_commencing = request.args.get('week_commencing')
+        
+        # Base query for weekly data - using current schema
+        raw_material_query = """
+        SELECT 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
+            im.description as component_material,
+            im.id as component_item_id,
+            SUM(p.total_kg * r.percentage / 100) as total_usage
+        FROM production p
+        JOIN recipe_master r ON p.production_code = r.recipe_code
+        JOIN item_master im ON r.raw_material_id = im.id
+        """
+        
+        # Add date filter to the query
+        params = {}
+        if week_commencing:
+            raw_material_query += """ 
+            WHERE DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) = :week_commencing
+            """
+            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+        
+        raw_material_query += """
+        GROUP BY 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
+            im.description,
+            im.id
+        ORDER BY week_commencing DESC, im.description
+        """
+        
+        results = db.session.execute(text(raw_material_query), params).fetchall()
+        
+        # Convert to list of dictionaries for template
+        raw_material_data = [
+            {
+                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
+                'raw_material': result.component_material,
+                'usage': round(float(result.total_usage), 2)
+            }
+            for result in results
+        ]
+        
+        return render_template('production/raw_material_report.html', 
+                             raw_material_data=raw_material_data,
+                             week_commencing=week_commencing,
+                             current_page='production_raw_material_report')
+        
+    except Exception as e:
+        flash(f"An error occurred: {str(e)}", 'error')
+        return render_template('production/raw_material_report.html', 
+                             raw_material_data=[],
+                             week_commencing=week_commencing,
+                             current_page='production_raw_material_report')

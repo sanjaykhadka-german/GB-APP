@@ -15,6 +15,9 @@ import io
 import logging
 import math
 
+# Import the update_production_entry function from filling_controller
+from controllers.filling_controller import update_production_entry
+
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -758,16 +761,26 @@ def packing_edit(id):
     
     total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in related_fillings)
     
-    # Get related productions by finding items with matching production codes (regardless of filling code)
+    # Get related productions by finding items with matching recipe family codes
+    # AND get WIP items from the specific item being edited
     related_items_with_production = ItemMaster.query.filter(
         ItemMaster.item_code.ilike(f"{recipe_code_prefix}%")
     ).all()
     
     # Get all WIP items used in these items' recipes
     wip_items = []
+    
+    # FIRST: Add WIP items from the current packing item itself
+    current_item_wip_recipes = [recipe for recipe in packing.item.recipes_where_finished_good 
+                               if recipe.raw_material_item and recipe.raw_material_item.item_type and recipe.raw_material_item.item_type.type_name == 'WIP']
+    for recipe in current_item_wip_recipes:
+        if recipe.raw_material_item not in wip_items:
+            wip_items.append(recipe.raw_material_item)
+    
+    # SECOND: Add WIP items from other items in the same recipe family
     for item in related_items_with_production:
-        wip_recipes = [recipe for recipe in item.recipes_where_raw_material 
-                      if recipe.raw_material_item.item_type.type_name == 'WIP']
+        wip_recipes = [recipe for recipe in item.recipes_where_finished_good 
+                      if recipe.raw_material_item and recipe.raw_material_item.item_type and recipe.raw_material_item.item_type.type_name == 'WIP']
         for recipe in wip_recipes:
             if recipe.raw_material_item not in wip_items:
                 wip_items.append(recipe.raw_material_item)
