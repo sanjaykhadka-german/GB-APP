@@ -89,7 +89,7 @@ def create_app():
                 value = datetime.strptime(value, '%Y-%m-%d').date()
             except ValueError:
                 return value
-        return value.strftime('%d-%m-%d') if value else ''
+        return value.strftime('%d-%m-%Y') if value else ''
     
     # Authentication middleware
     @app.before_request
