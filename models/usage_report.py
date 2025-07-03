@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, Date, DateTime
 from database import db
 
 class UsageReport(db.Model):
-    __tablename__ = 'usage_report'
+    __tablename__ = 'usage_report_table'
 
     id = Column(Integer, primary_key=True)
     week_commencing = Column(Date)

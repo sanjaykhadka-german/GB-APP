@@ -3,7 +3,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import pytz
 from database import db
+
+sydney_tz = pytz.timezone('Australia/Sydney')
+
+def sydney_now():
+    """Return current datetime in Sydney timezone"""
+    return datetime.now(pytz.UTC).astimezone(sydney_tz)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -19,9 +26,9 @@ class User(db.Model):
     mobile = Column(String(20), nullable=True)
     start_date = Column(Date, nullable=True)
     
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Timestamps using Sydney timezone
+    created_at = Column(DateTime, default=sydney_now)
+    updated_at = Column(DateTime, default=sydney_now, onupdate=sydney_now)
     last_login = Column(DateTime)
     
     # Relationships

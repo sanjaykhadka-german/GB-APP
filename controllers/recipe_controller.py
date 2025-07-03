@@ -272,25 +272,13 @@ def usage():
     try:
         grouped_usage_data = {}
         
-        # If no date filters provided, get data from usage_report table and calculate percentages
+        # If no date filters provided, get data from usage_report table with stored percentages
         if not from_date or not to_date:
-            # Get existing data from usage_report table and calculate percentages
+            # Get existing data from usage_report table - use stored percentages
             usage_reports = UsageReport.query.order_by(UsageReport.production_date.desc()).all()
             
-            # Group by date and recipe code to calculate percentages
-            recipe_totals = {}
             for report in usage_reports:
                 date = report.production_date
-                recipe_key = f"{date}_{report.recipe_code}"
-                if recipe_key not in recipe_totals:
-                    recipe_totals[recipe_key] = 0.0
-                recipe_totals[recipe_key] += report.usage_kg
-            
-            for report in usage_reports:
-                date = report.production_date
-                recipe_key = f"{date}_{report.recipe_code}"
-                total_kg = recipe_totals[recipe_key]
-                percentage = (report.usage_kg / total_kg * 100) if total_kg > 0 else 0.0
                 
                 if date not in grouped_usage_data:
                     grouped_usage_data[date] = []
@@ -303,7 +291,7 @@ def usage():
                     'component_material': report.raw_material,
                     'usage_kg': report.usage_kg,
                     'kg_per_batch': 0.0,  # Not stored in usage_report table
-                    'percentage': percentage
+                    'percentage': report.percentage  # Use stored percentage from database
                 })
         else:
             # Date filters provided - recalculate and save new data

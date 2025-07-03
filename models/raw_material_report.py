@@ -34,20 +34,19 @@
 from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database import db
+from datetime import datetime
 
 class RawMaterialReport(db.Model):
-    __tablename__ = 'raw_material_report'
+    __tablename__ = 'raw_material_report_table'
 
     id = Column(Integer, primary_key=True)
-    production_date = Column(Date, nullable=False)
     week_commencing = Column(Date)
+    production_date = Column(Date, nullable=False)
+    recipe_code = Column(String(50), nullable=False)
     raw_material = Column(String(255), nullable=False)
-    meat_required = Column(Float, nullable=False)
-    created_at = Column(DateTime)
-    raw_material_id = Column(Integer, ForeignKey('item_master.id'))
-
-    # Relationship
-    raw_material_ref = relationship('ItemMaster', backref='raw_material_reports')
+    usage_kg = Column(Float, nullable=False)
+    percentage = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f'<RawMaterialReport {self.raw_material} - {self.production_date}>'

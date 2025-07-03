@@ -6,32 +6,49 @@
     <section id="search">
         <h2>Packing Search</h2>
         <form id="searchForm">
-            <div class="form-group">
-                <label for="search_fg_code">Product Code:</label>
-                <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="product_code_search">Product Code:</label>
+                        <input type="text" class="form-control" id="product_code_search" placeholder="Search by product code">
+                        <input type="hidden" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_description">Description:</label>
+                        <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_packing_date_start">Packing Date (From):</label>
+                        <input type="date" id="search_packing_date_start" name="packing_date_start" value="{{ search_packing_date_start | default('') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_packing_date_end">Packing Date (To):</label>
+                        <input type="date" id="search_packing_date_end" name="packing_date_end" value="{{ search_packing_date_end | default('') }}">
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="search_description">Description:</label>
-                <input type="text" id="search_description" name="description" value="{{ search_description | default('') }}">
-            </div>
-            <div class="form-group">
-                <label for="search_packing_date_start">Packing Date (From):</label>
-                <input type="date" id="search_packing_date_start" name="packing_date_start" value="{{ search_packing_date_start | default('') }}">
-            </div>
-            <div class="form-group">
-                <label for="search_packing_date_end">Packing Date (To):</label>
-                <input type="date" id="search_packing_date_end" name="packing_date_end" value="{{ search_packing_date_end | default('') }}">
-            </div>
-            <div class="form-group">
-                <label for="search_week_commencing">Week Commencing:</label>
-                <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
-            </div>
-            <div class="form-group">
-                <label for="search_machinery">Machinery:</label>
-                <select id="search_machinery" name="machinery">
-                    <option value="">All Machinery</option>
-                    <!-- Options will be populated dynamically via JavaScript -->
-                </select>
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_week_commencing">Week Commencing:</label>
+                        <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_machinery">Machinery:</label>
+                        <select id="search_machinery" name="machinery">
+                            <option value="">All Machinery</option>
+                            <!-- Options will be populated dynamically via JavaScript -->
+                        </select>
+                    </div>
+                </div>
             </div>
             <button type="button" onclick="fetchPackings()">Search</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
@@ -156,10 +173,10 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
-                        <td id="total_requirement_kg" style="border-left: none; font-weight: bold;">{{ total_requirement_kg }}</td>
-                        <td id="total_requirement_unit" style="font-weight: bold;">{{ total_requirement_unit }}</td>
-                        <td colspan="11"></td>
+                        <td colspan="7" style="text-align: right; font-weight: bold;">Total:</td>
+                        <td id="total_requirement_kg" style="font-weight: bold; text-align: right;">{{ total_requirement_kg }}</td>
+                        <td id="total_requirement_unit" style="font-weight: bold; text-align: right;">{{ total_requirement_unit }}</td>
+                        <td colspan="2"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -368,50 +385,74 @@
         return `<select name="machinery" data-id="${packingId}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">${optionsHtml}</select>`;
     }
 
-    // Product code autocomplete
-    let typingTimer;
-    const doneTypingInterval = 300;
 
-    document.getElementById('search_fg_code').addEventListener('input', function() {
-        clearTimeout(typingTimer);
-        const query = this.value.trim();
+
+    // jQuery UI Autocomplete for product code search
+    $(document).ready(function() {
+    // Wait a bit for all libraries to load
+    setTimeout(function() {
+        console.log("Initializing packing autocomplete...");
+        console.log("jQuery version:", $.fn.jquery);
+        console.log("jQuery UI loaded:", typeof $.ui !== 'undefined');
+        console.log("Autocomplete available:", typeof $.ui.autocomplete !== 'undefined');
         
-        if (query) {
-            typingTimer = setTimeout(() => {
-                fetch(`/packing/autocomplete_packing?query=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const suggestionList = document.getElementById('fg_code_suggestions');
-                        if (data.length > 0) {
-                            const ul = document.createElement('ul');
-                            data.forEach(item => {
-                                const li = document.createElement('li');
-                                li.textContent = `${item.fg_code} - ${item.description}`;
-                                li.addEventListener('click', () => {
-                                    document.getElementById('search_fg_code').value = item.fg_code;
-                                    document.getElementById('search_description').value = item.description;
-                                    suggestionList.innerHTML = '';
-                                });
-                                ul.appendChild(li);
+        // Ensure jQuery UI is loaded
+        if (typeof $.ui === 'undefined' || typeof $.ui.autocomplete === 'undefined') {
+            console.error("jQuery UI autocomplete not available");
+            return;
+        }
+        
+        // Initialize autocomplete for product code search
+        $("#product_code_search").autocomplete({
+            source: function(request, response) {
+                console.log("Packing autocomplete request for:", request.term);
+                
+                $.ajax({
+                    url: "/packing/search_product_codes",
+                    type: "GET",
+                    dataType: "json",
+                    data: { term: request.term },
+                    success: function(data) {
+                        console.log("Packing autocomplete response:", data);
+                        if (Array.isArray(data)) {
+                            var suggestions = data.map(function(item) {
+                                return {
+                                    label: item.product_code + ' - ' + item.description,
+                                    value: item.product_code
+                                };
                             });
-                            suggestionList.innerHTML = '';
-                            suggestionList.appendChild(ul);
-            } else {
-                            suggestionList.innerHTML = '';
+                            response(suggestions);
+                        } else {
+                            response([]);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Packing autocomplete error:", error, "Status:", xhr.status);
+                        response([]);
+                    }
+                });
+            },
+            minLength: 2,
+            delay: 300,
+            select: function(event, ui) {
+                console.log("Selected packing item:", ui.item);
+                $(this).val(ui.item.value);
+                $('#search_fg_code').val(ui.item.value);
+                fetchPackings();
+                return false;
+            },
+            focus: function(event, ui) {
+                return false;
             }
-                    })
-                    .catch(error => console.error('Error:', error));
-            }, doneTypingInterval);
-        } else {
-            document.getElementById('fg_code_suggestions').innerHTML = '';
-        }
-    });
+        });
 
-    // Hide suggestions when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!e.target.matches('#search_fg_code')) {
-            document.getElementById('fg_code_suggestions').innerHTML = '';
-        }
+        // Also update the hidden field when typing
+        $("#product_code_search").on('input', function() {
+            $('#search_fg_code').val($(this).val());
+        });
+        
+        console.log("Packing autocomplete initialized");
+    }, 1000); // Close setTimeout
     });
 
     // Fetch packings with search parameters and sorting
@@ -536,30 +577,20 @@
         }
     }
 
-    function showEssentialColumns() {
-        const essentialColumns = [2, 3, 4, 5, 8, 9, 15, 19, 20]; // Week Commencing, Date, Product, Description, Req KG, Req Unit, Machinery, Priority, Actions
-        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
-            const colIndex = parseInt(checkbox.dataset.colIndex);
-            checkbox.checked = essentialColumns.includes(colIndex);
-            toggleColumn(colIndex);
-        });
-        
-        // Update total row positioning for essential columns view
-        updateTotalRowForEssentialView();
-    }
-    
     function updateTotalRowForEssentialView() {
-        const totalRow = document.querySelector('tfoot tr');
-        if (totalRow) {
-            // For essential view, adjust the total row to align with requirement columns
-            totalRow.innerHTML = `
-                <td colspan="7" style="text-align: right; font-weight: bold; border-right: none;">Total:</td>
-                <td id="total_requirement_kg" style="border-left: none; font-weight: bold;">${document.getElementById('total_requirement_kg').textContent}</td>
-                <td id="total_requirement_unit" style="font-weight: bold;">${document.getElementById('total_requirement_unit').textContent}</td>
-                <td colspan="11"></td>
-            `;
-        }
+        // This function is commented out until showEssentialOnly checkbox is implemented
+        // const totalRow = document.querySelector('tfoot tr');
+        // const isEssentialView = document.getElementById('showEssentialOnly').checked;
     }
+
+    function showEssentialColumns() {
+        // This function is commented out until showEssentialOnly checkbox is implemented
+        // const table = document.querySelector('table');
+        // const isEssentialView = document.getElementById('showEssentialOnly').checked;
+    }
+
+    // Add event listener for the checkbox - commented out until checkbox is implemented
+    // document.getElementById('showEssentialOnly').addEventListener('change', showEssentialColumns);
 
     function showAllColumns() {
         document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {

@@ -81,7 +81,15 @@ def create_app():
 
     @app.template_filter('format_date')
     def format_date(value):
-        return value.strftime('%Y-%m-%d') if value else ''
+        """Convert date to DD-MM-YYYY format"""
+        if not value:
+            return ''
+        if isinstance(value, str):
+            try:
+                value = datetime.strptime(value, '%Y-%m-%d').date()
+            except ValueError:
+                return value
+        return value.strftime('%d-%m-%d') if value else ''
     
     # Authentication middleware
     @app.before_request
@@ -100,8 +108,6 @@ def create_app():
     @app.route('/') 
     def index():
         return render_template('index.html', current_page="home")
-
-    
 
     # Database tables already exist - no need to create them
     return app

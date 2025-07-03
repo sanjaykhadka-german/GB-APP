@@ -791,3 +791,27 @@ def autocomplete_item_code():
         })
     
     return jsonify(suggestions)
+
+@item_master_bp.route('/search_item_codes', methods=['GET'])
+def search_item_codes():
+    # Check if user is authenticated
+    if 'user_id' not in session:
+        return jsonify([]), 401
+    
+    term = request.args.get('term', '')
+    if not term or len(term) < 2:
+        return jsonify([])
+    
+    try:
+        # Search for item codes that match the term
+        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(10).all()
+        
+        # Return list of matching item codes with descriptions
+        results = [{
+            'item_code': item.item_code,
+            'description': item.description or ''
+        } for item in items]
+        
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([]), 500

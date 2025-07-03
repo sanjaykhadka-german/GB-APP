@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from models.machinery import Machinery
 from models.packing import Packing
 from models.production import Production
@@ -1228,4 +1228,127 @@ def update_cell():
         db.session.rollback()
         logger.error(f"Error updating cell: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@packing.route('/export', methods=['GET'])
+def export_packings():
+    """Export packing data to Excel with applied filters"""
+    try:
+        # Extract search parameters
+        fg_code = request.args.get('fg_code', '').strip()
+        description = request.args.get('description', '').strip()
+        packing_date_start = request.args.get('packing_date_start', '').strip()
+        packing_date_end = request.args.get('packing_date_end', '').strip()
+        week_commencing = request.args.get('week_commencing', '').strip()
+        machinery = request.args.get('machinery', '').strip()
+
+        # Start building the query
+        query = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id)
+
+        # Apply filters
+        if fg_code:
+            query = query.filter(ItemMaster.item_code.ilike(f"%{fg_code}%"))
+        if description:
+            query = query.filter(ItemMaster.description.ilike(f"%{description}%"))
+        if packing_date_start:
+            query = query.filter(Packing.packing_date >= datetime.strptime(packing_date_start, '%Y-%m-%d').date())
+        if packing_date_end:
+            query = query.filter(Packing.packing_date <= datetime.strptime(packing_date_end, '%Y-%m-%d').date())
+        if week_commencing:
+            query = query.filter(Packing.week_commencing == datetime.strptime(week_commencing, '%Y-%m-%d').date())
+        if machinery:
+            query = query.filter(Packing.machinery == int(machinery))
+
+        # Execute query
+        packings = query.all()
+
+        # Prepare data for Excel
+        data = []
+        for p in packings:
+            # Calculate SOH data
+            soh = SOH.query.filter_by(item_id=p.item_id, week_commencing=p.week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
+            avg_weight_per_unit = p.item.avg_weight_per_unit or p.item.kg_per_unit or 0.0
+
+            # Calculate derived values
+            special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = int(p.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+            total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
+            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            requirement_kg = round(total_stock_kg - soh_kg + p.special_order_kg, 0) if (total_stock_kg - soh_kg + p.special_order_kg) > 0 else 0
+            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+
+            data.append({
+                'Week Commencing': p.week_commencing.strftime('%Y-%m-%d'),
+                'Packing Date': p.packing_date.strftime('%Y-%m-%d'),
+                'Product Code': p.item.item_code,
+                'Product Description': p.item.description,
+                'Special Order KG': p.special_order_kg,
+                'Special Order Unit': special_order_unit,
+                'Requirement KG': requirement_kg,
+                'Requirement Unit': requirement_unit,
+                'AVG Weight per Unit': p.item.avg_weight_per_unit,
+                'SOH Req KG/Week': soh_requirement_kg_week,
+                'SOH Req Units/Week': p.soh_requirement_units_week,
+                'SOH KG': soh_kg,
+                'SOH Units': soh_units,
+                'Machinery': p.machinery.machineryName if p.machinery else '',
+                'Total Stock KG': total_stock_kg,
+                'Total Stock Units': total_stock_units,
+                'Calculation Factor': p.calculation_factor,
+                'Priority': p.priority
+            })
+
+        # Create DataFrame
+        df = pd.DataFrame(data)
+        
+        # Create Excel file in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Packing List', index=False)
+        
+        output.seek(0)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'packing_list_{timestamp}.xlsx'
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting packing data: {str(e)}")
+        flash('Error exporting data', 'danger')
+        return redirect(url_for('packing.packing_list'))
+
+@packing.route('/search_product_codes', methods=['GET'])
+def search_product_codes():
+    # Check if user is authenticated
+    if 'user_id' not in session:
+        return jsonify([]), 401
+    
+    term = request.args.get('term', '')
+    if not term or len(term) < 2:
+        return jsonify([])
+    
+    try:
+        # Search for product codes that match the term and are FG (Finished Goods)
+        items = ItemMaster.query.join(ItemMaster.item_type).filter(
+            ItemMaster.item_code.ilike(f'%{term}%'),
+            ItemMaster.item_type.has(type_name='FG')
+        ).limit(10).all()
+        
+        # Return list of matching product codes with descriptions
+        results = [{
+            'product_code': item.item_code,
+            'description': item.description or ''
+        } for item in items]
+        
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([]), 500
 

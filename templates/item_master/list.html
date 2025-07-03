@@ -70,8 +70,8 @@
             <div class="row mb-4">
                 <div class="col-md-3">
                     <div class="form-group">
-                        <label for="search-code" class="form-label">Item Code</label>
-                        <input type="text" id="search-code" class="form-control" placeholder="Search by code">
+                        <label for="item_code_search">Item Code:</label>
+                        <input type="text" class="form-control" id="item_code_search" placeholder="Search by item code">
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -391,7 +391,7 @@ let currentSort = {
 };
 
 function searchItems() {
-    const code = document.getElementById('search-code').value;
+    const code = document.getElementById('item_code_search').value;
     const description = document.getElementById('search-description').value;
     const type = document.getElementById('search-type').value;
     
@@ -490,7 +490,7 @@ function updateSortIndicators() {
 }
 
 function resetFilters() {
-    document.getElementById('search-code').value = '';
+    document.getElementById('item_code_search').value = '';
     document.getElementById('search-description').value = '';
     document.getElementById('search-type').value = '';
     
@@ -581,7 +581,7 @@ function uploadExcel() {
 
 function downloadExcel() {
     // Get current search parameters
-    const code = document.getElementById('search-code').value;
+    const code = document.getElementById('item_code_search').value;
     const description = document.getElementById('search-description').value;
     const type = document.getElementById('search-type').value;
     
@@ -731,6 +731,67 @@ document.addEventListener('DOMContentLoaded', function() {
     searchItems();
     // Initialize column visibility on page load
     initializeColumnVisibility();
+});
+
+$(document).ready(function() {
+    // Wait a bit for all libraries to load
+    setTimeout(function() {
+        console.log("Initializing item master autocomplete...");
+        console.log("jQuery version:", $.fn.jquery);
+        console.log("jQuery UI loaded:", typeof $.ui !== 'undefined');
+        console.log("Autocomplete available:", typeof $.ui.autocomplete !== 'undefined');
+        
+        // Ensure jQuery UI is loaded
+        if (typeof $.ui === 'undefined' || typeof $.ui.autocomplete === 'undefined') {
+            console.error("jQuery UI autocomplete not available");
+            return;
+        }
+    
+    // Initialize autocomplete for item code search
+    $("#item_code_search").autocomplete({
+        source: function(request, response) {
+            console.log("Autocomplete request for:", request.term);
+            
+            $.ajax({
+                url: "/search_item_codes",
+                type: "GET",
+                dataType: "json",
+                data: { term: request.term },
+                success: function(data) {
+                    console.log("Autocomplete response:", data);
+                    if (Array.isArray(data)) {
+                        var suggestions = data.map(function(item) {
+                            return {
+                                label: item.item_code + ' - ' + item.description,
+                                value: item.item_code
+                            };
+                        });
+                        response(suggestions);
+                    } else {
+                        response([]);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Autocomplete error:", error, "Status:", xhr.status);
+                    response([]);
+                }
+            });
+        },
+        minLength: 2,
+        delay: 300,
+        select: function(event, ui) {
+            console.log("Selected item:", ui.item);
+            $(this).val(ui.item.value);
+            searchItems();
+            return false;
+        },
+        focus: function(event, ui) {
+            return false;
+        }
+    });
+    
+    console.log("Item master autocomplete initialized");
+    }, 1000); // Close setTimeout
 });
 </script>
 {% endblock %}
