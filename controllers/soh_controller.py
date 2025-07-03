@@ -14,7 +14,7 @@ from models.item_master import ItemMaster
 from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
-from models.joining import Joining
+# from models.joining import Joining  # REMOVED - using item_master hierarchy
 
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')

@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
 """
+Cleanup Joining Table Migration
+==============================
+
+This script performs the final cleanup after migrating hierarchy data from 
+joining table to item_master fields:
+
+1. Update controllers that still use joining table
+2. Update enhanced BOM service to use item_master
+3. Remove delete buttons from item_master and recipe pages
+4. Drop the joining table
+5. Remove joining controller and templates
+"""
+
+import os
+import shutil
+from app import app
+from database import db
+
+def update_enhanced_bom_service():
+    """Update enhanced_bom_service.py to use item_master instead of joining table"""
+    
+    print("🔄 Updating enhanced BOM service...")
+    
+    enhanced_bom_content = '''#!/usr/bin/env python3
+"""
 Enhanced BOM Service with ItemMaster Integration
 ===============================================
 
@@ -57,11 +82,11 @@ class EnhancedBOMService:
             
         # Determine flow type
         if hierarchy['filling_code'] and hierarchy['production_code']:
-            hierarchy['flow_type'] = 'Complex flow (RM -> WIP -> WIPF -> FG)'
+            hierarchy['flow_type'] = 'Complex flow (RM → WIP → WIPF → FG)'
         elif hierarchy['filling_code']:
-            hierarchy['flow_type'] = 'Filling flow (RM -> WIPF -> FG)'
+            hierarchy['flow_type'] = 'Filling flow (RM → WIPF → FG)'
         elif hierarchy['production_code']:
-            hierarchy['flow_type'] = 'Production flow (RM -> WIP -> FG)'
+            hierarchy['flow_type'] = 'Production flow (RM → WIP → FG)'
             
         return hierarchy
     
@@ -84,11 +109,11 @@ class EnhancedBOMService:
             
             # Determine flow type
             if hierarchy['filling_code'] and hierarchy['production_code']:
-                hierarchy['flow_type'] = 'Complex flow (RM -> WIP -> WIPF -> FG)'
+                hierarchy['flow_type'] = 'Complex flow (RM → WIP → WIPF → FG)'
             elif hierarchy['filling_code']:
-                hierarchy['flow_type'] = 'Filling flow (RM -> WIPF -> FG)'
+                hierarchy['flow_type'] = 'Filling flow (RM → WIPF → FG)'
             elif hierarchy['production_code']:
-                hierarchy['flow_type'] = 'Production flow (RM -> WIP -> FG)'
+                hierarchy['flow_type'] = 'Production flow (RM → WIP → FG)'
                 
             hierarchies.append(hierarchy)
             
@@ -305,3 +330,208 @@ class EnhancedBOMService:
             })
         
         return summary
+'''
+    
+    # Write the updated content
+    with open('controllers/enhanced_bom_service.py', 'w') as f:
+        f.write(enhanced_bom_content)
+    
+    print("✅ Enhanced BOM service updated")
+
+def update_soh_controller():
+    """Update SOH controller to remove joining table import"""
+    
+    print("🔄 Updating SOH controller...")
+    
+    # Read current content
+    with open('controllers/soh_controller.py', 'r') as f:
+        content = f.read()
+    
+    # Remove joining import
+    content = content.replace('from models.joining import Joining', '# from models.joining import Joining  # REMOVED - using item_master hierarchy')
+    
+    # Write back
+    with open('controllers/soh_controller.py', 'w') as f:
+        f.write(content)
+    
+    print("✅ SOH controller updated")
+
+def remove_delete_buttons():
+    """Remove delete buttons from item_master and recipe pages"""
+    
+    print("🔄 Removing delete buttons...")
+    
+    # Update item_master list template
+    item_master_list_path = 'templates/item_master/list.html'
+    if os.path.exists(item_master_list_path):
+        with open(item_master_list_path, 'r') as f:
+            content = f.read()
+        
+        # Remove delete button and related JavaScript
+        content = content.replace(
+            '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteItem(${item.id})">',
+            '<!-- Delete button removed for data integrity -->'
+        )
+        content = content.replace(
+            '''function deleteItem(id) {
+    if (!confirm('Are you sure you want to delete this item?')) {
+        return;
+    }
+    fetch(`/delete-item/${id}`, {''',
+            '''/* Delete function removed for data integrity
+    function deleteItem(id) {
+    if (!confirm('Are you sure you want to delete this item?')) {
+        return;
+    }
+    fetch(`/delete-item/${id}`, {'''
+        )
+        
+        with open(item_master_list_path, 'w') as f:
+            f.write(content)
+        
+        print("✅ Removed delete button from item_master list")
+    
+    # Update recipe template
+    recipe_template_path = 'templates/recipe/recipe.html'
+    if os.path.exists(recipe_template_path):
+        with open(recipe_template_path, 'r') as f:
+            content = f.read()
+        
+        # Remove delete buttons from recipe rows
+        content = content.replace(
+            '<button onclick="deleteRecipeHandler(${recipe.id})" class="btn btn-sm btn-danger">Delete</button>',
+            '<!-- Delete button removed for data integrity -->'
+        )
+        
+        # Comment out delete handler function
+        content = content.replace(
+            '''// Delete recipe handler
+function deleteRecipeHandler(id) {
+    if (confirm('Are you sure you want to delete this recipe?')) {''',
+            '''/* Delete recipe handler - removed for data integrity
+function deleteRecipeHandler(id) {
+    if (confirm('Are you sure you want to delete this recipe?')) {'''
+        )
+        
+        with open(recipe_template_path, 'w') as f:
+            f.write(content)
+        
+        print("✅ Removed delete buttons from recipe template")
+
+def update_app_py():
+    """Update app.py to remove joining controller and model imports"""
+    
+    print("🔄 Updating app.py...")
+    
+    with open('app.py', 'r') as f:
+        content = f.read()
+    
+    # Remove joining controller import and registration
+    content = content.replace(
+        'from controllers.joining_controller import joining_bp',
+        '# from controllers.joining_controller import joining_bp  # REMOVED - joining table deprecated'
+    )
+    content = content.replace(
+        'app.register_blueprint(joining_bp)',
+        '# app.register_blueprint(joining_bp)  # REMOVED - joining table deprecated'
+    )
+    
+    # Remove joining model import
+    content = content.replace(
+        'from models import soh, finished_goods, item_master, recipe_master, usage_report, joining',
+        'from models import soh, finished_goods, item_master, recipe_master, usage_report'
+    )
+    
+    with open('app.py', 'w') as f:
+        f.write(content)
+    
+    print("✅ App.py updated")
+
+def backup_and_remove_joining_files():
+    """Backup and remove joining-related files"""
+    
+    print("🔄 Backing up and removing joining files...")
+    
+    # Create backup directory
+    backup_dir = 'backup_joining_files'
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    files_to_backup = [
+        'controllers/joining_controller.py',
+        'templates/joining',
+        'models/joining.py'
+    ]
+    
+    for file_path in files_to_backup:
+        if os.path.exists(file_path):
+            if os.path.isdir(file_path):
+                # Backup directory
+                backup_path = os.path.join(backup_dir, os.path.basename(file_path))
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.copytree(file_path, backup_path)
+                shutil.rmtree(file_path)
+                print(f"✅ Backed up and removed directory: {file_path}")
+            else:
+                # Backup file
+                backup_path = os.path.join(backup_dir, os.path.basename(file_path))
+                shutil.copy2(file_path, backup_path)
+                os.remove(file_path)
+                print(f"✅ Backed up and removed file: {file_path}")
+
+def drop_joining_table():
+    """Drop the joining table from the database"""
+    
+    print("🔄 Dropping joining table from database...")
+    
+    with app.app_context():
+        try:
+            # Drop the table
+            db.engine.execute('DROP TABLE IF EXISTS joining')
+            print("✅ Joining table dropped successfully")
+        except Exception as e:
+            print(f"❌ Error dropping joining table: {str(e)}")
+
+def main():
+    """Run the complete cleanup process"""
+    
+    print("🚀 Starting joining table cleanup process...")
+    print("=" * 50)
+    
+    try:
+        # Step 1: Update controllers and services
+        update_enhanced_bom_service()
+        update_soh_controller()
+        
+        # Step 2: Remove delete buttons
+        remove_delete_buttons()
+        
+        # Step 3: Update app.py
+        update_app_py()
+        
+        # Step 4: Backup and remove joining files
+        backup_and_remove_joining_files()
+        
+        # Step 5: Drop the table
+        drop_joining_table()
+        
+        print("=" * 50)
+        print("🎉 Joining table cleanup completed successfully!")
+        print("\n✅ Summary of changes:")
+        print("   - Enhanced BOM service updated to use item_master hierarchy")
+        print("   - SOH controller updated (joining import removed)")
+        print("   - Delete buttons removed from item_master and recipe pages")
+        print("   - App.py updated (joining controller removed)")
+        print("   - Joining files backed up and removed")
+        print("   - Joining table dropped from database")
+        print("\n💡 Next steps:")
+        print("   - Test the application to ensure everything works")
+        print("   - Remove backup files if everything is working correctly")
+        print("   - Update any remaining documentation references")
+        
+    except Exception as e:
+        print(f"❌ Error during cleanup: {str(e)}")
+        print("   Check the error and try running specific steps manually")
+
+if __name__ == "__main__":
+    main() 

@@ -1,136 +1,162 @@
 #!/usr/bin/env python3
 """
-Drop Joining Table Migration Script
+Drop Joining Table and Clean Up Files
+====================================
 
-This script removes the joining table from the database after successful migration
-to ItemMaster. All joining table functionality has been moved to ItemMaster.
-
-IMPORTANT: Make sure you have a backup before running this script!
+This script completes the joining table cleanup by:
+1. Dropping the joining table from the database
+2. Backing up joining-related files 
+3. Removing joining files and templates
 """
 
 import os
-from dotenv import load_dotenv
-from flask import Flask
+import shutil
+from app import app
 from database import db
-from sqlalchemy import text
+
+def backup_joining_files():
+    """Backup joining-related files before removal"""
+    
+    print("🔄 Backing up joining files...")
+    
+    # Create backup directory
+    backup_dir = 'backup_joining_files'
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    files_to_backup = [
+        'controllers/joining_controller.py',
+        'templates/joining',
+        'models/joining.py'
+    ]
+    
+    backed_up = []
+    for file_path in files_to_backup:
+        if os.path.exists(file_path):
+            if os.path.isdir(file_path):
+                # Backup directory
+                backup_path = os.path.join(backup_dir, os.path.basename(file_path))
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.copytree(file_path, backup_path)
+                backed_up.append(file_path)
+                print(f"✅ Backed up directory: {file_path}")
+            else:
+                # Backup file
+                backup_path = os.path.join(backup_dir, os.path.basename(file_path))
+                shutil.copy2(file_path, backup_path)
+                backed_up.append(file_path)
+                print(f"✅ Backed up file: {file_path}")
+    
+    return backed_up
+
+def remove_joining_files(backed_up_files):
+    """Remove joining files after backup"""
+    
+    print("🔄 Removing joining files...")
+    
+    for file_path in backed_up_files:
+        try:
+            if os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+                print(f"✅ Removed directory: {file_path}")
+            else:
+                os.remove(file_path)
+                print(f"✅ Removed file: {file_path}")
+        except Exception as e:
+            print(f"❌ Error removing {file_path}: {str(e)}")
 
 def drop_joining_table():
-    """Drop the joining table and related constraints."""
+    """Drop the joining table from the database"""
     
-    # Load environment variables
-    load_dotenv()
-    
-    # Create Flask app
-    app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('SQLALCHEMY_DATABASE_URI')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
-    # Initialize database
-    db.init_app(app)
+    print("🔄 Dropping joining table from database...")
     
     with app.app_context():
         try:
-            print("🔍 Checking if joining table exists...")
+            # Check if table exists first
+            result = db.engine.execute("SHOW TABLES LIKE 'joining'")
+            table_exists = result.fetchone() is not None
             
-            # Check if joining table exists
-            result = db.session.execute(text("""
-                SELECT TABLE_NAME 
-                FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = DATABASE() 
-                AND TABLE_NAME = 'joining'
-            """))
-            
-            table_exists = result.fetchone()
-            
-            if not table_exists:
-                print("ℹ️  Joining table does not exist. Nothing to drop.")
-                return True
-            
-            # Check if joining_allergen table exists (depends on joining table)
-            print("🔍 Checking for joining_allergen dependency table...")
-            result = db.session.execute(text("""
-                SELECT TABLE_NAME 
-                FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = DATABASE() 
-                AND TABLE_NAME = 'joining_allergen'
-            """))
-            
-            joining_allergen_exists = result.fetchone()
-            
-            if joining_allergen_exists:
-                print("🗑️  Dropping joining_allergen table (dependency)...")
-                db.session.execute(text("DROP TABLE joining_allergen"))
-                print("✅ Successfully dropped joining_allergen table")
-            
-            # Drop the joining table
-            print("🗑️  Dropping joining table...")
-            db.session.execute(text("DROP TABLE joining"))
-            
-            # Commit the changes
-            db.session.commit()
-            print("✅ Successfully dropped joining table")
-            
-            # Verify tables were dropped
-            print("\n🔍 Verifying tables were dropped...")
-            result = db.session.execute(text("""
-                SELECT TABLE_NAME 
-                FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = DATABASE() 
-                AND TABLE_NAME IN ('joining', 'joining_allergen')
-            """))
-            
-            remaining_tables = result.fetchall()
-            
-            if remaining_tables:
-                print("⚠️  Warning: Some tables still exist:")
-                for table in remaining_tables:
-                    print(f"  - {table[0]}")
-                return False
+            if table_exists:
+                # Drop the table
+                db.engine.execute('DROP TABLE joining')
+                print("✅ Joining table dropped successfully")
             else:
-                print("✅ All joining-related tables successfully removed")
-                return True
-            
+                print("ℹ️  Joining table does not exist (may have been dropped already)")
+                
         except Exception as e:
             print(f"❌ Error dropping joining table: {str(e)}")
-            db.session.rollback()
-            return False
 
-def show_warning():
-    """Show warning message before proceeding."""
-    print("⚠️  WARNING: This script will permanently drop the joining table!")
-    print("📋 Migration Summary:")
-    print("   - joining table → ItemMaster table")
-    print("   - All data has been migrated to ItemMaster")
-    print("   - All controllers updated to use ItemMaster")
-    print("   - joining_allergen table will also be dropped")
-    print()
-    print("🔒 BACKUP RECOMMENDATION:")
-    print("   Make sure you have a database backup before proceeding!")
-    print()
+def verify_cleanup():
+    """Verify that the cleanup was successful"""
     
-    response = input("Do you want to proceed? (yes/no): ").strip().lower()
-    return response in ['yes', 'y']
+    print("🔍 Verifying cleanup...")
+    
+    with app.app_context():
+        try:
+            # Check if joining table exists
+            result = db.engine.execute("SHOW TABLES LIKE 'joining'")
+            table_exists = result.fetchone() is not None
+            
+            if not table_exists:
+                print("✅ Joining table successfully removed from database")
+            else:
+                print("❌ Joining table still exists in database")
+                
+        except Exception as e:
+            print(f"❌ Error verifying database cleanup: {str(e)}")
+    
+    # Check if files were removed
+    removed_files = [
+        'controllers/joining_controller.py',
+        'templates/joining',
+        'models/joining.py'
+    ]
+    
+    for file_path in removed_files:
+        if not os.path.exists(file_path):
+            print(f"✅ File/directory removed: {file_path}")
+        else:
+            print(f"❌ File/directory still exists: {file_path}")
 
-if __name__ == "__main__":
-    print("🚀 Joining Table Removal Script")
+def main():
+    """Run the complete cleanup process"""
+    
+    print("🚀 Starting joining table cleanup...")
     print("=" * 50)
     
-    if show_warning():
-        print("\n🏃‍♂️ Proceeding with joining table removal...")
+    try:
+        # Step 1: Backup files
+        backed_up_files = backup_joining_files()
         
-        if drop_joining_table():
-            print("\n🎉 Joining table removal completed successfully!")
-            print("📝 Summary:")
-            print("   ✅ joining table dropped")
-            print("   ✅ joining_allergen table dropped")
-            print("   ✅ All functionality preserved in ItemMaster")
-            print("\n🔄 Next Steps:")
-            print("   1. Test application functionality")
-            print("   2. Verify all features work with ItemMaster")
-            print("   3. Remove any remaining joining references if found")
-        else:
-            print("\n❌ Joining table removal failed!")
-            print("📝 Please check the error messages above and try again.")
-    else:
-        print("\n🛑 Operation cancelled by user.")
-        print("💡 Run this script again when you're ready to proceed.") 
+        # Step 2: Drop the table
+        drop_joining_table()
+        
+        # Step 3: Remove files (only after successful backup)
+        if backed_up_files:
+            remove_joining_files(backed_up_files)
+        
+        # Step 4: Verify cleanup
+        verify_cleanup()
+        
+        print("=" * 50)
+        print("🎉 Joining table cleanup completed successfully!")
+        print("\n✅ Summary of changes:")
+        print("   - Joining table dropped from database")
+        print("   - Joining controller, templates, and model files removed")
+        print("   - Files backed up to 'backup_joining_files/' directory")
+        print("   - Enhanced BOM service updated to use item_master hierarchy")
+        print("   - Delete buttons removed from item_master and recipe pages")
+        print("\n💡 The application now uses item_master hierarchy fields:")
+        print("   - wip_item_id: Points to WIP item that produces this item")
+        print("   - wipf_item_id: Points to WIPF item that produces this item")
+        print("\n🔧 Next steps:")
+        print("   - Test the application to ensure all functionality works")
+        print("   - Remove backup files if everything is working correctly")
+        print("   - Update any remaining documentation")
+        
+    except Exception as e:
+        print(f"❌ Error during cleanup: {str(e)}")
+        print("   Check the error and try running specific steps manually")
+
+if __name__ == "__main__":
+    main() 

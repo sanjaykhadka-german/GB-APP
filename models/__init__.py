@@ -4,7 +4,7 @@ from .machinery import Machinery
 from .uom import UOM
 from .item_master import ItemMaster
 from .recipe_master import RecipeMaster
-from .joining import Joining
+# from .joining import Joining  # REMOVED - joining table deprecated
 from .soh import SOH
 from .packing import Packing
 from .filling import Filling
