@@ -139,7 +139,7 @@
                         <td>{{ data.packing.packing_date.strftime('%Y-%m-%d') }}</td>
                         <td>{{ data.packing.item.item_code }}</td>
                         <td>{{ data.packing.item.description }}</td>
-                        <td data-field="special_order_kg">{{ data.packing.special_order_kg }}</td>
+                        <td data-field="special_order_kg" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.special_order_kg }}</td>
                         <td data-field="special_order_unit">{{ data.special_order_unit }}</td>
                         <td data-field="requirement_kg">{{ data.requirement_kg }}</td>
                         <td data-field="requirement_unit">{{ data.requirement_unit }}</td>
@@ -159,7 +159,7 @@
                         <td data-field="total_stock_kg">{{ data.total_stock_kg }}</td>
                         <td data-field="total_stock_units">{{ data.total_stock_units }}</td>
                         <td data-field="calculation_factor">{{ data.packing.calculation_factor }}</td>
-                        <td data-field="priority">{{ data.packing.priority }}</td>
+                        <td data-field="priority" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.priority }}</td>
                         <td>
                             <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
                             <form action="{{ url_for('packing.packing_delete', id=data.packing.id) }}" method="POST" style="display: inline;">
@@ -388,6 +388,48 @@
         font-style: italic;
         color: #666;
     }
+    
+    /* Inline editing styles */
+    .editable-cell {
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .editable-cell:hover {
+        background-color: #f8f9fa;
+        outline: 1px solid #dee2e6;
+    }
+    
+    .editable-cell.editing {
+        padding: 0;
+    }
+    
+    .editable-cell input {
+        width: 100%;
+        border: none;
+        padding: 8px;
+        margin: 0;
+        background: #fff;
+        border: 2px solid #007bff;
+        border-radius: 3px;
+        outline: none;
+    }
+    
+    .editable-cell.editing::after {
+        content: "Press Enter to save, Esc to cancel";
+        position: absolute;
+        bottom: -20px;
+        left: 0;
+        font-size: 11px;
+        color: #666;
+        white-space: nowrap;
+        z-index: 1000;
+        background: white;
+        padding: 2px 5px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
 </style>
 
 <script>
@@ -597,7 +639,7 @@
                         <td>${packing.packing_date}</td>
                         <td>${packing.item.item_code}</td>
                         <td>${packing.item.description}</td>
-                        <td data-field="special_order_kg">${packing.special_order_kg}</td>
+                        <td data-field="special_order_kg" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.special_order_kg}</td>
                         <td data-field="special_order_unit">${packing.special_order_unit}</td>
                         <td data-field="requirement_kg">${packing.requirement_kg}</td>
                         <td data-field="requirement_unit">${packing.requirement_unit}</td>
@@ -614,7 +656,7 @@
                         <td data-field="total_stock_kg">${packing.total_stock_kg}</td>
                         <td data-field="total_stock_units">${packing.total_stock_units}</td>
                         <td data-field="calculation_factor">${packing.calculation_factor}</td>
-                        <td data-field="priority">${packing.priority}</td>
+                        <td data-field="priority" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.priority}</td>
                         <td>
                             <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
                             <form action="/packing/delete/${packing.id}" method="POST" style="display: inline;">
@@ -799,11 +841,13 @@ function submitBulkEdit() {
     }
 
         const data = {
-        ids: selectedIds,
-            special_order_kg: document.getElementById('bulk_special_order_kg').value || null,
-            calculation_factor: document.getElementById('bulk_calculation_factor').value || null,
-            machinery: document.getElementById('bulk_machinery').value || null,
-            priority: document.getElementById('bulk_priority').value || null
+            packing_ids: selectedIds,
+            updates: {
+                special_order_kg: document.getElementById('bulk_special_order_kg').value || null,
+                calculation_factor: document.getElementById('bulk_calculation_factor').value || null,
+                machinery: document.getElementById('bulk_machinery').value || null,
+                priority: document.getElementById('bulk_priority').value || null
+            }
         };
 
         fetch('/packing/bulk_edit', {
@@ -848,15 +892,61 @@ function submitBulkEdit() {
         window.location.href = `/packing/export?${searchParams}`;
     }
 
-    // Update cell function for inline editing
-    function updateCellSelect(selectElement) {
-        const packingId = selectElement.dataset.id;
-        const field = selectElement.dataset.field;
-        const value = selectElement.value;
-
-        // Store the original value in case we need to revert
-        const originalValue = selectElement.value;
-
+    // Inline editing functionality
+    function makeEditable(cell) {
+        // Prevent multiple edits
+        if (cell.classList.contains('editing')) {
+            return;
+        }
+        
+        const currentValue = cell.textContent.trim();
+        const field = cell.dataset.field;
+        const packingId = cell.dataset.id;
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = field === 'priority' ? 'number' : 'number';
+        input.step = field === 'special_order_kg' ? '0.01' : '1';
+        input.value = currentValue;
+        input.min = '0';
+        
+        // Set cell to editing mode
+        cell.classList.add('editing');
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        
+        // Focus and select the input
+        input.focus();
+        input.select();
+        
+        // Handle save and cancel
+        function saveEdit() {
+            const newValue = input.value;
+            updateCellValue(packingId, field, newValue, cell, currentValue);
+        }
+        
+        function cancelEdit() {
+            cell.classList.remove('editing');
+            cell.textContent = currentValue;
+        }
+        
+        // Event listeners
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            saveEdit();
+        });
+    }
+    
+    function updateCellValue(packingId, field, value, cell, originalValue) {
         fetch('/packing/update_cell', {
             method: 'POST',
             headers: {
@@ -876,20 +966,114 @@ function submitBulkEdit() {
         })
         .then(data => {
             if (data.success) {
+                // Update the cell
+                cell.classList.remove('editing');
+                cell.textContent = value;
+                
+                // Show success feedback
+                cell.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    cell.style.backgroundColor = '';
+                }, 1000);
+                
+                // Update other calculated fields in the same row
+                if (data.updates) {
+                    const row = cell.closest('tr');
+                    for (const [key, val] of Object.entries(data.updates)) {
+                        const targetCell = row.querySelector(`td[data-field="${key}"]`);
+                        if (targetCell && targetCell !== cell) {
+                            targetCell.textContent = val;
+                        }
+                    }
+                    
+                    // Update totals if requirement_kg changed
+                    if (data.updates.requirement_kg !== undefined || data.updates.requirement_unit !== undefined) {
+                        updateTotals();
+                    }
+                }
+            } else {
+                console.error('Update failed:', data.error);
+                alert('Error updating: ' + (data.error || 'Unknown error'));
+                cell.classList.remove('editing');
+                cell.textContent = originalValue;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating: ' + error.message);
+            cell.classList.remove('editing');
+            cell.textContent = originalValue;
+        });
+    }
+    
+    function updateTotals() {
+        let totalRequirementKg = 0;
+        let totalRequirementUnit = 0;
+        
+        // Sum all requirement values
+        document.querySelectorAll('td[data-field="requirement_kg"]').forEach(cell => {
+            totalRequirementKg += parseFloat(cell.textContent) || 0;
+        });
+        
+        document.querySelectorAll('td[data-field="requirement_unit"]').forEach(cell => {
+            totalRequirementUnit += parseInt(cell.textContent) || 0;
+        });
+        
+        // Update totals in footer
+        document.getElementById('total_requirement_kg').textContent = totalRequirementKg.toFixed(2);
+        document.getElementById('total_requirement_unit').textContent = totalRequirementUnit;
+    }
+
+    // Update cell function for machinery select dropdown
+    function updateCellSelect(selectElement) {
+        const packingId = selectElement.dataset.id;
+        const field = selectElement.dataset.field;
+        const value = selectElement.value;
+
+        // Store the original value in case we need to revert
+        const originalValue = selectElement.dataset.originalValue || selectElement.value;
+
+        // Store current value as original for future reverts
+        selectElement.dataset.originalValue = originalValue;
+
+        fetch('/packing/update_cell', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value || null
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
                 // Show success feedback
                 selectElement.style.backgroundColor = '#d4edda';
                 setTimeout(() => {
                     selectElement.style.backgroundColor = '';
                 }, 1000);
 
-                // Update other fields if they were returned
+                // Update other calculated fields if they were returned
                 if (data.updates) {
                     const row = selectElement.closest('tr');
-                    for (const [key, value] of Object.entries(data.updates)) {
+                    for (const [key, val] of Object.entries(data.updates)) {
                         const cell = row.querySelector(`td[data-field="${key}"]`);
                         if (cell) {
-                            cell.textContent = value;
+                            cell.textContent = val;
                         }
+                    }
+                    
+                    // Update totals if requirement_kg changed
+                    if (data.updates.requirement_kg !== undefined || data.updates.requirement_unit !== undefined) {
+                        updateTotals();
                     }
                 }
             } else {

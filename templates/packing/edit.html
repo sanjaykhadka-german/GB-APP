@@ -147,10 +147,10 @@
                     <td>{{ packing.packing_date | format_date }}</td>
                     <td>{{ packing.item.item_code }}</td>
                     <td>{{ packing.item.description }}</td>
-                    <td class="editable" data-field="special_order_kg" data-original="{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}">{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}</td>
-                    <td>{{ packing.special_order_unit }}</td>
-                    <td>{{ packing.requirement_kg }}</td>
-                    <td>{{ packing.requirement_unit }}</td>
+                    <td class="editable editable-cell" data-field="special_order_kg" data-id="{{ packing.id }}" data-original="{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}" ondblclick="makeEditable(this)">{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}</td>
+                    <td data-field="special_order_unit">{{ packing.special_order_unit }}</td>
+                    <td data-field="requirement_kg">{{ packing.requirement_kg }}</td>
+                    <td data-field="requirement_unit">{{ packing.requirement_unit }}</td>
                     <td>{{ packing.item.avg_weight_per_unit }}</td>
                     <td>{{ packing.soh_requirement_units_week }}</td>
                     <td class="editable" data-field="calculation_factor" data-original="{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}">{{ packing.calculation_factor if packing.calculation_factor is not none else '' }}</td>
@@ -158,15 +158,15 @@
                         <select name="machinery" data-id="{{ packing.id }}" data-field="machinery" onchange="updateCellSelect(this)">
                             <option value="">Select</option>
                             {% for machine in machinery %}
-                                <option value="{{ machine.machineID }}" {% if packing.machinery is not none and packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
+                                <option value="{{ machine.machineID }}" {% if packing.machinery_id is not none and packing.machinery_id == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
                             {% endfor %}
                         </select>
                         <!-- Debug output -->
                         <div style="font-size: 0.8em; color: #666; margin-top:5px;">
-                            Current Machinery: {{ machinery_name_map.get(packing.machinery, 'None' if packing.machinery is none else 'Invalid ID (' ~ packing.machinery|string ~ ')')}}
+                            Current Machinery: {% if packing.machinery %}{{ packing.machinery.machineryName }}{% else %}None{% endif %}
                         </div>
                     </td>
-                    <td class="editable" data-field="priority" data-original="{{ packing.priority if packing.priority is not none else '' }}">{{ packing.priority if packing.priority is not none else '' }}</td>
+                    <td class="editable editable-cell" data-field="priority" data-id="{{ packing.id }}" data-original="{{ packing.priority if packing.priority is not none else '' }}" ondblclick="makeEditable(this)">{{ packing.priority if packing.priority is not none else '' }}</td>
                     <td>
                         <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
                         <form action="{{ url_for('packing.packing_delete', id=packing.id) }}" method="POST" style="display:inline;">
@@ -276,7 +276,7 @@
         </tfoot>
     </table>
 
-    <!-- JavaScript for Bulk Edit and Inline Editing -->
+        <!-- JavaScript for Bulk Edit and Inline Editing -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -334,163 +334,199 @@
             modal.hide();
         });
 
-        // Initialize double-click editable table
-        function initEditableTable() {
-            const table = document.getElementById('packingTable');
-            if (!table) return;
-
-            $(table).find('tbody').off('dblclick').on('dblclick', 'td.editable', function(event) {
-                const cell = $(this);
-                if (cell.find('input').length) return;
-
-                const originalText = cell.text().trim();
-                const field = cell.data('field');
-
-                console.log(`Editing field: ${field}, Original value: ${originalText}`);
-
-                cell.empty().addClass('editing');
-
-                const input = $('<input>').css({
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #ced4da',
-                    borderRadius: '0.25rem',
-                    boxSizing: 'border-box',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit'
-                }).attr('type', 'number').attr('step', 'any');
-
-                input.val(originalText);
-
-                cell.append(input);
-                input.focus();
-                input.select();
-
-                function saveChanges() {
-                    let newValue = input.val().trim();
-                    let displayValue = newValue;
-
-                    console.log(`Saving field: ${field}, New value: ${newValue}`);
-
-                    cell.text(displayValue).removeClass('editing');
-
-                    if (newValue && isNaN(parseFloat(newValue))) {
-                        alert('Please enter a valid number.');
-                        cell.text(originalText);
-                        return;
-                    }
-
-                    const packingId = cell.closest('tr').data('id');
-                    const updateData = {
-                        id: packingId,
-                        field: field,
-                        value: newValue
-                    };
-
-                    console.log('Sending update data:', updateData);
-
-                    $.ajax({
-                        url: "{{ url_for('packing.update_cell') }}",
-                        type: "POST",
-                        contentType: "application/json",
-                        data: JSON.stringify(updateData),
-                        success: function(response) {
-                            console.log('Server response:', response);
-                            if (response.success) {
-                                cell.data('original', displayValue);
-                                window.location.reload();
-                            } else {
-                                alert('Error updating packing entry: ' + response.message);
-                                cell.text(originalText);
-                                window.location.reload();
-                            }
-                        },
-                        error: function(xhr) {
-                            console.error('AJAX error:', xhr.responseText);
-                            alert('Error updating packing entry.');
-                            cell.text(originalText);
-                            window.location.reload();
-                        }
-                    });
-                }
-
-                function revertChanges() {
-                    cell.text(originalText).removeClass('editing');
-                }
-
-                input.on('blur', function() {
-                    setTimeout(saveChanges, 100);
-                });
-
-                input.on('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        saveChanges();
-                    } else if (e.key === 'Escape') {
-                        revertChanges();
-                    }
-                });
-            });
-        }
-
         // Handle select dropdowns
         document.querySelectorAll('select[data-id]').forEach(select => {
             select.addEventListener('change', function() {
                 updateCellSelect(this);
             });
         });
-
-        function updateCellSelect(select) {
-            const packingId = select.getAttribute('data-id');
-            const field = select.getAttribute('data-field');
-            const value = select.value;
-
-            updateCell(packingId, field, value);
-        }
-
-        function updateCell(packingId, field, value) {
-            // Only convert to number for specific fields
-            if (field === 'special_order_kg' || field === 'calculation_factor') {
-                value = (value === '' || isNaN(value)) ? 0 : parseFloat(value);
-            } else if (field === 'priority') {
-                value = (value === '' || isNaN(value)) ? 0 : parseInt(value);
-            } else if (field === 'machinery') {
-                if (value === '' || value == null) {
-                    value = null;
-                } else {
-                    value = parseInt(value);
-                }
-            }
-
-            fetch('{{ url_for("packing.update_cell") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    id: packingId,
-                    field: field,
-                    value: value
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Error updating cell: ' + data.message);
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                alert('Error updating cell: ' + error);
-                window.location.reload();
-            });
-        }
-
-        // Initialize the editable table
-        initEditableTable();
     });
+    
+    // Global functions accessible from HTML attributes
+    function makeEditable(cell) {
+        // Prevent multiple edits
+        if (cell.classList.contains('editing')) {
+            return;
+        }
+        
+        const currentValue = cell.textContent.trim();
+        const field = cell.dataset.field;
+        const packingId = cell.dataset.id;
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = field === 'priority' ? 'number' : 'number';
+        input.step = field === 'special_order_kg' ? '0.01' : '1';
+        input.value = currentValue;
+        input.min = '0';
+        
+        // Set cell to editing mode
+        cell.classList.add('editing');
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        
+        // Focus and select the input
+        input.focus();
+        input.select();
+        
+        // Handle save and cancel
+        function saveEdit() {
+            const newValue = input.value;
+            updateCellValue(packingId, field, newValue, cell, currentValue);
+        }
+        
+        function cancelEdit() {
+            cell.classList.remove('editing');
+            cell.textContent = currentValue;
+        }
+        
+        // Event listeners
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            saveEdit();
+        });
+    }
+    
+    function updateCellValue(packingId, field, value, cell, originalValue) {
+        fetch('{{ url_for("packing.update_cell") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Update the cell
+                cell.classList.remove('editing');
+                cell.textContent = value;
+                
+                // Show success feedback
+                cell.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    cell.style.backgroundColor = '';
+                }, 1000);
+                
+                // Update other calculated fields in the same row
+                if (data.updates) {
+                    const row = cell.closest('tr');
+                    for (const [key, val] of Object.entries(data.updates)) {
+                        const targetCell = row.querySelector(`td[data-field="${key}"]`);
+                        if (targetCell && targetCell !== cell) {
+                            targetCell.textContent = val;
+                            
+                            // Show brief highlight for updated fields
+                            targetCell.style.backgroundColor = '#fff3cd';
+                            setTimeout(() => {
+                                targetCell.style.backgroundColor = '';
+                            }, 800);
+                        }
+                    }
+                    
+                    // Update totals whenever any calculation field changes
+                    updateTotals();
+                }
+            } else {
+                console.error('Update failed:', data.error);
+                alert('Error updating: ' + (data.error || 'Unknown error'));
+                cell.classList.remove('editing');
+                cell.textContent = originalValue;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating: ' + error.message);
+            cell.classList.remove('editing');
+            cell.textContent = originalValue;
+        });
+    }
+    
+    function updateCellSelect(select) {
+        const packingId = select.getAttribute('data-id');
+        const field = select.getAttribute('data-field');
+        const value = select.value;
+
+        updateCell(packingId, field, value);
+    }
+
+    function updateCell(packingId, field, value) {
+        // Only convert to number for specific fields
+        if (field === 'special_order_kg' || field === 'calculation_factor') {
+            value = (value === '' || isNaN(value)) ? 0 : parseFloat(value);
+        } else if (field === 'priority') {
+            value = (value === '' || isNaN(value)) ? 0 : parseInt(value);
+        } else if (field === 'machinery') {
+            if (value === '' || value == null) {
+                value = null;
+            } else {
+                value = parseInt(value);
+            }
+        }
+
+        fetch('{{ url_for("packing.update_cell") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error updating cell: ' + (data.error || data.message || 'Unknown error'));
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            alert('Error updating cell: ' + error.message);
+            window.location.reload();
+        });
+    }
+    
+    function updateTotals() {
+        let totalRequirementKg = 0;
+        let totalRequirementUnit = 0;
+        
+        // Sum all requirement values
+        document.querySelectorAll('td[data-field="requirement_kg"]').forEach(cell => {
+            totalRequirementKg += parseFloat(cell.textContent) || 0;
+        });
+        
+        document.querySelectorAll('td[data-field="requirement_unit"]').forEach(cell => {
+            totalRequirementUnit += parseInt(cell.textContent) || 0;
+        });
+        
+        // Update totals in footer
+        const totalKgCell = document.querySelector('tfoot td:nth-child(8)');
+        const totalUnitCell = document.querySelector('tfoot td:nth-child(9)');
+        if (totalKgCell) totalKgCell.textContent = totalRequirementKg.toFixed(2);
+        if (totalUnitCell) totalUnitCell.textContent = totalRequirementUnit;
+    }
     </script>
 
     <style>
@@ -500,7 +536,66 @@
         border-bottom: 1px solid #dee2e6;
     }
 
-    /* New styles for double-click editing */
+    /* Inline editing styles */
+    .editable-cell {
+        cursor: pointer;
+        position: relative;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+    
+    .editable-cell:hover {
+        background-color: #f8f9fa;
+        outline: 1px solid #dee2e6;
+        border-left: 3px solid #007bff;
+    }
+    
+    .editable-cell::before {
+        content: "✏️";
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        font-size: 10px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    
+    .editable-cell:hover::before {
+        opacity: 0.6;
+    }
+    
+    .editable-cell.editing {
+        padding: 0;
+    }
+    
+    .editable-cell input {
+        width: 100%;
+        border: none;
+        padding: 8px;
+        margin: 0;
+        background: #fff;
+        border: 2px solid #007bff;
+        border-radius: 3px;
+        outline: none;
+    }
+    
+    .editable-cell.editing::after {
+        content: "Press Enter to save, Esc to cancel";
+        position: absolute;
+        bottom: -20px;
+        left: 0;
+        font-size: 11px;
+        color: #666;
+        white-space: nowrap;
+        z-index: 1000;
+        background: white;
+        padding: 2px 5px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    /* Keep existing editable styles for compatibility */
     .editable {
         cursor: pointer;
         transition: background-color 0.2s ease-in-out;

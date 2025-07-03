@@ -1151,12 +1151,16 @@ def update_cell():
     """Handle individual cell updates in the packing table"""
     try:
         data = request.get_json()
+        logger.debug(f"Update cell request data: {data}")
+        
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
 
         packing_id = data.get('id')
         field = data.get('field')
         value = data.get('value')
+        
+        logger.debug(f"Updating packing {packing_id}, field {field}, value {value}")
 
         if not all([packing_id, field]):
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
@@ -1175,7 +1179,15 @@ def update_cell():
             elif field == 'priority':
                 packing.priority = int(value) if value else 0
             elif field == 'machinery':
-                packing.machinery_id = int(value) if value else None
+                if value:
+                    machinery_id = int(value)
+                    # Validate that the machinery exists
+                    machinery_exists = Machinery.query.filter_by(machineID=machinery_id).first()
+                    if not machinery_exists:
+                        return jsonify({'success': False, 'error': f'Invalid machinery ID {machinery_id}. Machinery does not exist.'}), 400
+                    packing.machinery_id = machinery_id
+                else:
+                    packing.machinery_id = None
             else:
                 return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
 

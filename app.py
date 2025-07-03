@@ -102,6 +102,9 @@ def create_app():
         
         # Check if user is logged in
         if 'user_id' not in session:
+            # For AJAX requests, return JSON error instead of redirect
+            if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                return jsonify({'success': False, 'error': 'Authentication required. Please log in.'}), 401
             return redirect(url_for('login.login'))
     
     # Define routes
