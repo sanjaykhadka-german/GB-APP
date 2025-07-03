@@ -421,8 +421,8 @@ def export_productions_excel():
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('production.production_list'))
 
-# Usage Report for Production
-@production_bp.route('/usage')
+# Usage Report for Production (renamed to avoid conflict with recipe.usage)
+@production_bp.route('/production_usage')
 def production_usage():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
@@ -490,7 +490,7 @@ def production_usage():
                          current_page='production_usage')
 
 # Raw Material Report for Production
-@production_bp.route('/raw_material_report', methods=['GET'])
+@production_bp.route('/production_raw_material_report', methods=['GET'])
 def production_raw_material_report():
     try:
         # Get week commencing filter from request

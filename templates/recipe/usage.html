@@ -42,7 +42,6 @@
                                 <tr>
                                     <th>Week Commencing</th>
                                     <th>Production Date</th>
-                                    <th>Production Code</th>
                                     <th>Recipe Code</th>
                                     <th>Raw Material</th>
                                     <th class="text-end">Usage (kg)</th>
@@ -54,7 +53,6 @@
                                     <tr>
                                         <td>{{ entry.week_commencing }}</td>
                                         <td>{{ entry.production_date }}</td>
-                                        <td>{{ entry.production_code }}</td>
                                         <td>{{ entry.recipe_code }}</td>
                                         <td>{{ entry.component_material }}</td>
                                         <td class="text-end">{{ "%.2f"|format(entry.usage_kg) }}</td>

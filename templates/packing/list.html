@@ -139,27 +139,27 @@
                         <td>{{ data.packing.packing_date.strftime('%Y-%m-%d') }}</td>
                         <td>{{ data.packing.item.item_code }}</td>
                         <td>{{ data.packing.item.description }}</td>
-                        <td>{{ data.packing.special_order_kg }}</td>
-                        <td>{{ data.special_order_unit }}</td>
-                        <td>{{ data.requirement_kg }}</td>
-                        <td>{{ data.requirement_unit }}</td>
+                        <td data-field="special_order_kg">{{ data.packing.special_order_kg }}</td>
+                        <td data-field="special_order_unit">{{ data.special_order_unit }}</td>
+                        <td data-field="requirement_kg">{{ data.requirement_kg }}</td>
+                        <td data-field="requirement_unit">{{ data.requirement_unit }}</td>
                         <td>{{ data.packing.item.avg_weight_per_unit }}</td>
-                        <td>{{ data.soh_requirement_kg_week }}</td>
-                        <td>{{ data.packing.soh_requirement_units_week }}</td>
-                        <td>{{ data.soh_kg }}</td>
-                        <td>{{ data.soh_units }}</td>
+                        <td data-field="soh_requirement_kg_week">{{ data.soh_requirement_kg_week }}</td>
+                        <td data-field="soh_requirement_units_week">{{ data.packing.soh_requirement_units_week }}</td>
+                        <td data-field="soh_kg">{{ data.soh_kg }}</td>
+                        <td data-field="soh_units">{{ data.soh_units }}</td>
                         <td>
                             <select name="machinery" data-id="{{ data.packing.id }}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">
                                 <option value="">Select Machinery</option>
                                 {% for machine in machinery_list %}
-                                <option value="{{ machine.machineID }}" {% if data.packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
+                                <option value="{{ machine.machineID }}" {% if data.packing.machinery_id == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
                                 {% endfor %}
                             </select>
                         </td>
-                        <td>{{ data.total_stock_kg }}</td>
-                        <td>{{ data.total_stock_units }}</td>
-                        <td>{{ data.packing.calculation_factor }}</td>
-                        <td>{{ data.packing.priority }}</td>
+                        <td data-field="total_stock_kg">{{ data.total_stock_kg }}</td>
+                        <td data-field="total_stock_units">{{ data.total_stock_units }}</td>
+                        <td data-field="calculation_factor">{{ data.packing.calculation_factor }}</td>
+                        <td data-field="priority">{{ data.packing.priority }}</td>
                         <td>
                             <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
                             <form action="{{ url_for('packing.packing_delete', id=data.packing.id) }}" method="POST" style="display: inline;">
@@ -173,10 +173,10 @@
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="7" style="text-align: right; font-weight: bold;">Total:</td>
-                        <td id="total_requirement_kg" style="font-weight: bold; text-align: right;">{{ total_requirement_kg }}</td>
-                        <td id="total_requirement_unit" style="font-weight: bold; text-align: right;">{{ total_requirement_unit }}</td>
-                        <td colspan="2"></td>
+                        <td style="text-align: right; font-weight: bold; border-right: none;" colspan="7">Total:</td>
+                        <td id="total_requirement_kg" style="font-weight: bold; text-align: right; border-left: none; white-space: nowrap;">{{ total_requirement_kg }}</td>
+                        <td id="total_requirement_unit" style="font-weight: bold; text-align: right; white-space: nowrap;">{{ total_requirement_unit }}</td>
+                        <td style="border: none;" colspan="11"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -248,6 +248,40 @@
     }
     .form-group {
         margin-bottom: 15px;
+    }
+    
+    /* Column visibility styles */
+    .column-toggle {
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .toggle-row label {
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        white-space: nowrap;
+    }
+    
+    .toggle-row input[type="checkbox"] {
+        margin-right: 5px;
+    }
+    
+    .toggle-actions {
+        margin-top: 10px;
+    }
+    
+    .toggle-actions button {
+        margin-right: 10px;
     }
     
     /* Style for machinery filter dropdown */
@@ -361,19 +395,83 @@
     let machineryOptions = [];
     
     // Initialize machinery filter options
+    console.log('Fetching machinery options...');
     fetch('/packing/machinery_options')
-        .then(response => response.json())
+        .then(response => {
+            console.log('Machinery options response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Machinery options data:', data);
             machineryOptions = data; // Store globally for dynamic select building
-            const select = document.getElementById('search_machinery');
-            const bulkSelect = document.getElementById('bulk_machinery');
+            populateMachineryDropdowns(data);
+        })
+        .catch(error => {
+            console.error('Error loading machinery options via AJAX:', error);
+            // Fallback: Extract machinery options from existing server-rendered dropdowns
+            const existingOptions = extractMachineryOptionsFromPage();
+            if (existingOptions.length > 0) {
+                console.log('Using server-rendered machinery options as fallback');
+                machineryOptions = existingOptions;
+                populateMachineryDropdowns(existingOptions);
+            } else {
+                console.error('No machinery options available (neither AJAX nor server-rendered)');
+            }
+        });
+
+    // Function to populate machinery dropdowns
+    function populateMachineryDropdowns(data) {
+        const select = document.getElementById('search_machinery');
+        const bulkSelect = document.getElementById('bulk_machinery');
+        
+        if (select && data && Array.isArray(data)) {
+            // Clear existing options except the first "All Machinery" option
+            while (select.children.length > 1) {
+                select.removeChild(select.lastChild);
+            }
+            
             data.forEach(machinery => {
                 const option = new Option(machinery.machineryName, machinery.machineID);
-                select.add(option.cloneNode(true));
+                select.add(option);
+            });
+            console.log(`Added ${data.length} machinery options to search dropdown`);
+        }
+        
+        if (bulkSelect && data && Array.isArray(data)) {
+            // Clear existing options except the first "Select Machinery" option
+            while (bulkSelect.children.length > 1) {
+                bulkSelect.removeChild(bulkSelect.lastChild);
+            }
+            
+            data.forEach(machinery => {
+                const option = new Option(machinery.machineryName, machinery.machineID);
                 bulkSelect.add(option);
             });
-        })
-        .catch(error => console.error('Error loading machinery options:', error));
+            console.log(`Added ${data.length} machinery options to bulk edit dropdown`);
+        }
+    }
+
+    // Function to extract machinery options from server-rendered dropdowns
+    function extractMachineryOptionsFromPage() {
+        const options = [];
+        // Look for existing machinery selects in the table
+        const existingSelect = document.querySelector('select[name="machinery"]');
+        if (existingSelect) {
+            const machineOptions = existingSelect.querySelectorAll('option[value]:not([value=""])');
+            machineOptions.forEach(option => {
+                if (option.value) {
+                    options.push({
+                        machineID: parseInt(option.value),
+                        machineryName: option.textContent.trim()
+                    });
+                }
+            });
+        }
+        return options;
+    }
 
     // Helper function to build machinery select options
     function buildMachinerySelect(packingId, currentMachineryId) {
@@ -499,24 +597,24 @@
                         <td>${packing.packing_date}</td>
                         <td>${packing.item.item_code}</td>
                         <td>${packing.item.description}</td>
-                        <td>${packing.special_order_kg}</td>
-                        <td>${packing.special_order_unit}</td>
-                        <td>${packing.requirement_kg}</td>
-                        <td>${packing.requirement_unit}</td>
+                        <td data-field="special_order_kg">${packing.special_order_kg}</td>
+                        <td data-field="special_order_unit">${packing.special_order_unit}</td>
+                        <td data-field="requirement_kg">${packing.requirement_kg}</td>
+                        <td data-field="requirement_unit">${packing.requirement_unit}</td>
                         <td>${packing.item.avg_weight_per_unit}</td>
-                        <td>${packing.soh_requirement_kg_week}</td>
-                        <td>${packing.soh_requirement_units_week}</td>
-                        <td>${packing.soh_kg}</td>
-                        <td>${packing.soh_units}</td>
+                        <td data-field="soh_requirement_kg_week">${packing.soh_requirement_kg_week}</td>
+                        <td data-field="soh_requirement_units_week">${packing.soh_requirement_units_week}</td>
+                        <td data-field="soh_kg">${packing.soh_kg}</td>
+                        <td data-field="soh_units">${packing.soh_units}</td>
                         <td>
                             <select name="machinery" data-id="${packing.id}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">
                                 ${machineryOptionsHtml}
                             </select>
                         </td>
-                        <td>${packing.total_stock_kg}</td>
-                        <td>${packing.total_stock_units}</td>
-                        <td>${packing.calculation_factor}</td>
-                        <td>${packing.priority}</td>
+                        <td data-field="total_stock_kg">${packing.total_stock_kg}</td>
+                        <td data-field="total_stock_units">${packing.total_stock_units}</td>
+                        <td data-field="calculation_factor">${packing.calculation_factor}</td>
+                        <td data-field="priority">${packing.priority}</td>
                         <td>
                             <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
                             <form action="/packing/delete/${packing.id}" method="POST" style="display: inline;">
@@ -532,6 +630,9 @@
 
                 document.getElementById('total_requirement_kg').textContent = totalRequirementKg.toFixed(2);
                 document.getElementById('total_requirement_unit').textContent = totalRequirementUnit;
+                
+                // Reapply column visibility after loading new data
+                applyColumnVisibility();
             })
             .catch(error => console.error('Error:', error));
     }
@@ -565,44 +666,119 @@
 
     // Column visibility functions
     function toggleColumn(colIndex) {
-    const table = document.getElementById('packingListTable');
-        const cells = table.getElementsByTagName('tr');
+        const table = document.getElementById('packingListTable');
+        const checkbox = document.querySelector(`input[data-col-index="${colIndex}"]`);
         
-        for (let i = 0; i < cells.length; i++) {
-            const cell = cells[i].getElementsByTagName('td')[colIndex-1] || 
-                        cells[i].getElementsByTagName('th')[colIndex-1];
-            if (cell) {
-                cell.style.display = document.querySelector(`input[data-col-index="${colIndex}"]`).checked ? '' : 'none';
-            }
+        if (!checkbox) {
+            console.error(`No checkbox found for column ${colIndex}`);
+            return;
+        }
+        
+        const isVisible = checkbox.checked;
+        const displayValue = isVisible ? '' : 'none';
+        
+        // Toggle header cells
+        const headerCells = table.querySelectorAll(`th[data-col-index="${colIndex}"]`);
+        headerCells.forEach(cell => {
+            cell.style.display = displayValue;
+        });
+        
+        // Toggle body cells
+        const bodyCells = table.querySelectorAll(`tbody td:nth-child(${colIndex})`);
+        bodyCells.forEach(cell => {
+            cell.style.display = displayValue;
+        });
+
+        // Special handling for footer - don't toggle if it's the requirement columns
+        if (colIndex !== 8 && colIndex !== 9) {
+            const footerCells = table.querySelectorAll(`tfoot td:nth-child(${colIndex})`);
+            footerCells.forEach(cell => {
+                if (!cell.id || (!cell.id.includes('total_requirement_kg') && !cell.id.includes('total_requirement_unit'))) {
+                    cell.style.display = displayValue;
+                }
+            });
+        }
+
+        // Update total row colspan if needed
+        updateTotalRowSpan();
+    }
+
+    function updateTotalRowSpan() {
+        const totalRow = document.querySelector('tfoot tr');
+        if (totalRow) {
+            // Count visible columns before Requirement KG
+            const visibleColumns = Array.from(document.querySelectorAll('th[data-col-index]'))
+                .filter(th => th.style.display !== 'none' && parseInt(th.dataset.colIndex) < 8)
+                .length;
+            
+            // Update colspan of total cell
+            const totalCell = totalRow.cells[0];
+            totalCell.setAttribute('colspan', visibleColumns);
         }
     }
-
-    function updateTotalRowForEssentialView() {
-        // This function is commented out until showEssentialOnly checkbox is implemented
-        // const totalRow = document.querySelector('tfoot tr');
-        // const isEssentialView = document.getElementById('showEssentialOnly').checked;
-    }
-
-    function showEssentialColumns() {
-        // This function is commented out until showEssentialOnly checkbox is implemented
-        // const table = document.querySelector('table');
-        // const isEssentialView = document.getElementById('showEssentialOnly').checked;
-    }
-
-    // Add event listener for the checkbox - commented out until checkbox is implemented
-    // document.getElementById('showEssentialOnly').addEventListener('change', showEssentialColumns);
 
     function showAllColumns() {
         document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = true;
-            toggleColumn(parseInt(checkbox.dataset.colIndex));
+            const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+            toggleColumn(colIndex);
         });
-}
 
-function resetToDefault() {
+        // Reset total row display
+        const totalRow = document.querySelector('tfoot tr');
+        if (totalRow) {
+            Array.from(totalRow.cells).forEach(cell => {
+                cell.style.display = '';
+            });
+            updateTotalRowSpan();
+        }
+    }
+
+    function showEssentialColumns() {
+        // Essential columns: Checkbox, Product Code, Description, Requirement KG, Requirement Unit, Machinery, Actions
+        const essentialColumns = [1, 4, 5, 8, 9, 15, 20];
+        
+        // Update checkboxes and toggle columns
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+            const isEssential = essentialColumns.includes(colIndex);
+            checkbox.checked = isEssential;
+            toggleColumn(colIndex);
+        });
+
+        // Update total row
+        const totalRow = document.querySelector('tfoot tr');
+        if (totalRow) {
+            // Reset all cells display
+            Array.from(totalRow.cells).forEach(cell => {
+                cell.style.display = '';
+            });
+
+            // Calculate visible columns before Requirement KG
+            const visibleBeforeReq = essentialColumns.filter(col => col < 8).length;
+            
+            // Set colspan for the "Total:" cell
+            const totalCell = totalRow.cells[0];
+            totalCell.setAttribute('colspan', visibleBeforeReq);
+            
+            // Make sure total cells are visible and properly positioned
+            const reqKgCell = totalRow.querySelector('#total_requirement_kg');
+            const reqUnitCell = totalRow.querySelector('#total_requirement_unit');
+            if (reqKgCell) {
+                reqKgCell.style.display = '';
+                reqKgCell.style.position = 'sticky';
+            }
+            if (reqUnitCell) {
+                reqUnitCell.style.display = '';
+                reqUnitCell.style.position = 'sticky';
+            }
+        }
+    }
+
+    function resetToDefault() {
         const defaultColumns = [2, 3, 6, 7, 10, 12, 15, 18, 19]; // Your default visible columns
         document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
-            const colIndex = parseInt(checkbox.dataset.colIndex);
+            const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
             checkbox.checked = defaultColumns.includes(colIndex);
             toggleColumn(colIndex);
         });
@@ -610,9 +786,8 @@ function resetToDefault() {
 
     // Initialize column visibility
     document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
-            toggleColumn(parseInt(checkbox.dataset.colIndex));
-        });
+        console.log('Initializing column visibility on page load');
+        applyColumnVisibility();
     });
 
     // Bulk edit functionality
@@ -679,6 +854,9 @@ function submitBulkEdit() {
         const field = selectElement.dataset.field;
         const value = selectElement.value;
 
+        // Store the original value in case we need to revert
+        const originalValue = selectElement.value;
+
         fetch('/packing/update_cell', {
             method: 'POST',
             headers: {
@@ -690,7 +868,12 @@ function submitBulkEdit() {
                 value: value
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 // Show success feedback
@@ -698,17 +881,27 @@ function submitBulkEdit() {
                 setTimeout(() => {
                     selectElement.style.backgroundColor = '';
                 }, 1000);
+
+                // Update other fields if they were returned
+                if (data.updates) {
+                    const row = selectElement.closest('tr');
+                    for (const [key, value] of Object.entries(data.updates)) {
+                        const cell = row.querySelector(`td[data-field="${key}"]`);
+                        if (cell) {
+                            cell.textContent = value;
+                        }
+                    }
+                }
             } else {
-                alert('Error updating: ' + (data.message || 'Unknown error'));
-                // Revert the change if there was an error
-                location.reload();
+                console.error('Update failed:', data.error);
+                alert('Error updating: ' + (data.error || 'Unknown error'));
+                selectElement.value = originalValue;
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error updating machinery');
-            // Revert the change if there was an error
-            location.reload();
+            alert('Error updating machinery: ' + error.message);
+            selectElement.value = originalValue;
         });
     }
 </script>

@@ -1048,7 +1048,7 @@ def raw_material_report():
             results = db.session.execute(text(raw_material_query), params).fetchall()
             
             # Clear existing records for the week
-            delete_query = "DELETE FROM raw_material_report WHERE week_commencing = :week_commencing"
+            delete_query = "DELETE FROM raw_material_report_table WHERE week_commencing = :week_commencing"
             delete_params = {'week_commencing': datetime.strptime(week_commencing, '%Y-%m-%d').date()}
             db.session.execute(text(delete_query), delete_params)
             
@@ -1057,9 +1057,9 @@ def raw_material_report():
                 report = RawMaterialReport(
                     production_date=result.week_commencing,  # Using week_commencing as production_date
                     week_commencing=result.week_commencing,
+                    raw_material_id=result.component_item_id,  # Matches database structure
                     raw_material=result.component_material,
-                    raw_material_id=result.component_item_id,
-                    meat_required=float(result.total_usage),
+                    meat_required=float(result.total_usage),  # Matches database structure
                     created_at=datetime.now()
                 )
                 db.session.add(report)

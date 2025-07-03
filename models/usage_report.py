@@ -8,8 +8,8 @@ class UsageReport(db.Model):
     week_commencing = Column(Date)
     production_date = Column(Date, nullable=False)
     recipe_code = Column(String(50), nullable=False)
-    raw_material = Column(String(255), nullable=False)
-    usage_kg = Column(Float, nullable=False)
+    raw_material = Column(String(255), nullable=False)  # This column DOES exist
+    usage_kg = Column(Float, nullable=False)  # This column DOES exist
     percentage = Column(Float, nullable=False)
     created_at = Column(DateTime)
 
