@@ -215,7 +215,7 @@
                                     <select id="machinery_id" name="machinery_id" class="form-select">
                                         <option value="">Select Machinery</option>
                                         {% for machinery in machineries %}
-                                        <option value="{{ machinery.machineID }}">{{ machinery.machineName }}</option>
+                                        <option value="{{ machinery.machineID }}">{{ machinery.machineryName }}</option>
                                         {% endfor %}
                                     </select>
                                     <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newMachineryModal">

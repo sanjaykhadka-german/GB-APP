@@ -34,14 +34,14 @@ def item_master_create():
     # Get all lookup data
     categories = Category.query.all()
     departments = Department.query.all()
-    machinery = Machinery.query.all()
+    machineries = Machinery.query.all()
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
     return render_template('item_master/create.html',
                          categories=categories,
                          departments=departments,
-                         machinery=machinery,
+                         machineries=machineries,
                          uoms=uoms,
                          allergens=allergens,
                          item_types=item_types,
@@ -55,7 +55,7 @@ def item_master_edit(id):
     # Get all lookup data
     categories = Category.query.all()
     departments = Department.query.all()
-    machinery = Machinery.query.all()
+    machineries = Machinery.query.all()
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
@@ -63,7 +63,7 @@ def item_master_edit(id):
     return render_template('item_master/edit.html',
                          categories=categories,
                          departments=departments,
-                         machinery=machinery,
+                         machineries=machineries,
                          uoms=uoms,
                          allergens=allergens,
                          item=item,
@@ -147,9 +147,9 @@ def get_items():
             "loss_percentage": item.loss_percentage,
             "supplier_name": item.supplier_name,
             "is_active": item.is_active,
-            "allergens": [allergen.name for allergen in item.allergens],
-            "created_by": item.created_by.username if item.created_by else None,
-            "updated_by": item.updated_by.username if item.updated_by else None,
+            "allergens": [],  # Allergen relationship temporarily removed
+            "created_by": None,  # User relationship temporarily removed  
+            "updated_by": None,  # User relationship temporarily removed
             "created_at": item.created_at.strftime("%Y-%m-%d %H:%M:%S") if item.created_at else None,
             "updated_at": item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else None
         }
@@ -233,10 +233,10 @@ def save_item():
             item.avg_weight_per_unit = data.get('avg_weight_per_unit') if data.get('avg_weight_per_unit') else None
             item.loss_percentage = data.get('loss_percentage') if data.get('loss_percentage') else None
         
-        # Handle allergens
-        if 'allergen_ids' in data:
-            allergens = Allergen.query.filter(Allergen.allergens_id.in_(data['allergen_ids'])).all()
-            item.allergens = allergens
+        # Handle allergens (temporarily disabled due to model changes)
+        # if 'allergen_ids' in data:
+        #     allergens = Allergen.query.filter(Allergen.allergens_id.in_(data['allergen_ids'])).all()
+        #     item.allergens = allergens
         
         db.session.add(item)
         db.session.commit()

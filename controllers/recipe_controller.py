@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster
+from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster, ItemType
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
 from models.production import Production
@@ -151,10 +151,32 @@ def autocomplete_recipe():
     if not search:
         return jsonify([])
     try:
-        # Use DISTINCT to get unique recipe codes and their descriptions
-        query = text("SELECT DISTINCT recipe_code, description FROM recipe_master WHERE recipe_code LIKE :search ORDER BY recipe_code LIMIT 10")
-        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
-        suggestions = [{"recipe_code": row[0], "description": row[1]} for row in results]
+        # Only show WIP items as recipe codes (as requested by user)
+        from sqlalchemy.orm import aliased
+        WipItem = aliased(ItemMaster)
+        
+        query = db.session.query(
+            WipItem.item_code.label('recipe_code'),
+            WipItem.description.label('description')
+        ).join(
+            RecipeMaster,
+            RecipeMaster.recipe_wip_id == WipItem.id
+        ).join(
+            ItemType,
+            WipItem.item_type_id == ItemType.id
+        ).filter(
+            ItemType.type_name == 'WIP',  # Only WIP items
+            WipItem.item_code.ilike(f"{search}%")
+        ).distinct().order_by(WipItem.item_code).limit(10)
+        
+        results = query.all()
+        suggestions = [
+            {
+                "recipe_code": row.recipe_code, 
+                "description": row.description
+            } 
+            for row in results
+        ]
         return jsonify(suggestions)
     except Exception as e:
         print(f"Error fetching recipe autocomplete suggestions: {e}")
@@ -165,48 +187,70 @@ def get_search_recipes():
     search_recipe_code = request.args.get('recipe_code', '').strip()
     search_description = request.args.get('description', '').strip()
     
-    # Create aliases for the two ItemMaster joins
+    # Create aliases for the ItemMaster joins
     from sqlalchemy.orm import aliased
+    from sqlalchemy import func
     RawMaterialItem = aliased(ItemMaster)
-    FinishedGoodItem = aliased(ItemMaster)
+    WipItem = aliased(ItemMaster)  # WIP items are recipe codes
     
-    # Join with both raw material and finished good items
+    # Join with both raw material and WIP items using correct field names
     recipes_query = db.session.query(
         RecipeMaster,
         RawMaterialItem.item_code.label('raw_material_code'),
         RawMaterialItem.description.label('raw_material'),
-        FinishedGoodItem.item_code.label('finished_good_code'),
-        FinishedGoodItem.description.label('finished_good')
+        WipItem.item_code.label('wip_code'),  # WIP item code is the recipe code
+        WipItem.description.label('wip_description')  # WIP item description
     ).join(
         RawMaterialItem,
-        RecipeMaster.raw_material_id == RawMaterialItem.id
+        RecipeMaster.component_item_id == RawMaterialItem.id
     ).join(
-        FinishedGoodItem,
-        RecipeMaster.finished_good_id == FinishedGoodItem.id
+        WipItem,
+        RecipeMaster.recipe_wip_id == WipItem.id
     )
     
+    # Apply filters based on search criteria (only filter by WIP items)
     if search_recipe_code:
-        recipes_query = recipes_query.filter(RecipeMaster.recipe_code.ilike(f"%{search_recipe_code}%"))
+        recipes_query = recipes_query.filter(WipItem.item_code.ilike(f"%{search_recipe_code}%"))
     if search_description:
-        recipes_query = recipes_query.filter(RecipeMaster.description.ilike(f"%{search_description}%"))
+        recipes_query = recipes_query.filter(WipItem.description.ilike(f"%{search_description}%"))
     
     recipes = recipes_query.all()
     
+    # Calculate total quantities for each recipe to compute percentages
+    recipe_totals = {}
+    for recipe in recipes:
+        recipe_wip_id = recipe.RecipeMaster.recipe_wip_id
+        if recipe_wip_id not in recipe_totals:
+            # Get total quantity for this recipe
+            total_query = db.session.query(
+                func.sum(RecipeMaster.quantity_kg).label('total_kg')
+            ).filter(RecipeMaster.recipe_wip_id == recipe_wip_id).first()
+            recipe_totals[recipe_wip_id] = float(total_query.total_kg) if total_query.total_kg else 0.0
+    
     recipes_data = []
     for recipe in recipes:
+        # Recipe code and description come from the WIP item
+        recipe_code = recipe.wip_code
+        description = recipe.wip_description
+        
+        # Calculate percentage: (component quantity / total recipe quantity) * 100
+        component_kg = float(recipe.RecipeMaster.quantity_kg) if recipe.RecipeMaster.quantity_kg else 0.0
+        total_kg = recipe_totals.get(recipe.RecipeMaster.recipe_wip_id, 0.0)
+        percentage = (component_kg / total_kg * 100) if total_kg > 0 else 0.0
+        
         recipes_data.append({
             "id": recipe.RecipeMaster.id,
-            "recipe_code": recipe.RecipeMaster.recipe_code,
-            "description": recipe.RecipeMaster.description,
+            "recipe_code": recipe_code,
+            "description": description,
             "raw_material_code": recipe.raw_material_code,
             "raw_material": recipe.raw_material,
-            "raw_material_id": recipe.RecipeMaster.raw_material_id,
-            "finished_good_code": recipe.finished_good_code,
-            "finished_good": recipe.finished_good,
-            "finished_good_id": recipe.RecipeMaster.finished_good_id,
-            "kg_per_batch": float(recipe.RecipeMaster.kg_per_batch) if recipe.RecipeMaster.kg_per_batch else 0.00,
-            "percentage": float(recipe.RecipeMaster.percentage) if recipe.RecipeMaster.percentage else 0.00,
-            "quantity_uom_id": recipe.RecipeMaster.quantity_uom_id
+            "raw_material_id": recipe.RecipeMaster.component_item_id,
+            "finished_good_code": recipe.wip_code,  # For compatibility, use WIP code
+            "finished_good": recipe.wip_description,  # For compatibility, use WIP description
+            "finished_good_id": recipe.RecipeMaster.recipe_wip_id,
+            "kg_per_batch": component_kg,
+            "percentage": round(percentage, 2),  # Automatically calculated percentage
+            "quantity_uom_id": None  # Not in current schema
         })
     
     return jsonify(recipes_data)

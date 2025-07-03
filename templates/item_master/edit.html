@@ -197,7 +197,7 @@
                                         {% for machinery in machineries %}
                                         <option value="{{ machinery.machineID }}" 
                                                 {{ 'selected' if item and item.machinery_id == machinery.machineID else '' }}>
-                                            {{ machinery.machineName }}
+                                            {{ machinery.machineryName }}
                                         </option>
                                         {% endfor %}
                                     </select>

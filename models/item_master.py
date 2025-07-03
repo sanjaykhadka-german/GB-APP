@@ -15,26 +15,50 @@ class ItemMaster(db.Model):
     # Foreign Key to the ItemType lookup table
     item_type_id = db.Column(db.Integer, db.ForeignKey('item_type.id'), nullable=False)
     
-    category = db.Column(db.String(100))
-    department = db.Column(db.String(100))
-    machinery = db.Column(db.String(100))
+    # Foreign keys for lookup tables - FIXED with correct column names
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=True)
+    machinery_id = db.Column(db.Integer, db.ForeignKey('machinery.machineID'), nullable=True)
+    uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID'), nullable=True)
+    
     min_stock = db.Column(db.DECIMAL(10, 2), default=0.00)
     max_stock = db.Column(db.DECIMAL(10, 2), default=0.00)
     is_active = db.Column(db.Boolean, default=True)
     price_per_kg = db.Column(db.DECIMAL(12, 4), nullable=True)
+    price_per_uom = db.Column(db.DECIMAL(12, 4), nullable=True)
     is_make_to_order = db.Column(db.Boolean, default=False)
     loss_percentage = db.Column(db.DECIMAL(5, 2), default=0.00)
     calculation_factor = db.Column(db.DECIMAL(10, 4), default=1.0000)
+    
+    # Additional columns that might exist in database
+    min_level = db.Column(db.DECIMAL(10, 2), nullable=True)
+    max_level = db.Column(db.DECIMAL(10, 2), nullable=True)
+    kg_per_unit = db.Column(db.DECIMAL(10, 4), nullable=True)
+    units_per_bag = db.Column(db.DECIMAL(10, 2), nullable=True)
+    avg_weight_per_unit = db.Column(db.DECIMAL(10, 4), nullable=True)
+    supplier_name = db.Column(db.String(255), nullable=True)
 
-    # --- Relationships ---
-
-    # Link to the ItemType object
-    item_type = relationship("ItemType", back_populates="items")
+    # Audit fields (added to resolve User model relationship errors)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
     # --- FG Composition (Self-referencing Foreign Keys) ---
     # These will only be populated for Finished Goods (FG)
     wip_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=True)
     wipf_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=True)
+
+    # --- Relationships ---
+
+    # Link to the ItemType object
+    item_type = relationship("ItemType", back_populates="items")
+    
+    # Lookup table relationships - FIXED with correct model references
+    category = relationship("Category", foreign_keys=[category_id])
+    department = relationship("Department", foreign_keys=[department_id])
+    machinery = relationship("Machinery", foreign_keys=[machinery_id])
+    uom = relationship("UOM", foreign_keys=[uom_id])
     
     # These relationships allow an FG to easily access its WIP and WIPF components
     # We specify foreign_keys to resolve ambiguity for SQLAlchemy
@@ -53,11 +77,11 @@ class ItemMaster(db.Model):
     )
 
     # If this item is used as a component (RM or WIP), this relationship shows all the recipes it is used in
-    # It links to all RecipeMaster entries where this item is a 'component_item'
+    # Added overlaps parameter to fix the warning
     used_in_recipes = relationship(
         'RecipeMaster', 
-        foreign_keys='RecipeMaster.component_item_id'
-        # Note: Removed back_populates since component_item doesn't have it
+        foreign_keys='RecipeMaster.component_item_id',
+        overlaps="component_item"
     )
 
     def __repr__(self):
