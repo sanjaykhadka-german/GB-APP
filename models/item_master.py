@@ -61,9 +61,9 @@ class ItemMaster(db.Model):
     uom = relationship("UOM", foreign_keys=[uom_id])
     
     # These relationships allow an FG to easily access its WIP and WIPF components
-    # We specify foreign_keys to resolve ambiguity for SQLAlchemy
-    wip_component = relationship("ItemMaster", foreign_keys=[wip_item_id])
-    wipf_component = relationship("ItemMaster", foreign_keys=[wipf_item_id])
+    # We specify foreign_keys and remote_side to resolve ambiguity for self-referencing relationships
+    wip_component = relationship("ItemMaster", foreign_keys=[wip_item_id], remote_side=[id])
+    wipf_component = relationship("ItemMaster", foreign_keys=[wipf_item_id], remote_side=[id])
     
     # --- Recipe Relationships ---
     

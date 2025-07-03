@@ -97,43 +97,49 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
                     # Create filling entry if needed
                     if 'filling' in requirements:
                         filling_req = requirements['filling']
-                        existing_filling = Filling.query.filter_by(
-                            item_code=filling_req['item_code'],
-                            week_commencing=week_commencing
-                        ).first()
-                        
-                        if not existing_filling:
-                            filling = Filling(
-                                item_code=filling_req['item_code'],
-                                description=filling_req['description'],
-                                week_commencing=week_commencing,
-                                calculation_factor=calculation_factor or 1.0,
-                                requirement_kg=filling_req['requirement_kg'],
-                                requirement_unit=filling_req['requirement_unit']
-                            )
-                            db.session.add(filling)
-                            created_entries.append(f"Filling: {filling_req['item_code']}")
+                        # Find the item by item_code to get its ID
+                        filling_item = ItemMaster.query.filter_by(item_code=filling_req['item_code']).first()
+                        if filling_item:
+                            existing_filling = Filling.query.filter_by(
+                                item_id=filling_item.id,
+                                week_commencing=week_commencing
+                            ).first()
+                            
+                            if not existing_filling:
+                                filling = Filling(
+                                    item_id=filling_item.id,
+                                    filling_date=week_commencing,  # Use filling_date field
+                                    week_commencing=week_commencing,
+                                    kilo_per_size=filling_req['requirement_kg']  # Add the requirement_kg value
+                                )
+                                db.session.add(filling)
+                                created_entries.append(f"Filling: {filling_req['item_code']}")
                     
                     # Create production entry if needed
                     if 'production' in requirements:
                         production_req = requirements['production']
-                        existing_production = Production.query.filter_by(
-                            item_code=production_req['item_code'],
-                            week_commencing=week_commencing
-                        ).first()
-                        
-                        if not existing_production:
-                            production = Production(
-                                item_code=production_req['item_code'],
-                                description=production_req['description'],
-                                production_code=production_req['item_code'],  # Required field
-                                week_commencing=week_commencing,
-                                calculation_factor=calculation_factor or 1.0,
-                                requirement_kg=production_req['requirement_kg'],
-                                requirement_unit=production_req['requirement_unit']
-                            )
-                            db.session.add(production)
-                            created_entries.append(f"Production: {production_req['item_code']}")
+                        # Find the item by item_code to get its ID
+                        production_item = ItemMaster.query.filter_by(item_code=production_req['item_code']).first()
+                        if production_item:
+                            existing_production = Production.query.filter_by(
+                                item_id=production_item.id,
+                                week_commencing=week_commencing
+                            ).first()
+                            
+                            if not existing_production:
+                                # Calculate batches (using 100kg as default batch size, or item-specific if available)
+                                batches = production_req['requirement_kg'] / 100.0 if production_req['requirement_kg'] > 0 else 0.0
+                                
+                                production = Production(
+                                    item_id=production_item.id,
+                                    production_date=week_commencing,  # Use production_date field
+                                    production_code=production_req['item_code'],  # Keep for compatibility
+                                    week_commencing=week_commencing,
+                                    total_kg=production_req['requirement_kg'],  # Use total_kg field
+                                    batches=batches  # Add batches calculation
+                                )
+                                db.session.add(production)
+                                created_entries.append(f"Production: {production_req['item_code']}")
                     
                     # Commit downstream entries
                     db.session.commit()
@@ -277,7 +283,7 @@ def soh_upload():
 
                 if not week_commencing:
                     flash(f"Week Commencing date is missing or invalid for FG Code: {fg_code}. Skipping row.", "danger")
-                    continue # Skip if date is still not valid
+                    continue
 
                 item = ItemMaster.query.filter_by(item_code=fg_code).first()
                 if not item:

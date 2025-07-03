@@ -427,11 +427,12 @@ def production_usage():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
     
-    # Query to get production and recipe usage data
+    # Query to get production and recipe usage data using new schema
     from models.recipe_master import RecipeMaster
     from sqlalchemy.orm import aliased
     
-    # Create alias for ItemMaster to avoid conflicts
+    # Create aliases for ItemMaster to avoid conflicts
+    ProductionItem = aliased(ItemMaster)
     ComponentItem = aliased(ItemMaster)
     
     query = db.session.query(
@@ -439,11 +440,11 @@ def production_usage():
         RecipeMaster,
         ComponentItem.description.label('component_name')
     ).join(
-        RecipeMaster,
-        Production.production_code == RecipeMaster.recipe_code  # Join Production to RecipeMaster
+        ProductionItem, Production.item_id == ProductionItem.id  # Join Production to ItemMaster (WIP item)
     ).join(
-        ComponentItem,
-        RecipeMaster.raw_material_id == ComponentItem.id  # Join RecipeMaster to ItemMaster for raw material
+        RecipeMaster, ProductionItem.id == RecipeMaster.recipe_wip_id  # Join to RecipeMaster via recipe_wip_id
+    ).join(
+        ComponentItem, RecipeMaster.component_item_id == ComponentItem.id  # Join to component ItemMaster
     )
     
     # Apply date filters if provided
@@ -475,11 +476,11 @@ def production_usage():
             'week_commencing': week_commencing.strftime('%Y-%m-%d'),
             'production_date': production.production_date.strftime('%Y-%m-%d'),
             'production_code': production.production_code,
-            'recipe_code': recipe.recipe_code,
+            'recipe_code': production.item.item_code if production.item else 'Unknown',
             'component_material': component_name,
-            'usage_kg': recipe.kg_per_batch * production.batches if production.batches else 0,  # Scale by batches
-            'kg_per_batch': recipe.kg_per_batch,
-            'percentage': recipe.percentage if recipe.percentage else 0.0
+            'usage_kg': float(recipe.quantity_kg) * (production.batches or 0),  # Use quantity_kg and batches
+            'kg_per_batch': float(recipe.quantity_kg),
+            'percentage': 0.0  # Set to 0 since percentage is not used in new schema
         })
     
     return render_template('production/usage.html',
@@ -495,16 +496,24 @@ def production_raw_material_report():
         # Get week commencing filter from request
         week_commencing = request.args.get('week_commencing')
         
-        # Base query for weekly data - using current schema
+        # Base query for weekly data - using current schema with corrected field names
         raw_material_query = """
         SELECT 
             DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            im.description as component_material,
-            im.id as component_item_id,
-            SUM(p.total_kg * r.percentage / 100) as total_usage
+            component_im.description as component_material,
+            component_im.id as component_item_id,
+            SUM(p.total_kg * (r.quantity_kg / recipe_totals.total_recipe_kg) * 100) as total_usage
         FROM production p
-        JOIN recipe_master r ON p.production_code = r.recipe_code
-        JOIN item_master im ON r.raw_material_id = im.id
+        JOIN item_master production_im ON p.item_id = production_im.id
+        JOIN recipe_master r ON production_im.id = r.recipe_wip_id
+        JOIN item_master component_im ON r.component_item_id = component_im.id
+        JOIN (
+            SELECT 
+                r2.recipe_wip_id,
+                SUM(r2.quantity_kg) as total_recipe_kg
+            FROM recipe_master r2
+            GROUP BY r2.recipe_wip_id
+        ) recipe_totals ON r.recipe_wip_id = recipe_totals.recipe_wip_id
         """
         
         # Add date filter to the query
@@ -518,9 +527,9 @@ def production_raw_material_report():
         raw_material_query += """
         GROUP BY 
             DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
-            im.description,
-            im.id
-        ORDER BY week_commencing DESC, im.description
+            component_im.description,
+            component_im.id
+        ORDER BY week_commencing DESC, component_im.description
         """
         
         results = db.session.execute(text(raw_material_query), params).fetchall()

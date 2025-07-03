@@ -57,29 +57,24 @@ def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=N
             requirement_kg = packing.requirement_kg or 0.0
             logger.debug(f"Packing {item.item_code}: {requirement_kg} kg")
             
-            # Get WIPF items from recipes
-            wipf_recipes = [recipe for recipe in item.recipes_where_raw_material 
-                          if recipe.raw_material_item.item_type.type_name == 'WIPF']
-            
-            for recipe in wipf_recipes:
-                wipf_item = recipe.raw_material_item
-                if wipf_item:
-                    if wipf_item.id not in wipf_totals:
-                        wipf_totals[wipf_item.id] = 0.0
-                    wipf_totals[wipf_item.id] += requirement_kg
-                    logger.debug(f"Added {requirement_kg} kg to WIPF {wipf_item.item_code}, total now: {wipf_totals[wipf_item.id]}")
+            # Get WIPF items that this FG item is produced from
+            # We need to find WIPF items where this FG item is made FROM them
+            # Use the hierarchy relationships instead of used_in_recipes
+            if hasattr(item, 'wipf_component') and item.wipf_component:
+                wipf_item = item.wipf_component
+                if wipf_item.id not in wipf_totals:
+                    wipf_totals[wipf_item.id] = 0.0
+                wipf_totals[wipf_item.id] += requirement_kg
+                logger.debug(f"Added {requirement_kg} kg to WIPF {wipf_item.item_code}, total now: {wipf_totals[wipf_item.id]}")
                 
-            # Get WIP items from recipes
-            wip_recipes = [recipe for recipe in item.recipes_where_raw_material 
-                         if recipe.raw_material_item.item_type.type_name == 'WIP']
-            
-            for recipe in wip_recipes:
-                wip_item = recipe.raw_material_item
-                if wip_item:
-                    if wip_item.id not in wip_totals:
-                        wip_totals[wip_item.id] = 0.0
-                    wip_totals[wip_item.id] += requirement_kg
-                    logger.debug(f"Added {requirement_kg} kg to WIP {wip_item.item_code}, total now: {wip_totals[wip_item.id]}")
+            # Get WIP items that this FG item is produced from
+            # Use the hierarchy relationships instead of used_in_recipes
+            if hasattr(item, 'wip_component') and item.wip_component:
+                wip_item = item.wip_component
+                if wip_item.id not in wip_totals:
+                    wip_totals[wip_item.id] = 0.0
+                wip_totals[wip_item.id] += requirement_kg
+                logger.debug(f"Added {requirement_kg} kg to WIP {wip_item.item_code}, total now: {wip_totals[wip_item.id]}")
         
         logger.info(f"WIPF totals: {wipf_totals}")
         logger.info(f"WIP totals: {wip_totals}")
@@ -741,17 +736,15 @@ def packing_edit(id):
     # Get related fillings by finding items with matching WIPF recipes
     related_items_with_filling = ItemMaster.query.filter(
         ItemMaster.item_code.ilike(f"{recipe_code_prefix}%"),
-        ItemMaster.recipes_where_raw_material.any(ItemMaster.item_type.has(type_name='WIPF'))
+        ItemMaster.used_in_recipes.any(ItemMaster.item_type.has(type_name='WIPF'))
     ).all()
     
-    # Get all WIPF items used in these items' recipes
+    # Get all WIPF items from hierarchy relationships
     wipf_items = []
     for item in related_items_with_filling:
-        wipf_recipes = [recipe for recipe in item.recipes_where_raw_material 
-                      if recipe.raw_material_item.item_type.type_name == 'WIPF']
-        for recipe in wipf_recipes:
-            if recipe.raw_material_item not in wipf_items:
-                wipf_items.append(recipe.raw_material_item)
+        if hasattr(item, 'wipf_component') and item.wipf_component:
+            if item.wipf_component not in wipf_items:
+                wipf_items.append(item.wipf_component)
     
     # Get fillings for these WIPF items
     related_fillings = Filling.query.filter(
@@ -767,23 +760,19 @@ def packing_edit(id):
         ItemMaster.item_code.ilike(f"{recipe_code_prefix}%")
     ).all()
     
-    # Get all WIP items used in these items' recipes
+    # Get all WIP items from hierarchy relationships
     wip_items = []
     
     # FIRST: Add WIP items from the current packing item itself
-    current_item_wip_recipes = [recipe for recipe in packing.item.recipes_where_finished_good 
-                               if recipe.raw_material_item and recipe.raw_material_item.item_type and recipe.raw_material_item.item_type.type_name == 'WIP']
-    for recipe in current_item_wip_recipes:
-        if recipe.raw_material_item not in wip_items:
-            wip_items.append(recipe.raw_material_item)
+    if hasattr(packing.item, 'wip_component') and packing.item.wip_component:
+        if packing.item.wip_component not in wip_items:
+            wip_items.append(packing.item.wip_component)
     
     # SECOND: Add WIP items from other items in the same recipe family
     for item in related_items_with_production:
-        wip_recipes = [recipe for recipe in item.recipes_where_finished_good 
-                      if recipe.raw_material_item and recipe.raw_material_item.item_type and recipe.raw_material_item.item_type.type_name == 'WIP']
-        for recipe in wip_recipes:
-            if recipe.raw_material_item not in wip_items:
-                wip_items.append(recipe.raw_material_item)
+        if hasattr(item, 'wip_component') and item.wip_component:
+            if item.wip_component not in wip_items:
+                wip_items.append(item.wip_component)
     
     # Get productions for these WIP items
     related_productions = Production.query.filter(

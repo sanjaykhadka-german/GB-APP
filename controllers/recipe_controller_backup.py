@@ -327,43 +327,44 @@ def usage():
             usage_data = query.all()
             
             # Save data to usage_report table and prepare for display
-            for production, recipe, component_name in usage_data:
-                date = production.production_date  # production_date is already a date object
-                # Calculate the Monday of the week for the production_date
-                week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
-                
-                usage_kg = float(recipe.quantity_kg) * (production.batches or 0)
-                recipe_code = production.item.item_code if production.item else 'Unknown'
-                
-                # Save to usage_report table
-                usage_report = UsageReport(
-                    week_commencing=week_commencing,
-                    production_date=production.production_date,
-                    recipe_code=recipe_code,
-                    raw_material=component_name,
-                    usage_kg=usage_kg,
-                    percentage=0.0,  # Set to 0 since percentage doesn't exist in new schema
-                    created_at=datetime.now()
-                )
-                db.session.add(usage_report)
-                
-                # Group data for display
-                if date not in grouped_usage_data:
-                    grouped_usage_data[date] = []
-                    
-                grouped_usage_data[date].append({
-                    'week_commencing': week_commencing.strftime('%Y-%m-%d'),
-                    'production_date': production.production_date.strftime('%Y-%m-%d'),
-                    'production_code': production.production_code,
-                    'recipe_code': recipe_code,
-                    'component_material': component_name,
-                    'usage_kg': usage_kg,
-                    'kg_per_batch': float(recipe.quantity_kg),
-                    'percentage': 0.0
-                })
+        
+        for production, recipe, component_name in usage_data:
+            date = production.production_date  # production_date is already a date object
+            # Calculate the Monday of the week for the production_date
+            week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
             
-            # Commit the data to usage_report table
-            db.session.commit()
+            usage_kg = float(recipe.quantity_kg) * (production.batches or 0)
+            recipe_code = production.item.item_code if production.item else 'Unknown'
+            
+            # Save to usage_report table
+            usage_report = UsageReport(
+                week_commencing=week_commencing,
+                production_date=production.production_date,
+                recipe_code=recipe_code,
+                raw_material=component_name,
+                usage_kg=usage_kg,
+                percentage=0.0,  # Set to 0 since percentage doesn't exist in new schema
+                created_at=datetime.now()
+            )
+            db.session.add(usage_report)
+            
+            # Group data for display
+            if date not in grouped_usage_data:
+                grouped_usage_data[date] = []
+                
+            grouped_usage_data[date].append({
+                'week_commencing': week_commencing.strftime('%Y-%m-%d'),
+                'production_date': production.production_date.strftime('%Y-%m-%d'),
+                'production_code': production.production_code,
+                'recipe_code': recipe_code,
+                'component_material': component_name,
+                'usage_kg': usage_kg,
+                'kg_per_batch': float(recipe.quantity_kg),
+                'percentage': 0.0
+            })
+        
+        # Commit the data to usage_report table
+        db.session.commit()
         
         return render_template('recipe/usage.html',
                              grouped_usage_data=grouped_usage_data,
@@ -980,78 +981,73 @@ def raw_material_report():
         # Get week commencing filter from request
         week_commencing = request.args.get('week_commencing')
         
-        # If no week filter provided, get data from raw_material_report table
-        if not week_commencing:
-            # Get existing data from raw_material_report table
-            raw_material_reports = RawMaterialReport.query.order_by(RawMaterialReport.week_commencing.desc()).all()
-            
-            raw_material_data = [
-                {
-                    'week_commencing': report.week_commencing.strftime('%d/%m/%Y'),
-                    'raw_material': report.raw_material,
-                    'usage': round(float(report.meat_required), 2)
-                }
-                for report in raw_material_reports
-            ]
-        else:
-            # Week filter provided - recalculate and save new data
-            # Base query for weekly data - using current schema with corrected field names
-            raw_material_query = """
+        # Base query for weekly data - using current schema with corrected field names
+        raw_material_query = """
+        SELECT 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
+            component_im.description as component_material,
+            component_im.id as component_item_id,
+            SUM(p.total_kg * (r.quantity_kg / recipe_totals.total_recipe_kg) * 100) as total_usage
+        FROM production p
+        JOIN item_master production_im ON p.item_id = production_im.id
+        JOIN recipe_master r ON production_im.id = r.recipe_wip_id
+        JOIN item_master component_im ON r.component_item_id = component_im.id
+        JOIN (
             SELECT 
-                DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-                component_im.description as component_material,
-                component_im.id as component_item_id,
-                SUM(p.total_kg * (r.quantity_kg / recipe_totals.total_recipe_kg) * 100) as total_usage
-            FROM production p
-            JOIN item_master production_im ON p.item_id = production_im.id
-            JOIN recipe_master r ON production_im.id = r.recipe_wip_id
-            JOIN item_master component_im ON r.component_item_id = component_im.id
-            JOIN (
-                SELECT 
-                    r2.recipe_wip_id,
-                    SUM(r2.quantity_kg) as total_recipe_kg
-                FROM recipe_master r2
-                GROUP BY r2.recipe_wip_id
-            ) recipe_totals ON r.recipe_wip_id = recipe_totals.recipe_wip_id
+                r2.recipe_wip_id,
+                SUM(r2.quantity_kg) as total_recipe_kg
+            FROM recipe_master r2
+            GROUP BY r2.recipe_wip_id
+        ) recipe_totals ON r.recipe_wip_id = recipe_totals.recipe_wip_id
+        """
+        
+        # Add date filter to the query
+        params = {}
+        if week_commencing:
+            raw_material_query += """ 
             WHERE DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) = :week_commencing
-            GROUP BY 
-                DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
-                component_im.description,
-                component_im.id
-            ORDER BY week_commencing DESC, component_im.description
             """
-            
-            params = {'week_commencing': datetime.strptime(week_commencing, '%Y-%m-%d').date()}
-            results = db.session.execute(text(raw_material_query), params).fetchall()
-            
-            # Clear existing records for the week
+            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
+        
+        raw_material_query += """
+        GROUP BY 
+            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
+            component_im.description,
+            component_im.id
+        ORDER BY week_commencing DESC, component_im.description
+        """
+        
+        results = db.session.execute(text(raw_material_query), params).fetchall()
+        
+        # Clear existing records for the week
+        if week_commencing:
             delete_query = "DELETE FROM raw_material_report WHERE week_commencing = :week_commencing"
             delete_params = {'week_commencing': datetime.strptime(week_commencing, '%Y-%m-%d').date()}
             db.session.execute(text(delete_query), delete_params)
-            
-            # Save results to raw_material_report table
-            for result in results:
-                report = RawMaterialReport(
-                    production_date=result.week_commencing,  # Using week_commencing as production_date
-                    week_commencing=result.week_commencing,
-                    raw_material=result.component_material,
-                    raw_material_id=result.component_item_id,
-                    meat_required=float(result.total_usage),
-                    created_at=datetime.now()
-                )
-                db.session.add(report)
-            
-            db.session.commit()
-            
-            # Convert to list of dictionaries for template
-            raw_material_data = [
-                {
-                    'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
-                    'raw_material': result.component_material,
-                    'usage': round(float(result.total_usage), 2)
-                }
-                for result in results
-            ]
+        
+        # Save results to raw_material_report table
+        for result in results:
+            report = RawMaterialReport(
+                production_date=result.week_commencing,  # Using week_commencing as production_date
+                week_commencing=result.week_commencing,
+                raw_material=result.component_material,
+                raw_material_id=result.component_item_id,
+                meat_required=float(result.total_usage),
+                created_at=datetime.now()
+            )
+            db.session.add(report)
+        
+        db.session.commit()
+        
+        # Convert to list of dictionaries for template
+        raw_material_data = [
+            {
+                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
+                'raw_material': result.component_material,
+                'usage': round(float(result.total_usage), 2)
+            }
+            for result in results
+        ]
         
         return render_template('recipe/raw_material_report.html', 
                              raw_material_data=raw_material_data,
