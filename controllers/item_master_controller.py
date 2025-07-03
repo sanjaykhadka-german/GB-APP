@@ -157,6 +157,7 @@ def get_items():
     
     return jsonify(items_data)
 
+@item_master_bp.route('/item-master/create', methods=['POST'])
 @item_master_bp.route('/item-master', methods=['POST'])
 def save_item():
     try:
@@ -232,6 +233,26 @@ def save_item():
             item.units_per_bag = data.get('units_per_bag') if data.get('units_per_bag') else None
             item.avg_weight_per_unit = data.get('avg_weight_per_unit') if data.get('avg_weight_per_unit') else None
             item.loss_percentage = data.get('loss_percentage') if data.get('loss_percentage') else None
+        
+        # Handle FG hierarchy relationships
+        if item_type_name == 'FG':
+            # Set WIP component relationship
+            wip_component_id = data.get('wip_component_id')
+            if wip_component_id:
+                item.wip_item_id = int(wip_component_id)
+            else:
+                item.wip_item_id = None
+                
+            # Set WIPF component relationship  
+            wipf_component_id = data.get('wipf_component_id')
+            if wipf_component_id:
+                item.wipf_item_id = int(wipf_component_id)
+            else:
+                item.wipf_item_id = None
+        else:
+            # Clear hierarchy relationships for non-FG items
+            item.wip_item_id = None
+            item.wipf_item_id = None
         
         # Handle allergens (temporarily disabled due to model changes)
         # if 'allergen_ids' in data:
@@ -770,6 +791,33 @@ def item_master_upload():
     
     # GET request - just render the upload page
     return render_template('item_master/upload.html', current_page='item_master')
+
+@item_master_bp.route('/item-master/get-items-by-type/<item_type>', methods=['GET'])
+def get_items_by_type(item_type):
+    """Get items by item type for hierarchy selection"""
+    try:
+        # Check if user is authenticated
+        if 'user_id' not in session:
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        
+        # Get items by type
+        items = ItemMaster.query.join(ItemType).filter(
+            ItemType.type_name == item_type,
+            ItemMaster.is_active == True
+        ).order_by(ItemMaster.item_code).all()
+        
+        items_data = []
+        for item in items:
+            items_data.append({
+                'id': item.id,
+                'item_code': item.item_code,
+                'description': item.description or ''
+            })
+        
+        return jsonify({'success': True, 'items': items_data})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @item_master_bp.route('/autocomplete-item-code', methods=['GET'])
 def autocomplete_item_code():
