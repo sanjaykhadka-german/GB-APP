@@ -1,56 +1,43 @@
 from database import db
-from sqlalchemy import event
+from sqlalchemy.orm import relationship
 
 class RecipeMaster(db.Model):
+    """
+    Association table defining the Bill of Materials for a WIP item.
+    Links a WIP item (recipe_wip) to its component items (which can be RM or other WIP items).
+    """
     __tablename__ = 'recipe_master'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    
-    # The item being produced/assembled (e.g., Frankfurter WIP, WIPF, or Finished Good)
-    finished_good_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='CASCADE'), nullable=False)
-    
-    # A component needed to produce the assembly (e.g., Raw Material, WIP, or WIPF)
-    raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='CASCADE'), nullable=False)
-    
-    # How much of the component is needed to make one "unit" or "batch" of the assembly
-    kg_per_batch = db.Column(db.Float, nullable=False)
-    
-    # Percentage of this component in the total recipe (calculated field)
-    percentage = db.Column(db.Float)
-    
-    # Optional: UOM for the quantity if different units are mixed
-    quantity_uom_id = db.Column(db.Integer, db.ForeignKey('uom_type.UOMID'), nullable=True)
-    
-    # Metadata
-    recipe_code = db.Column(db.String(100))  # Optional grouping identifier
-    description = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
-    # Prevent duplicate component-assembly pairs
-    __table_args__ = (
-        db.UniqueConstraint('finished_good_id', 'raw_material_id', name='uix_finished_raw_material'),
+    id = db.Column(db.Integer, primary_key=True)
+    quantity_kg = db.Column(db.DECIMAL(10, 4), nullable=False)
+
+    # Foreign key to the WIP item being defined
+    recipe_wip_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
+    
+    # RENAMED for clarity: This component can be an RM or another WIP
+    component_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
+
+    # --- Relationships ---
+
+    # Links back to the ItemMaster object that represents the WIP recipe
+    recipe_wip = relationship(
+        'ItemMaster', 
+        foreign_keys=[recipe_wip_id], 
+        back_populates='components'
+    )
+    
+    # RENAMED relationship link for clarity
+    component_item = relationship(
+        'ItemMaster', 
+        foreign_keys=[component_item_id]
+        # Note: The 'used_in_recipes' back_populates might need adjustment
+        # if you rename it on the ItemMaster side as well.
     )
 
-    # Relationships with ItemMaster
-    finished_good_item = db.relationship('ItemMaster', foreign_keys=[finished_good_id])
-    raw_material_item = db.relationship('ItemMaster', foreign_keys=[raw_material_id])
+    # Ensure a component can only be added once to a specific recipe
+    __table_args__ = (
+        db.UniqueConstraint('recipe_wip_id', 'component_item_id', name='uq_recipe_component'),
+    )
 
     def __repr__(self):
-        return f'<Recipe: {self.raw_material_item.item_code} -> {self.finished_good_item.item_code}>'
-
-    @classmethod
-    def check_duplicate_materials(cls, finished_good_id, raw_material_id):
-        """Check if this raw material is already used in this recipe"""
-        existing = cls.query.filter_by(
-            finished_good_id=finished_good_id,
-            raw_material_id=raw_material_id
-        ).first()
-        return existing is not None
-
-# Move these outside the class
-@event.listens_for(RecipeMaster, 'before_insert')
-@event.listens_for(RecipeMaster, 'before_update')
-def validate_recipe_logic(mapper, connection, target):
-    if target.check_duplicate_materials(target.finished_good_id, target.raw_material_id):
-        pass
+        return f"<RecipeMaster {self.recipe_wip.item_code} uses {self.quantity_kg}kg of {self.component_item.item_code}>"
