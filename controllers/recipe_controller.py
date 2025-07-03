@@ -55,12 +55,23 @@ def recipe_page():
                 recipe_id = recipe_data.get('recipe_id')
                 recipe_code = recipe_data.get('recipe_code')
                 description = recipe_data.get('description')
-                finished_good_id = recipe_data.get('finished_good_id')
-                raw_material_id = recipe_data.get('raw_material_id')
+                recipe_wip_id = recipe_data.get('recipe_wip_id')  # Changed from finished_good_id
+                component_item_id = recipe_data.get('component_item_id')  # Changed from raw_material_id
                 kg_per_batch = recipe_data.get('kg_per_batch')
 
-                if not all([recipe_code, description, finished_good_id, raw_material_id, kg_per_batch]):
+                if not all([recipe_code, description, recipe_wip_id, component_item_id, kg_per_batch]):
                     return jsonify({'error': 'Required fields are missing.'}), 400
+                
+                # Validate that recipe_wip_id is a WIP item
+                wip_item = db.session.query(ItemMaster).join(
+                    ItemType, ItemMaster.item_type_id == ItemType.id
+                ).filter(
+                    ItemMaster.id == recipe_wip_id,
+                    ItemType.type_name == 'WIP'
+                ).first()
+                
+                if not wip_item:
+                    return jsonify({'error': 'Recipe code must be a WIP item.'}), 400
                 
                 # Validate kg_per_batch is a number
                 try:
@@ -72,32 +83,28 @@ def recipe_page():
 
                 if recipe_id:  # Edit case
                     recipe = RecipeMaster.query.get_or_404(recipe_id)
-                    recipe.recipe_code = recipe_code
-                    recipe.description = description
-                    recipe.finished_good_id = finished_good_id
-                    recipe.raw_material_id = raw_material_id
-                    recipe.kg_per_batch = kg_per_batch
+                    # Update using actual database field names
+                    recipe.recipe_wip_id = recipe_wip_id
+                    recipe.component_item_id = component_item_id
+                    recipe.quantity_kg = kg_per_batch  # Use actual database field name
                 else:  # Add case
                     recipe = RecipeMaster(
-                        recipe_code=recipe_code,
-                        description=description,
-                        finished_good_id=finished_good_id,
-                        raw_material_id=raw_material_id,
-                        kg_per_batch=kg_per_batch
+                        recipe_wip_id=recipe_wip_id,
+                        component_item_id=component_item_id,
+                        quantity_kg=kg_per_batch  # Use actual database field name
                     )
                     db.session.add(recipe)
 
                 db.session.flush()
 
-            # Recalculate percentages for all recipes with the same recipe_code
-            recipe_code = recipes_data[0]['recipe_code']
+            # Recalculate percentages for all recipes with the same recipe_wip_id
+            recipe_wip_id = recipes_data[0]['recipe_wip_id']
             recipes_to_update = RecipeMaster.query.filter(
-                RecipeMaster.recipe_code == recipe_code
+                RecipeMaster.recipe_wip_id == recipe_wip_id
             ).all()
 
-            total_quantity = sum(float(r.kg_per_batch) for r in recipes_to_update)
-            for r in recipes_to_update:
-                r.percentage = Decimal(round((float(r.kg_per_batch) / total_quantity) * 100, 2)) if total_quantity > 0 else Decimal('0.00')
+            total_quantity = sum(float(r.quantity_kg) for r in recipes_to_update)
+            # Note: percentage is calculated automatically in get_search_recipes, not stored
 
             db.session.commit()
             return jsonify({'message': 'Recipes saved successfully!'}), 200
@@ -114,31 +121,36 @@ def recipe_page():
     search_description = request.args.get('description', '')
     edit_id = request.args.get('edit_id')
     
-    # Get all items for dropdowns (any item can be used as component or assembly)
-    all_items = ItemMaster.query.order_by(ItemMaster.item_code).all()
+    # Get only WIP items for recipe codes and RM items for components
+    wip_items = db.session.query(ItemMaster).join(
+        ItemType, ItemMaster.item_type_id == ItemType.id
+    ).filter(ItemType.type_name == 'WIP').order_by(ItemMaster.item_code).all()
+    
+    component_items = db.session.query(ItemMaster).join(
+        ItemType, ItemMaster.item_type_id == ItemType.id  
+    ).filter(ItemType.type_name == 'RM').order_by(ItemMaster.item_code).all()
 
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
                          recipes=RecipeMaster.query.all(),
-                         all_items=all_items,
+                         wip_items=wip_items,  # Only WIP items for recipe codes
+                         component_items=component_items,  # Only RM items for components
                          current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
 def delete_recipe(id):
     try:
         recipe = RecipeMaster.query.get_or_404(id)
-        recipe_code = recipe.recipe_code
+        recipe_wip_id = recipe.recipe_wip_id
         db.session.delete(recipe)
         db.session.commit()
 
-        # Recalculate percentages for remaining recipes with the same recipe_code
-        recipes_to_update = RecipeMaster.query.filter(RecipeMaster.recipe_code == recipe_code).all()
+        # Recalculate percentages for remaining recipes with the same recipe_wip_id
+        recipes_to_update = RecipeMaster.query.filter(RecipeMaster.recipe_wip_id == recipe_wip_id).all()
         if recipes_to_update:
-            total_quantity = sum(float(r.kg_per_batch) for r in recipes_to_update)
-            for r in recipes_to_update:
-                r.percentage = Decimal(round((float(r.kg_per_batch) / total_quantity) * 100, 2)) if total_quantity > 0 else Decimal('0.00')
-            db.session.commit()
+            total_quantity = sum(float(r.quantity_kg) for r in recipes_to_update)
+            # Note: percentage is calculated automatically in get_search_recipes, not stored
 
         return jsonify({'message': 'Recipe deleted successfully!'}), 200
     except Exception as e:
@@ -167,7 +179,7 @@ def autocomplete_recipe():
         ).filter(
             ItemType.type_name == 'WIP',  # Only WIP items
             WipItem.item_code.ilike(f"{search}%")
-        ).distinct().order_by(WipItem.item_code).limit(10)
+        ).distinct().order_by(WipItem.item_code).limit(25)
         
         results = query.all()
         suggestions = [
@@ -244,13 +256,10 @@ def get_search_recipes():
             "description": description,
             "raw_material_code": recipe.raw_material_code,
             "raw_material": recipe.raw_material,
-            "raw_material_id": recipe.RecipeMaster.component_item_id,
-            "finished_good_code": recipe.wip_code,  # For compatibility, use WIP code
-            "finished_good": recipe.wip_description,  # For compatibility, use WIP description
-            "finished_good_id": recipe.RecipeMaster.recipe_wip_id,
+            "component_item_id": recipe.RecipeMaster.component_item_id,  # Use correct field name
+            "recipe_wip_id": recipe.RecipeMaster.recipe_wip_id,  # Use correct field name
             "kg_per_batch": component_kg,
             "percentage": round(percentage, 2),  # Automatically calculated percentage
-            "quantity_uom_id": None  # Not in current schema
         })
     
     return jsonify(recipes_data)
@@ -1087,7 +1096,7 @@ def autocomplete_items():
             query = query.filter(ItemMaster.item_type == item_type)
         
         # Limit results
-        items = query.limit(15).all()
+        items = query.limit(25).all()
         
         suggestions = [
             {
