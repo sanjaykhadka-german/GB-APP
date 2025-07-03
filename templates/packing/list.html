@@ -131,7 +131,14 @@
                         <td>{{ data.packing.soh_requirement_units_week }}</td>
                         <td>{{ data.soh_kg }}</td>
                         <td>{{ data.soh_units }}</td>
-                        <td>{{ data.packing.machinery.machine_name if data.packing.machinery else '' }}</td>
+                        <td>
+                            <select name="machinery" data-id="{{ data.packing.id }}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">
+                                <option value="">Select Machinery</option>
+                                {% for machine in machinery_list %}
+                                <option value="{{ machine.machineID }}" {% if data.packing.machinery == machine.machineID %}selected{% endif %}>{{ machine.machineryName }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
                         <td>{{ data.total_stock_kg }}</td>
                         <td>{{ data.total_stock_units }}</td>
                         <td>{{ data.packing.calculation_factor }}</td>
@@ -333,10 +340,14 @@
 </style>
 
 <script>
+    // Global machinery options for dynamic select building
+    let machineryOptions = [];
+    
     // Initialize machinery filter options
     fetch('/packing/machinery_options')
         .then(response => response.json())
         .then(data => {
+            machineryOptions = data; // Store globally for dynamic select building
             const select = document.getElementById('search_machinery');
             const bulkSelect = document.getElementById('bulk_machinery');
             data.forEach(machinery => {
@@ -346,6 +357,16 @@
             });
         })
         .catch(error => console.error('Error loading machinery options:', error));
+
+    // Helper function to build machinery select options
+    function buildMachinerySelect(packingId, currentMachineryId) {
+        let optionsHtml = '<option value="">Select Machinery</option>';
+        machineryOptions.forEach(machine => {
+            const selected = (currentMachineryId == machine.machineID) ? 'selected' : '';
+            optionsHtml += `<option value="${machine.machineID}" ${selected}>${machine.machineryName}</option>`;
+        });
+        return `<select name="machinery" data-id="${packingId}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">${optionsHtml}</select>`;
+    }
 
     // Product code autocomplete
     let typingTimer;
@@ -423,6 +444,13 @@
             let totalRequirementUnit = 0;
 
                 data.packings.forEach(packing => {
+                    // Build machinery select options dynamically
+                    let machineryOptionsHtml = '<option value="">Select Machinery</option>';
+                    machineryOptions.forEach(machine => {
+                        const selected = (packing.machinery && packing.machinery.machineID == machine.machineID) ? 'selected' : '';
+                        machineryOptionsHtml += `<option value="${machine.machineID}" ${selected}>${machine.machineryName}</option>`;
+                    });
+
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><input type="checkbox" class="packing-select" value="${packing.id}"></td>
@@ -439,7 +467,11 @@
                         <td>${packing.soh_requirement_units_week}</td>
                         <td>${packing.soh_kg}</td>
                         <td>${packing.soh_units}</td>
-                        <td>${packing.machinery ? packing.machinery.machine_name : ''}</td>
+                        <td>
+                            <select name="machinery" data-id="${packing.id}" data-field="machinery" onchange="updateCellSelect(this)" class="form-control form-control-sm">
+                                ${machineryOptionsHtml}
+                            </select>
+                        </td>
                         <td>${packing.total_stock_kg}</td>
                         <td>${packing.total_stock_units}</td>
                         <td>${packing.calculation_factor}</td>
@@ -608,6 +640,45 @@ function submitBulkEdit() {
         });
 
         window.location.href = `/packing/export?${searchParams}`;
-}
+    }
+
+    // Update cell function for inline editing
+    function updateCellSelect(selectElement) {
+        const packingId = selectElement.dataset.id;
+        const field = selectElement.dataset.field;
+        const value = selectElement.value;
+
+        fetch('/packing/update_cell', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: packingId,
+                field: field,
+                value: value
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success feedback
+                selectElement.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    selectElement.style.backgroundColor = '';
+                }, 1000);
+            } else {
+                alert('Error updating: ' + (data.message || 'Unknown error'));
+                // Revert the change if there was an error
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating machinery');
+            // Revert the change if there was an error
+            location.reload();
+        });
+    }
 </script>
 {% endblock %}

@@ -10,11 +10,21 @@ from io import BytesIO
 
 inventory_bp = Blueprint('inventory', __name__, template_folder='../templates')
 
+def get_rm_type_id():
+    """Helper function to get RM item type ID"""
+    from models.item_type import ItemType
+    rm_type = ItemType.query.filter_by(type_name='RM').first()
+    return rm_type.id if rm_type else None
+
 @inventory_bp.route('/inventory')
 def inventory_page():
     categories = Category.query.all()
     # Get only raw materials from item_master
-    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').order_by(ItemMaster.item_code).all()
+    rm_type_id = get_rm_type_id()
+    if rm_type_id:
+        raw_materials = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id).order_by(ItemMaster.item_code).all()
+    else:
+        raw_materials = []
     return render_template('inventory/list.html', categories=categories, raw_materials=raw_materials, current_page='inventory')
 
 @inventory_bp.route('/inventory/create', methods=['GET', 'POST'])
@@ -66,7 +76,11 @@ def create_inventory():
 
     categories = Category.query.all()
     # Get only raw materials from item_master
-    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').order_by(ItemMaster.item_code).all()
+    rm_type_id = get_rm_type_id()
+    if rm_type_id:
+        raw_materials = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id).order_by(ItemMaster.item_code).all()
+    else:
+        raw_materials = []
     productions = Production.query.all()
     return render_template('inventory/create.html', categories=categories, raw_materials=raw_materials, productions=productions, current_page='inventory')
 
@@ -132,7 +146,11 @@ def edit_inventory(id):
 
     categories = Category.query.all()
     # Get only raw materials from item_master
-    raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').order_by(ItemMaster.item_code).all()
+    rm_type_id = get_rm_type_id()
+    if rm_type_id:
+        raw_materials = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id).order_by(ItemMaster.item_code).all()
+    else:
+        raw_materials = []
     productions = Production.query.all()
     return render_template('inventory/edit.html', inventory=inventory, categories=categories, raw_materials=raw_materials, productions=productions)
 
@@ -161,7 +179,11 @@ def get_category_options():
 def get_raw_material_options():
     try:
         # Get only raw materials from item_master
-        raw_materials = ItemMaster.query.filter(ItemMaster.item_type == 'Raw Material').all()
+        rm_type_id = get_rm_type_id()
+        if rm_type_id:
+            raw_materials = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id).all()
+        else:
+            raw_materials = []
         data = [{'id': raw_material.id, 'name': raw_material.description or raw_material.item_code} for raw_material in raw_materials]
         return jsonify({'data': data})
     except Exception as e:

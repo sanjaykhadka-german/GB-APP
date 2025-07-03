@@ -14,66 +14,66 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_rm_type_id():
+    """Helper function to get RM item type ID"""
+    from models.item_type import ItemType
+    rm_type = ItemType.query.filter_by(type_name='RM').first()
+    return rm_type.id if rm_type else None
+
 @ingredients_bp.route('/ingredients_list', methods=['GET'])
 def ingredients_list():
     from app import db
-    from models.raw_material_stocktake import RawMaterialStocktake
     from models.item_master import ItemMaster
+    from models.raw_material_stocktake import RawMaterialStocktake
     from models.category import Category
     from models.department import Department
     from models.uom import UOM
+    from models.item_type import ItemType
 
+    # Get search parameters
     search_item_code = request.args.get('item_code', '').strip()
     search_description = request.args.get('description', '').strip()
     search_category = request.args.get('category', '').strip()
-    search_week_commencing = request.args.get('week_commencing', '').strip()
-    sort_by = request.args.get('sort_by', 'id').strip()
-    sort_direction = request.args.get('sort_direction', 'asc').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 25  # Number of items per page
+    
+    # Get RM type ID
+    rm_type_id = get_rm_type_id()
+    if not rm_type_id:
+        flash("Raw Material item type not found in system!", "danger")
+        return render_template('ingredients/list.html', ingredients=[], categories=[], current_page="ingredients")
 
-    stocktakes = []
-    try:
-        # Query stocktake records with item relationships
-        stocktakes_query = RawMaterialStocktake.query.join(ItemMaster, RawMaterialStocktake.item_code == ItemMaster.item_code)
-        
-        if search_item_code:
-            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.item_code.ilike(f"%{search_item_code}%"))
-        if search_description:
-            stocktakes_query = stocktakes_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
-        if search_category:
-            stocktakes_query = stocktakes_query.join(Category).filter(Category.name.ilike(f"%{search_category}%"))
-        if search_week_commencing:
-            stocktakes_query = stocktakes_query.filter(RawMaterialStocktake.week_commencing == search_week_commencing)
+    # Build query for ingredients (Raw Materials only)
+    ingredients_query = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id)
+    
+    if search_item_code:
+        ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
+    if search_description:
+        ingredients_query = ingredients_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
+    
+    # Add category filter if specified
+    if search_category:
+        try:
+            category_id = int(search_category)
+            ingredients_query = ingredients_query.filter(ItemMaster.category_id == category_id)
+        except (ValueError, TypeError):
+            pass
 
-        # Apply sorting
-        if sort_by in ['item_code', 'week_commencing', 'stocktake_type', 'user', 'current_stock', 'order_quantity', 'price_uom', 'stock_value']:
-            if sort_direction == 'desc':
-                stocktakes_query = stocktakes_query.order_by(desc(getattr(RawMaterialStocktake, sort_by)))
-            else:
-                stocktakes_query = stocktakes_query.order_by(asc(getattr(RawMaterialStocktake, sort_by)))
-        else:
-            # Default sort by most recent
-            stocktakes_query = stocktakes_query.order_by(desc(RawMaterialStocktake.created_at))
+    # Execute paginated query
+    ingredients = ingredients_query.paginate(
+        page=page, per_page=per_page, error_out=False
+    )
 
-        stocktakes = stocktakes_query.all()
-
-        # Get categories for filter dropdown
-        categories = Category.query.all()
-
-    except Exception as e:
-        flash(f"Error fetching stocktake records: {str(e)}", "danger")
-        stocktakes = []
-        categories = []
+    # Get categories for dropdown
+    categories = Category.query.all()
 
     return render_template('ingredients/list.html',
-                           stocktakes=stocktakes,
+                           ingredients=ingredients,
                            categories=categories,
+                           current_page="ingredients",
                            search_item_code=search_item_code,
                            search_description=search_description,
-                           search_category=search_category,
-                           search_week_commencing=search_week_commencing,
-                           sort_by=sort_by,
-                           sort_direction=sort_direction,
-                           current_page="ingredients")
+                           search_category=search_category)
 
 @ingredients_bp.route('/ingredients_create', methods=['GET', 'POST'])
 def ingredients_create():
@@ -120,7 +120,12 @@ def ingredients_create():
                 return redirect(request.url)
 
             # Check if item exists in Item Master and is a raw material
-            existing_item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
+            rm_type_id = get_rm_type_id()
+            if not rm_type_id:
+                flash("RM item type not found in system!", "danger")
+                return redirect(request.url)
+                
+            existing_item = ItemMaster.query.filter_by(item_code=item_code, item_type_id=rm_type_id).first()
             if not existing_item:
                 flash(f"Raw material '{item_code}' not found in Item Master!", "danger")
                 return redirect(request.url)
@@ -157,7 +162,11 @@ def ingredients_create():
             return redirect(request.url)
 
     # Get existing raw materials from item_master table
-    existing_items_query = ItemMaster.query.filter_by(item_type='RM').all()
+    rm_type_id = get_rm_type_id()
+    if rm_type_id:
+        existing_items_query = ItemMaster.query.filter_by(item_type_id=rm_type_id).all()
+    else:
+        existing_items_query = []
     
     # Convert to dictionaries for JSON serialization
     existing_items = []
@@ -197,7 +206,12 @@ def ingredients_edit(id):
     from models.uom import UOM
     from models.allergen import Allergen
 
-    ingredient = ItemMaster.query.filter_by(id=id, item_type='RM').first_or_404()
+    rm_type_id = get_rm_type_id()
+    if not rm_type_id:
+        flash("RM item type not found in system!", "danger")
+        return redirect(url_for('ingredients.ingredients_list'))
+
+    ingredient = ItemMaster.query.filter_by(id=id, item_type_id=rm_type_id).first_or_404()
 
     if request.method == 'POST':
         try:
@@ -364,22 +378,23 @@ def stocktake_delete(id):
 @ingredients_bp.route('/ingredients_delete/<int:id>', methods=['POST'])
 def ingredients_delete(id):
     from app import db
-    from models.item_master import ItemMaster, ItemAllergen
+    from models.item_master import ItemMaster
 
     try:
-        ingredient = ItemMaster.query.filter_by(id=id, item_type='RM').first_or_404()
+        rm_type_id = get_rm_type_id()
+        if not rm_type_id:
+            flash("RM item type not found in system!", "danger")
+            return redirect(url_for('ingredients.ingredients_list'))
+
+        ingredient = ItemMaster.query.filter_by(id=id, item_type_id=rm_type_id).first_or_404()
         
-        # Remove allergen associations first
-        ItemAllergen.query.filter_by(item_id=ingredient.id).delete()
-        
-        # Delete ingredient
         db.session.delete(ingredient)
         db.session.commit()
-        flash("Ingredient deleted successfully!", "success")
+        flash(f"Ingredient '{ingredient.item_code}' deleted successfully!", "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting ingredient: {str(e)}", "danger")
-
+    
     return redirect(url_for('ingredients.ingredients_list'))
 
 @ingredients_bp.route('/ingredients_upload', methods=['GET', 'POST'])
@@ -455,11 +470,17 @@ def ingredients_upload():
                         except:
                             raise ValueError(f"Invalid date format for Week Commencing: {week_commencing_str}")
 
-                    # Check if item exists in Item Master
-                    item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
+                    # Check if item exists in Item Master as Raw Material
+                    rm_type_id = get_rm_type_id()
+                    if not rm_type_id:
+                        error_count += 1
+                        print(f"RM item type not found in system")
+                        continue
+                    
+                    item = ItemMaster.query.filter_by(item_code=item_code, item_type_id=rm_type_id).first()
                     if not item:
                         error_count += 1
-                        print(f"Item code '{item_code}' not found in Item Master")
+                        print(f"Item code '{item_code}' not found in Item Master as Raw Material")
                         continue
 
                     # Calculate order quantity using formula: if(SOH < MIN, MAX - SOH, 0)
@@ -547,7 +568,7 @@ def ingredients_download_excel():
         search_description = request.args.get('description', '').strip()
         search_category = request.args.get('category', '').strip()
 
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type == 'RM')
+        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type_id == get_rm_type_id())
         
         if search_item_code:
             ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
@@ -742,7 +763,7 @@ def autocomplete_ingredients():
 
     try:
         results = db.session.query(ItemMaster.item_code, ItemMaster.description).filter(
-            ItemMaster.item_type == 'RM',
+            ItemMaster.item_type_id == get_rm_type_id(),
             ItemMaster.item_code.ilike(f"{search}%")
         ).limit(10).all()
         
@@ -761,45 +782,29 @@ def get_item_details(item_code):
     from models.uom import UOM
 
     try:
-        item = ItemMaster.query.filter_by(item_code=item_code, item_type='RM').first()
-        
-        if not item:
-            return jsonify({"error": "Item not found"}), 404
-            
-        # Get related data
-        category_name = ""
-        if item.category_id and item.category:
-            category_name = item.category.name
-            
-        department_name = ""
-        if item.department_id and item.department:
-            department_name = item.department.departmentName
-            
-        uom_name = ""
-        if item.uom_id and item.uom:
-            uom_name = item.uom.UOMName
-        
-        item_data = {
-            'item_code': item.item_code,
-            'description': item.description or '',
-            'category_id': item.category_id,
-            'category_name': category_name,
-            'department_id': item.department_id,
-            'department_name': department_name,
-            'uom_id': item.uom_id,
-            'uom_name': uom_name,
-            'min_level': item.min_level or 0,
-            'max_level': item.max_level or 0,
-            'price_per_kg': item.price_per_kg or 0,
-            'price_per_uom': item.price_per_kg or 0,  # Using price_per_kg as default for price_per_uom
-            'is_active': item.is_active
-        }
-        
-        return jsonify(item_data)
-        
+        rm_type_id = get_rm_type_id()
+        if not rm_type_id:
+            return jsonify({'error': 'RM item type not found in system'}), 400
+
+        item = ItemMaster.query.filter_by(item_code=item_code, item_type_id=rm_type_id).first()
+        if item:
+            return jsonify({
+                'id': item.id,
+                'item_code': item.item_code,
+                'description': item.description or '',
+                'category_id': item.category_id,
+                'department_id': item.department_id,
+                'uom_id': item.uom_id,
+                'min_level': item.min_level or 0,
+                'max_level': item.max_level or 0,
+                'price_per_kg': item.price_per_kg or 0,
+                'price_per_uom': item.price_per_uom or 0,
+                'is_active': item.is_active
+            })
+        else:
+            return jsonify({'error': 'Item not found'}), 404
     except Exception as e:
-        print(f"Error fetching item details: {str(e)}")
-        return jsonify({"error": f"Error fetching item details: {str(e)}"}), 500
+        return jsonify({'error': str(e)}), 500
 
 @ingredients_bp.route('/get_search_stocktakes', methods=['GET'])
 def get_search_stocktakes():

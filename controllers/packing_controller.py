@@ -348,6 +348,7 @@ def packing_list():
                                         search_week_commencing=search_week_commencing,
                                         search_packing_date_start=search_packing_date_start,
                                         search_packing_date_end=search_packing_date_end,
+                                        machinery_list=Machinery.query.all(),
                                         current_page="packing")
         except ValueError:
             flash("Invalid Packing Date format.", 'error')
@@ -409,7 +410,7 @@ def packing_list():
             'total_stock_kg': total_stock_kg,
             'total_stock_units': total_stock_units,
             'week_commencing': week_commencing.strftime('%Y-%m-%d') if week_commencing else '',
-            'machinery': packing.machinery,
+            'machinery': {'machine_name': packing.machinery.machineryName} if packing.machinery else None,
             'priority': packing.priority
         })
 
@@ -422,6 +423,7 @@ def packing_list():
                          search_packing_date_end=search_packing_date_end,
                          total_requirement_kg=total_requirement_kg,
                          total_requirement_unit=total_requirement_unit,
+                         machinery_list=Machinery.query.all(),
                          current_page="packing")
 
 @packing.route('/create', methods=['GET', 'POST'])
@@ -844,7 +846,7 @@ def autocomplete_packing():
         logger.error("Error fetching packing autocomplete suggestions:", e)
         return jsonify([])
 
-@packing.route('/packing/search', methods=['GET'])
+@packing.route('/search', methods=['GET'])
 def get_search_packings():
     # Extract search parameters
     fg_code = request.args.get('fg_code', '').strip()
@@ -928,7 +930,7 @@ def get_search_packings():
             'total_stock_units': total_stock_units,
             'calculation_factor': p.calculation_factor,
             'priority': p.priority,
-            'machinery': {'machine_name': p.machinery.machine_name} if p.machinery else None,
+            'machinery': {'machine_name': p.machinery.machineryName} if p.machinery else None,
             'item': {
                 'item_code': p.item.item_code,
                 'description': p.item.description,
@@ -999,8 +1001,24 @@ def get_item_master_info(product_code):
             "calculation_factor": item.calculation_factor
         })
     except Exception as e:
-        logger.error(f"Error fetching item master info for {product_code}: {str(e)}")
+        logger.error(f"Error fetching item master info: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
+
+@packing.route('/machinery_options', methods=['GET'])
+def machinery_options():
+    """Get all available machinery options for dropdown."""
+    try:
+        machinery = Machinery.query.all()
+        result = []
+        for machine in machinery:
+            result.append({
+                'machineID': machine.machineID,
+                'machineryName': machine.machineryName
+            })
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching machinery options: {str(e)}")
+        return jsonify([])
 
 @packing.route('/re_aggregate', methods=['POST'])
 def manual_re_aggregate():

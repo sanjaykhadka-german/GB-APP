@@ -272,13 +272,26 @@ def usage():
     try:
         grouped_usage_data = {}
         
-        # If no date filters provided, get data from usage_report table
+        # If no date filters provided, get data from usage_report table and calculate percentages
         if not from_date or not to_date:
-            # Get existing data from usage_report table
+            # Get existing data from usage_report table and calculate percentages
             usage_reports = UsageReport.query.order_by(UsageReport.production_date.desc()).all()
+            
+            # Group by date and recipe code to calculate percentages
+            recipe_totals = {}
+            for report in usage_reports:
+                date = report.production_date
+                recipe_key = f"{date}_{report.recipe_code}"
+                if recipe_key not in recipe_totals:
+                    recipe_totals[recipe_key] = 0.0
+                recipe_totals[recipe_key] += report.usage_kg
             
             for report in usage_reports:
                 date = report.production_date
+                recipe_key = f"{date}_{report.recipe_code}"
+                total_kg = recipe_totals[recipe_key]
+                percentage = (report.usage_kg / total_kg * 100) if total_kg > 0 else 0.0
+                
                 if date not in grouped_usage_data:
                     grouped_usage_data[date] = []
                     
@@ -290,7 +303,7 @@ def usage():
                     'component_material': report.raw_material,
                     'usage_kg': report.usage_kg,
                     'kg_per_batch': 0.0,  # Not stored in usage_report table
-                    'percentage': report.percentage
+                    'percentage': percentage
                 })
         else:
             # Date filters provided - recalculate and save new data
@@ -326,40 +339,62 @@ def usage():
             # Get the results
             usage_data = query.all()
             
-            # Save data to usage_report table and prepare for display
+            # First pass: calculate recipe totals for percentage calculation
+            recipe_totals = {}
+            production_data = []
+            
             for production, recipe, component_name in usage_data:
-                date = production.production_date  # production_date is already a date object
-                # Calculate the Monday of the week for the production_date
+                date = production.production_date
                 week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
-                
                 usage_kg = float(recipe.quantity_kg) * (production.batches or 0)
                 recipe_code = production.item.item_code if production.item else 'Unknown'
                 
+                recipe_key = f"{date}_{recipe_code}"
+                if recipe_key not in recipe_totals:
+                    recipe_totals[recipe_key] = 0.0
+                recipe_totals[recipe_key] += usage_kg
+                
+                production_data.append({
+                    'production': production,
+                    'recipe': recipe,
+                    'component_name': component_name,
+                    'date': date,
+                    'week_commencing': week_commencing,
+                    'usage_kg': usage_kg,
+                    'recipe_code': recipe_code
+                })
+            
+            # Second pass: save data with calculated percentages
+            for data in production_data:
+                recipe_key = f"{data['date']}_{data['recipe_code']}"
+                total_kg = recipe_totals[recipe_key]
+                percentage = (data['usage_kg'] / total_kg * 100) if total_kg > 0 else 0.0
+                
                 # Save to usage_report table
                 usage_report = UsageReport(
-                    week_commencing=week_commencing,
-                    production_date=production.production_date,
-                    recipe_code=recipe_code,
-                    raw_material=component_name,
-                    usage_kg=usage_kg,
-                    percentage=0.0,  # Set to 0 since percentage doesn't exist in new schema
+                    week_commencing=data['week_commencing'],
+                    production_date=data['date'],
+                    recipe_code=data['recipe_code'],
+                    raw_material=data['component_name'],
+                    usage_kg=data['usage_kg'],
+                    percentage=percentage,
                     created_at=datetime.now()
                 )
                 db.session.add(usage_report)
                 
                 # Group data for display
-                if date not in grouped_usage_data:
-                    grouped_usage_data[date] = []
+                if data['date'] not in grouped_usage_data:
+                    grouped_usage_data[data['date']] = []
                     
-                grouped_usage_data[date].append({
-                    'week_commencing': week_commencing.strftime('%Y-%m-%d'),
-                    'production_date': production.production_date.strftime('%Y-%m-%d'),
-                    'production_code': production.production_code,
-                    'recipe_code': recipe_code,
-                    'component_material': component_name,
-                    'usage_kg': usage_kg,
-                    'kg_per_batch': float(recipe.quantity_kg),
-                    'percentage': 0.0
+                grouped_usage_data[data['date']].append({
+                    'week_commencing': data['week_commencing'].strftime('%Y-%m-%d'),
+                    'production_date': data['date'].strftime('%Y-%m-%d'),
+                    'production_code': data['production'].production_code,
+                    'recipe_code': data['recipe_code'],
+                    'component_material': data['component_name'],
+                    'usage_kg': data['usage_kg'],
+                    'kg_per_batch': float(data['recipe'].quantity_kg),
+                    'percentage': percentage
                 })
             
             # Commit the data to usage_report table
@@ -1185,7 +1220,10 @@ def autocomplete_items():
         
         # Optional filter by item type
         if item_type:
-            query = query.filter(ItemMaster.item_type == item_type)
+            from models.item_type import ItemType
+            item_type_obj = ItemType.query.filter_by(type_name=item_type).first()
+            if item_type_obj:
+                query = query.filter(ItemMaster.item_type_id == item_type_obj.id)
         
         # Limit results
         items = query.limit(25).all()

@@ -418,7 +418,9 @@ def download_excel():
         if search_description:
             query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
         if search_type:
-            query = query.filter(ItemMaster.item_type == search_type)
+            item_type_obj = ItemType.query.filter_by(type_name=search_type).first()
+            if item_type_obj:
+                query = query.filter(ItemMaster.item_type_id == item_type_obj.id)
         
         items = query.all()
         

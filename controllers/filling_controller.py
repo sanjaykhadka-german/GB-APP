@@ -383,7 +383,9 @@ def update_production_entry(filling_date, fill_code, fg_item, week_commencing=No
             return  # No production code, nothing to update
             
         # Get WIP item for description
-        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type="WIP").first()
+        from models.item_type import ItemType
+        wip_type = ItemType.query.filter_by(type_name='WIP').first()
+        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type_id=wip_type.id).first() if wip_type else None
         description = wip_item.description if wip_item else f"{production_code} - WIP"
 
         # Get all WIPF items that are used in this FG's recipes
