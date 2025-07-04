@@ -38,6 +38,11 @@ def item_master_create():
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
+    
+    # Get WIP and WIPF items for component dropdowns
+    wip_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIP').all()
+    wipf_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIPF').all()
+    
     return render_template('item_master/create.html',
                          categories=categories,
                          departments=departments,
@@ -45,6 +50,8 @@ def item_master_create():
                          uoms=uoms,
                          allergens=allergens,
                          item_types=item_types,
+                         wip_items=wip_items,
+                         wipf_items=wipf_items,
                          current_page='item_master')
 
 @item_master_bp.route('/item-master/edit/<int:id>', methods=['GET'])
@@ -59,6 +66,10 @@ def item_master_edit(id):
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
+    
+    # Get WIP and WIPF items for component dropdowns
+    wip_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIP').all()
+    wipf_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIPF').all()
 
     return render_template('item_master/edit.html',
                          categories=categories,
@@ -68,6 +79,8 @@ def item_master_edit(id):
                          allergens=allergens,
                          item=item,
                          item_types=item_types,
+                         wip_items=wip_items,
+                         wipf_items=wipf_items,
                          current_page='item_master')
 
 @item_master_bp.route('/get_items', methods=['GET'])
@@ -159,20 +172,21 @@ def get_items():
 
 @item_master_bp.route('/item-master/create', methods=['POST'])
 @item_master_bp.route('/item-master', methods=['POST'])
-def save_item():
+@item_master_bp.route('/item-master/edit/<int:id>', methods=['PUT'])
+def save_item(id=None):
     try:
         data = request.get_json()
         
         # Get current user
         current_user_id = session.get('user_id')
         if not current_user_id:
-            return jsonify({'error': 'User not authenticated'}), 401
+            return jsonify({'success': False, 'message': 'User not authenticated'}), 401
         
         # Validate required fields
         required_fields = ['item_code', 'description', 'item_type']
         for field in required_fields:
             if not data.get(field):
-                return jsonify({'error': f'{field} is required'}), 400
+                return jsonify({'success': False, 'message': f'{field} is required'}), 400
         
         item_type_name = data.get('item_type')
         item_code = data.get('item_code')
@@ -181,15 +195,16 @@ def save_item():
         # Validate item type exists and get the ItemType object
         valid_item_type = ItemType.query.filter_by(type_name=item_type_name).first()
         if not valid_item_type:
-            return jsonify({'error': f'Invalid item type: {item_type_name}'}), 400
+            return jsonify({'success': False, 'message': f'Invalid item type: {item_type_name}'}), 400
         
         # For new item, check if item_code already exists
-        if data.get('id'):
-            item = ItemMaster.query.get_or_404(data['id'])
+        if data.get('id') or id:
+            item_id = data.get('id') or id
+            item = ItemMaster.query.get_or_404(item_id)
             # For existing items, check if item_code is being changed and if new code already exists
             if item.item_code != item_code:
                 if ItemMaster.query.filter_by(item_code=item_code).first():
-                    return jsonify({'error': 'Item code already exists'}), 400
+                    return jsonify({'success': False, 'message': 'Item code already exists'}), 400
             # Update the updated_by field
             item.updated_by_id = current_user_id
         else:
@@ -197,7 +212,7 @@ def save_item():
             if item_type_name == 'Raw Material':
                 item_code = f"{item_code}"
             if ItemMaster.query.filter_by(item_code=item_code).first():
-                return jsonify({'error': 'Item code already exists'}), 400
+                return jsonify({'success': False, 'message': 'Item code already exists'}), 400
             item = ItemMaster()
             # Set the created_by field for new items
             item.created_by_id = current_user_id
@@ -237,16 +252,16 @@ def save_item():
         # Handle FG hierarchy relationships
         if item_type_name == 'FG':
             # Set WIP component relationship
-            wip_component_id = data.get('wip_component_id')
-            if wip_component_id:
-                item.wip_item_id = int(wip_component_id)
+            wip_item_id = data.get('wip_item_id')
+            if wip_item_id:
+                item.wip_item_id = int(wip_item_id)
             else:
                 item.wip_item_id = None
                 
             # Set WIPF component relationship  
-            wipf_component_id = data.get('wipf_component_id')
-            if wipf_component_id:
-                item.wipf_item_id = int(wipf_component_id)
+            wipf_item_id = data.get('wipf_item_id')
+            if wipf_item_id:
+                item.wipf_item_id = int(wipf_item_id)
             else:
                 item.wipf_item_id = None
         else:
@@ -262,11 +277,11 @@ def save_item():
         db.session.add(item)
         db.session.commit()
         
-        return jsonify({'message': 'Item saved successfully!', 'id': item.id}), 200
+        return jsonify({'success': True, 'message': 'Item saved successfully!', 'id': item.id}), 200
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @item_master_bp.route('/delete-item/<int:id>', methods=['DELETE'])
 def delete_item(id):

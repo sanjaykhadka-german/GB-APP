@@ -65,21 +65,19 @@ def production_list():
 
     # Calculate total based on filtered productions
     total_kg = 0.0
+    recipe_family_totals = {}
     for production in productions:
         if production.total_kg is not None:
-            # Get all packing entries that share this production code
-            packing_total = 0.0
-            items = ItemMaster.query.filter_by(item_code=production.production_code).all()
-            if items:
-                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
-                    ItemMaster.id.in_([item.id for item in items]),
-                    Packing.week_commencing == production.week_commencing,
-                    Packing.packing_date == production.production_date
-                ).all()
-                packing_total = sum(p.requirement_kg or 0.0 for p in packings)
+            # Get recipe family code (before the dot)
+            recipe_family = production.production_code.split('.')[0] if '.' in production.production_code else production.production_code
             
-            # Use packing total if available, otherwise use production total
-            total_kg += packing_total if packing_total > 0 else production.total_kg
+            # Initialize recipe family total if not exists
+            if recipe_family not in recipe_family_totals:
+                recipe_family_totals[recipe_family] = 0.0
+            
+            # Add to recipe family total
+            recipe_family_totals[recipe_family] += production.total_kg
+            total_kg += production.total_kg
 
     return render_template('production/list.html',
                          productions=productions,
@@ -89,10 +87,20 @@ def production_list():
                          search_production_date_start=search_production_date_start,
                          search_production_date_end=search_production_date_end,
                          total_kg=total_kg,
+                         recipe_family_totals=recipe_family_totals,
                          current_page="production")
 
 @production_bp.route('/production_create', methods=['GET', 'POST'])
 def production_create():
+    # Get recipe family and packing ID from query parameters
+    recipe_family = request.args.get('recipe_family')
+    packing_id = request.args.get('packing_id')
+    
+    # If we have a packing ID, get the packing entry to pre-fill dates
+    packing_entry = None
+    if packing_id:
+        packing_entry = Packing.query.get(packing_id)
+    
     if request.method == 'POST':
         try:
             production_date_str = request.form['production_date']
@@ -112,25 +120,16 @@ def production_create():
             ).first()
             if not wip_item:
                 flash(f"No WIP item found for production code {production_code}.", 'error')
-                return render_template('production/create.html', current_page="production")
+                return render_template('production/create.html', 
+                                    recipe_family=recipe_family,
+                                    packing_entry=packing_entry,
+                                    current_page="production")
 
-            # Calculate total from packing entries
-            total_kg = 0.0
-            items = ItemMaster.query.filter_by(item_code=production_code).all()
-            if items:
-                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
-                    ItemMaster.id.in_([item.id for item in items]),
-                    Packing.week_commencing == week_commencing,
-                    Packing.packing_date == production_date
-                ).all()
-                total_kg = sum(p.requirement_kg or 0.0 for p in packings)
-
-            # If no packing entries found, use the form values
-            if total_kg == 0:
-                total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
+            # Get total_kg from form
+            total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
                 
             # Calculate batches based on total_kg
-            batch_size = 100.0  # Default batch size
+            batch_size = 300.0  # Default batch size
             batches = total_kg / batch_size if total_kg > 0 else 0.0
 
             new_production = Production(
@@ -146,17 +145,31 @@ def production_create():
             db.session.commit()
 
             flash("Production entry created successfully!", "success")
+            
+            # If we have a packing ID, redirect back to the packing edit page
+            if packing_id:
+                return redirect(url_for('packing.packing_edit', id=packing_id))
             return redirect(url_for('production.production_list'))
+            
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
-            return render_template('production/create.html', current_page="production")
+            return render_template('production/create.html', 
+                                recipe_family=recipe_family,
+                                packing_entry=packing_entry,
+                                current_page="production")
         except Exception as e:
             db.session.rollback()
             flash(f"An unexpected error occurred: {str(e)}", 'error')
-            return render_template('production/create.html', current_page="production")
+            return render_template('production/create.html', 
+                                recipe_family=recipe_family,
+                                packing_entry=packing_entry,
+                                current_page="production")
 
-    return render_template('production/create.html', current_page="production")
+    return render_template('production/create.html', 
+                         recipe_family=recipe_family,
+                         packing_entry=packing_entry,
+                         current_page="production")
 
 @production_bp.route('/production_edit/<int:id>', methods=['GET', 'POST'])
 def production_edit(id):
@@ -185,46 +198,22 @@ def production_edit(id):
                 else:
                     flash(f"No WIP item found for production code {production_code}.", 'error')
                     return render_template('production/edit.html', production=production, current_page="production")
-            
-            # Validate production_code exists in Item Master as WIP
-            wip_item = production.item if production.item else ItemMaster.query.join(ItemMaster.item_type).filter(
-                ItemMaster.item_code == production_code,
-                ItemMaster.item_type.has(type_name='WIP')
-            ).first()
-            if not wip_item:
-                flash(f"No WIP item found for production code {production_code}.", 'error')
-                return render_template('production/edit.html', production=production, current_page="production")
 
-            # Calculate total from packing entries
-            total_kg = 0.0
-            items = ItemMaster.query.filter_by(item_code=production_code).all()
-            if items:
-                packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
-                    ItemMaster.id.in_([item.id for item in items]),
-                    Packing.week_commencing == week_commencing,
-                    Packing.packing_date == production_date
-                ).all()
-                total_kg = sum(p.requirement_kg or 0.0 for p in packings)
-
-            # If no packing entries found, use the form values
-            if total_kg == 0:
-                total_kg = float(request.form['total_kg']) if request.form.get('total_kg') else 0.0
-
-            # Calculate batches based on total_kg
-            batch_size = 100.0  # Default batch size
-            batches = total_kg / batch_size if total_kg > 0 else 0.0
-
-            # Update production entry
+            # Update the production entry
             production.production_date = production_date
             production.production_code = production_code
             production.description = product_description
-            production.batches = batches
-            production.total_kg = total_kg
             production.week_commencing = week_commencing
+            
+            # Only update total_kg and batches if provided in form
+            if 'total_kg' in request.form and request.form['total_kg']:
+                production.total_kg = float(request.form['total_kg'])
+                production.batches = production.total_kg / 300.0 if production.total_kg > 0 else 0.0
 
             db.session.commit()
-            flash("Production entry updated successfully!", "success")
+            flash('Production updated successfully!', 'success')
             return redirect(url_for('production.production_list'))
+
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')

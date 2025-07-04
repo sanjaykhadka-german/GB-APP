@@ -44,7 +44,7 @@ def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=N
         
         # Group by WIPF items across ALL recipe families
         wipf_totals = {}
-        wip_totals = {}  # Changed from production_code_totals to wip_totals
+        wip_totals = {}
         
         logger.info(f"Processing {len(all_packings)} packing entries for aggregation")
         
@@ -58,23 +58,32 @@ def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=N
             logger.debug(f"Packing {item.item_code}: {requirement_kg} kg")
             
             # Get WIPF items that this FG item is produced from
-            # We need to find WIPF items where this FG item is made FROM them
-            # Use the hierarchy relationships instead of used_in_recipes
             if hasattr(item, 'wipf_component') and item.wipf_component:
                 wipf_item = item.wipf_component
                 if wipf_item.id not in wipf_totals:
-                    wipf_totals[wipf_item.id] = 0.0
-                wipf_totals[wipf_item.id] += requirement_kg
-                logger.debug(f"Added {requirement_kg} kg to WIPF {wipf_item.item_code}, total now: {wipf_totals[wipf_item.id]}")
+                    wipf_totals[wipf_item.id] = {
+                        'total_kg': 0.0,
+                        'item': wipf_item,
+                        'recipe_family': None
+                    }
+                wipf_totals[wipf_item.id]['total_kg'] += requirement_kg
+                if not wipf_totals[wipf_item.id]['recipe_family']:
+                    wipf_totals[wipf_item.id]['recipe_family'] = item.item_code.split('.')[0]
+                logger.debug(f"Added {requirement_kg} kg to WIPF {wipf_item.item_code}, total now: {wipf_totals[wipf_item.id]['total_kg']}")
                 
             # Get WIP items that this FG item is produced from
-            # Use the hierarchy relationships instead of used_in_recipes
             if hasattr(item, 'wip_component') and item.wip_component:
                 wip_item = item.wip_component
                 if wip_item.id not in wip_totals:
-                    wip_totals[wip_item.id] = 0.0
-                wip_totals[wip_item.id] += requirement_kg
-                logger.debug(f"Added {requirement_kg} kg to WIP {wip_item.item_code}, total now: {wip_totals[wip_item.id]}")
+                    wip_totals[wip_item.id] = {
+                        'total_kg': 0.0,
+                        'item': wip_item,
+                        'recipe_family': None
+                    }
+                wip_totals[wip_item.id]['total_kg'] += requirement_kg
+                if not wip_totals[wip_item.id]['recipe_family']:
+                    wip_totals[wip_item.id]['recipe_family'] = item.item_code.split('.')[0]
+                logger.debug(f"Added {requirement_kg} kg to WIP {wip_item.item_code}, total now: {wip_totals[wip_item.id]['total_kg']}")
         
         logger.info(f"WIPF totals: {wipf_totals}")
         logger.info(f"WIP totals: {wip_totals}")
@@ -95,13 +104,12 @@ def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=N
             db.session.delete(production)
         
         # Create new Filling entries with correct totals
-        for wipf_id, total_kg in wipf_totals.items():
+        for wipf_id, data in wipf_totals.items():
+            total_kg = data['total_kg']
+            wipf_item = data['item']
+            recipe_family = data['recipe_family']
+            
             if total_kg <= 0:
-                continue
-                
-            wipf_item = ItemMaster.query.get(wipf_id)
-            if not wipf_item:
-                logger.warning(f"No WIPF item found for id {wipf_id}")
                 continue
                 
             filling = Filling(
@@ -114,28 +122,28 @@ def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=N
             logger.info(f"Created filling for {wipf_item.item_code}: {total_kg} kg")
         
         # Create new Production entries with correct totals
-        for wip_id, total_kg in wip_totals.items():
+        for wip_id, data in wip_totals.items():
+            total_kg = data['total_kg']
+            wip_item = data['item']
+            recipe_family = data['recipe_family']
+            
             if total_kg <= 0:
                 continue
-                
-            wip_item = ItemMaster.query.get(wip_id)
-            if not wip_item:
-                logger.warning(f"No WIP item found for id {wip_id}")
-                continue
             
-            # Calculate batches (using 100kg as default batch size)
-            batches = total_kg / 100.0 if total_kg > 0 else 0.0
+            # Calculate batches (using 300kg as default batch size)
+            batches = total_kg / 300.0 if total_kg > 0 else 0.0
             
             production = Production(
                 production_date=packing_date,
-                production_code=wip_item.item_code,  # Use WIP item code as production code
+                item_id=wip_item.id,  # Set the foreign key
+                production_code=recipe_family or wip_item.item_code,  # Use recipe family code if available
                 description=wip_item.description,
                 batches=batches,
                 total_kg=total_kg,
                 week_commencing=week_commencing
             )
             db.session.add(production)
-            logger.info(f"Created production {wip_item.item_code}: {total_kg} kg, {batches} batches")
+            logger.info(f"Created production {recipe_family or wip_item.item_code}: {total_kg} kg, {batches} batches")
         
         db.session.commit()
         logger.info("Re-aggregation completed successfully")
@@ -625,11 +633,8 @@ def packing_create():
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):
     packing = Packing.query.get_or_404(id)
-    
-    # Check if user was redirected here due to duplicate detection
-    from_duplicate = request.args.get('from_duplicate') == 'true'
-    if from_duplicate:
-        flash(f'You are now EDITING the existing packing entry (ID: {id}) instead of creating a new one. The entry already exists for this product/date combination.', 'info')
+    machinery = Machinery.query.all()
+    from_duplicate = request.args.get('from_duplicate', False)
 
     if request.method == 'POST':
         try:
@@ -714,87 +719,35 @@ def packing_edit(id):
             db.session.rollback()
             flash(f'Error updating packing entry: {str(e)}', 'danger')
 
-    # Fetch machinery, products, and related data
-    # Use foreign key relationship to filter by item type
-    products = ItemMaster.query.join(ItemMaster.item_type).filter(
-        ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
-    ).order_by(ItemMaster.item_code).all()
-    machinery = Machinery.query.all()
+    # Get recipe family code from the packing item
+    recipe_family = packing.item.item_code.split('.')[0] if '.' in packing.item.item_code else packing.item.item_code
     
-    logger.debug(f"Machinery records: {[m.__dict__ for m in machinery]}")
-    logger.debug(f"Packing machinery: {packing.machinery_id}")
-
-    machinery_ids = [int(machine.machineID) for machine in machinery]
-    machinery_name_map = {str(machine.machineID): machine.machineryName for machine in machinery}
-    
-    recipe_code_prefix = packing.item.item_code.split('.')[0] if '.' in packing.item.item_code else packing.item.item_code
-
-    related_packings = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).filter(
-        Packing.week_commencing == packing.week_commencing,
-        ItemMaster.item_code.ilike(f"{recipe_code_prefix}%")
+    # Get all related packing entries for this recipe family and date
+    related_packings = Packing.query.join(ItemMaster).filter(
+        ItemMaster.item_code.like(f"{recipe_family}.%"),
+        Packing.packing_date == packing.packing_date,
+        Packing.week_commencing == packing.week_commencing
     ).all()
     
-    # Get related fillings by finding items with matching WIPF recipes
-    related_items_with_filling = ItemMaster.query.filter(
-        ItemMaster.item_code.ilike(f"{recipe_code_prefix}%"),
-        ItemMaster.used_in_recipes.any(ItemMaster.item_type.has(type_name='WIPF'))
-    ).all()
-    
-    # Get all WIPF items from hierarchy relationships
-    wipf_items = []
-    for item in related_items_with_filling:
-        if hasattr(item, 'wipf_component') and item.wipf_component:
-            if item.wipf_component not in wipf_items:
-                wipf_items.append(item.wipf_component)
-    
-    # Get fillings for these WIPF items
-    related_fillings = Filling.query.filter(
-        Filling.week_commencing == packing.week_commencing,
-        Filling.item_id.in_([wipf.id for wipf in wipf_items])
-    ).all() if wipf_items else []
-    
-    total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in related_fillings)
-    
-    # Get related productions by finding items with matching recipe family codes
-    # AND get WIP items from the specific item being edited
-    related_items_with_production = ItemMaster.query.filter(
-        ItemMaster.item_code.ilike(f"{recipe_code_prefix}%")
-    ).all()
-    
-    # Get all WIP items from hierarchy relationships
-    wip_items = []
-    
-    # FIRST: Add WIP items from the current packing item itself
-    if hasattr(packing.item, 'wip_component') and packing.item.wip_component:
-        if packing.item.wip_component not in wip_items:
-            wip_items.append(packing.item.wip_component)
-    
-    # SECOND: Add WIP items from other items in the same recipe family
-    for item in related_items_with_production:
-        if hasattr(item, 'wip_component') and item.wip_component:
-            if item.wip_component not in wip_items:
-                wip_items.append(item.wip_component)
-    
-    # Get productions for these WIP items
+    # Get all production entries for this recipe family and date
     related_productions = Production.query.filter(
-        Production.week_commencing == packing.week_commencing,
-        Production.production_code.in_([wip.item_code for wip in wip_items])
-    ).all() if wip_items else []
-    total_production_kg = sum(production.total_kg or 0 for production in related_productions) if related_productions else 0
+        Production.production_code == recipe_family,
+        Production.production_date == packing.packing_date,
+        Production.week_commencing == packing.week_commencing
+    ).all()
+    
+    # Calculate totals
+    total_requirement_kg = sum(p.requirement_kg or 0 for p in related_packings)
+    total_production_kg = total_requirement_kg  # Production should match packing requirements 1:1
 
     return render_template('packing/edit.html',
                          packing=packing,
-                         products=products,
                          machinery=machinery,
-                         machinery_ids=machinery_ids,
-                         machinery_name_map=machinery_name_map,
-                         related_packings=related_packings,
-                         related_fillings=related_fillings,
-                         total_kilo_per_size=total_kilo_per_size,
-                         related_productions=related_productions,
-                         total_production_kg=total_production_kg,
                          from_duplicate=from_duplicate,
-                         current_page="packing")
+                         related_packings=related_packings,
+                         related_productions=related_productions,
+                         total_requirement_kg=total_requirement_kg,
+                         total_production_kg=total_production_kg)
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):

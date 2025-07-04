@@ -1,113 +1,205 @@
 {% extends "index.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <!-- Duplicate Detection Notice -->
-    {% if from_duplicate %}
-    <div class="alert alert-warning border-warning" style="border-width: 3px; background-color: #fff3cd; margin-bottom: 2rem;">
-        <div class="d-flex align-items-center">
-            <i class="fas fa-exclamation-triangle fa-2x text-warning me-3"></i>
-            <div>
-                <h4 class="alert-heading mb-2">🔄 Redirected from Create New Entry</h4>
-                <p class="mb-2">
-                    <strong>You are now EDITING an existing packing entry instead of creating a new one.</strong>
-                </p>
-                <p class="mb-2">
-                    A packing entry already exists for this product/date combination, so the system redirected you here to edit it.
-                </p>
-                <div class="mt-2">
-                    <a href="{{ url_for('packing.packing_create') }}" class="btn btn-outline-primary btn-sm me-2">
-                        <i class="fas fa-plus"></i> Try Creating a Different Entry
-                    </a>
-                    <a href="{{ url_for('packing.packing_list') }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="fas fa-list"></i> View All Packing Entries
-                    </a>
+<div class="container-fluid">
+    <h2>Edit Packing Entry</h2>
+    <form method="POST" class="needs-validation" novalidate>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="week_commencing">Week Commencing:</label>
+                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ packing.week_commencing | format_date }}" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="packing_date">Packing Date:</label>
+                    <input type="date" class="form-control" id="packing_date" name="packing_date" value="{{ packing.packing_date | format_date }}" required>
                 </div>
             </div>
         </div>
-    </div>
-    {% endif %}
 
-    <!-- Page Title -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            {% if from_duplicate %}
-                <i class="fas fa-edit text-warning"></i> Editing Existing Packing Entry (ID: {{ packing.id }})
-                <small class="text-muted d-block" style="font-size: 0.6em;">Redirected from duplicate detection</small>
-            {% else %}
-                <i class="fas fa-edit"></i> Edit Packing Entry
-            {% endif %}
-        </h2>
-        <div>
-            <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to List
-            </a>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="product_code">Product Code:</label>
+                    <input type="text" class="form-control" id="product_code" name="product_code" value="{{ packing.item.item_code }}" required readonly>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <input type="text" class="form-control" id="description" name="description" value="{{ packing.item.description }}" readonly>
+            </div>
         </div>
     </div>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="special_order_kg">Special Order (KG):</label>
+                    <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="{{ packing.special_order_kg or 0.0 }}">
                 </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="special_order_unit">Special Order Unit:</label>
+                    <input type="number" class="form-control" id="special_order_unit" name="special_order_unit" value="{{ packing.special_order_unit if packing.special_order_unit is not none else '0' }}" readonly>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="requirement_kg">Requirement KG:</label>
+                    <input type="number" step="0.01" class="form-control" id="requirement_kg" name="requirement_kg" value="{{ "%.2f"|format(packing.requirement_kg|float) if packing.requirement_kg else '0.00' }}" readonly>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="requirement_unit">Requirement Unit:</label>
+                    <input type="number" class="form-control" id="requirement_unit" name="requirement_unit" value="{{ packing.requirement_unit if packing.requirement_unit is not none else '0' }}" readonly>
+                </div>
+        </div>
+    </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="soh_requirement_units_week">SOH Requirement Units/Week:</label>
+                    <input type="number" class="form-control" id="soh_requirement_units_week" name="soh_requirement_units_week" value="{{ packing.soh_requirement_units_week or 0 }}" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="calculation_factor">Calculation Factor:</label>
+                    <input type="number" step="0.01" class="form-control" id="calculation_factor" name="calculation_factor" value="{{ packing.calculation_factor or 0.0 }}" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="machinery_id">Machinery:</label>
+                    <select class="form-control" id="machinery_id" name="machinery_id">
+                        <option value="">Select Machinery</option>
+                        {% for m in machinery %}
+                        <option value="{{ m.id }}" {% if packing.machinery_id == m.id %}selected{% endif %}>
+                            {{ m.machineryName }}
+                        </option>
             {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="priority">Priority:</label>
+                    <input type="number" class="form-control" id="priority" name="priority" value="{{ packing.priority or 0 }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-12">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <a href="{{ url_for('packing.packing_list') }}" class="btn btn-secondary">Cancel</a>
+                {% if not from_duplicate %}
+                <a href="{{ url_for('packing.packing_edit', id=packing.id, duplicate=1) }}" class="btn btn-info">Duplicate</a>
         {% endif %}
-    {% endwith %}
+            </div>
+        </div>
+    </form>
 
     <!-- Fixed Production List -->
-    <div class="fixed-production-list" style="position: sticky; top: 0; z-index: 1000;">
+    <div class="fixed-production-list" style="position: sticky; top: 0; z-index: 1000; background-color: white; padding: 15px; border-bottom: 1px solid #ddd;">
         <div class="row">
             <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3>Production List (Recipe Family: {{ packing.item.item_code.split('.')[0] if '.' in packing.item.item_code else packing.item.item_code }})</h3>
-                <table class="table table-bordered table-striped">
+                    <a href="{{ url_for('production.production_create', recipe_family=packing.item.item_code.split('.')[0], packing_id=packing.id) }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Production Entry
+                    </a>
+                </div>
+                <table class="table table-bordered">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Week Commencing</th>
-                            <th>Production Date</th>
                             <th>Production Code</th>
                             <th>Description</th>
-                            <th>Batches</th>
                             <th>Total KG</th>
+                            <th>Batches</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for production in related_productions %}
                         <tr>
-                            <td>{{ production.id }}</td>
-                            <td>{{ production.week_commencing | format_date }}</td>
-                            <td>{{ production.production_date | format_date }}</td>
                             <td>{{ production.production_code }}</td>
                             <td>{{ production.description }}</td>
-                            <td>{{ production.batches }}</td>
-                            <td>{{ production.total_kg }}</td>
+                            <td>{{ "%.2f"|format(production.total_kg|float) if production.total_kg else '0.00' }}</td>
+                            <td>{{ "%.2f"|format(production.batches|float) if production.batches else '0.00' }}</td>
                             <td>
-                                <a href="{{ url_for('production.production_edit', id=production.id, packing_id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
-                                <form action="{{ url_for('production.production_delete', id=production.id) }}" method="POST" style="display:inline;">
-                                    <input type="hidden" name="packing_id" value="{{ packing.id }}">
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this production entry?');">Delete</button>
+                                <a href="{{ url_for('production.production_edit', id=production.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <form action="{{ url_for('production.production_delete', id=production.id) }}" method="POST" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this production entry?');">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
                                 </form>
                             </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8">No related production entries found for this recipe family.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="6" class="text-end"><strong>Total KG:</strong></td>
-                            <td>{{ total_production_kg | round(2) }}</td>
+                            <td colspan="2"><strong>Total:</strong></td>
+                            <td><strong>{{ "%.2f"|format(total_production_kg|float) if total_production_kg else '0.00' }}</strong></td>
+                            <td><strong>{{ "%.2f"|format((total_production_kg/300)|float) if total_production_kg else '0.00' }}</strong></td>
                             <td></td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <!-- Related Packing List -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3>Related Packing Entries</h3>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>FG Code</th>
+                        <th>Description</th>
+                        <th>Requirement KG</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for packing in related_packings %}
+                    <tr>
+                        <td>{{ packing.item.item_code }}</td>
+                        <td>{{ packing.item.description }}</td>
+                        <td>{{ "%.2f"|format(packing.requirement_kg|float) if packing.requirement_kg else '0.00' }}</td>
+                        <td>
+                            <a href="{{ url_for('packing.packing_edit', id=packing.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2"><strong>Total:</strong></td>
+                        <td><strong>{{ "%.2f"|format(total_requirement_kg|float) if total_requirement_kg else '0.00' }}</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
     </div>
 
@@ -138,8 +230,6 @@
                 </tr>
             </thead>
             <tbody>
-                {% set total_requirement_kg = namespace(value=0) %}
-                {% set total_requirement_unit = namespace(value=0) %}
                 {% for packing in related_packings %}
                 <tr data-id="{{ packing.id }}">
                     <td><input type="checkbox" name="packing_ids" value="{{ packing.id }}"></td>
@@ -149,7 +239,7 @@
                     <td>{{ packing.item.description }}</td>
                     <td class="editable editable-cell" data-field="special_order_kg" data-id="{{ packing.id }}" data-original="{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}" ondblclick="makeEditable(this)">{{ packing.special_order_kg if packing.special_order_kg is not none else '' }}</td>
                     <td data-field="special_order_unit">{{ packing.special_order_unit }}</td>
-                    <td data-field="requirement_kg">{{ packing.requirement_kg }}</td>
+                    <td data-field="requirement_kg">{{ "%.2f"|format(packing.requirement_kg|float) if packing.requirement_kg else '0.00' }}</td>
                     <td data-field="requirement_unit">{{ packing.requirement_unit }}</td>
                     <td>{{ packing.item.avg_weight_per_unit }}</td>
                     <td>{{ packing.soh_requirement_units_week }}</td>
@@ -174,8 +264,6 @@
                         </form>
                     </td>
                 </tr>
-                {% set total_requirement_kg.value = total_requirement_kg.value + (packing.requirement_kg | default(0, true)) %}
-                {% set total_requirement_unit.value = total_requirement_unit.value + (packing.requirement_unit | default(0, true)) %}
                 {% else %}
                 <tr>
                     <td colspan="15">No related packing entries found.</td>
@@ -185,9 +273,8 @@
             <tfoot>
                 <tr>
                     <td colspan="7" class="text-end"><strong>Total:</strong></td>
-                    <td>{{ total_requirement_kg.value | round(2) }}</td>
-                    <td>{{ total_requirement_unit.value }}</td>
-                    <td colspan="6"></td>
+                    <td>{{ "%.2f"|format(total_requirement_kg|float) if total_requirement_kg else '0.00' }}</td>
+                    <td colspan="7"></td>
                 </tr>
             </tfoot>
         </table>
@@ -198,434 +285,18 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="bulkEditModalLabel">Bulk Edit Packing Entries</h5>
+                    <h5 class="modal-title" id="bulkEditModalLabel">Bulk Edit Selected Entries</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="bulk_special_order_kg" class="form-label">Special Order (KG)</label>
-                        <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
-                    </div>
-                    <div class="mb-3">
-                        <label for="bulk_calculation_factor" class="form-label">Calculation Factor</label>
-                        <input type="number" step="0.01" class="form-control" id="bulk_calculation_factor" name="calculation_factor">
-                    </div>
-                    <div class="mb-3">
-                        <label for="bulk_machinery" class="form-label">Machinery</label>
-                        <select class="form-control" id="bulk_machinery" name="machinery">
-                            <option value="">Select Machinery</option>
-                            {% for machine in machinery %}
-                                <option value="{{ machine.machineID }}">{{ machine.machineryName }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="bulk_priority" class="form-label">Priority</label>
-                        <input type="number" class="form-control" id="bulk_priority" name="priority">
-                    </div>
+                    <!-- Add bulk edit form fields here -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="submitBulkEdit">Save changes</button>
+                    <button type="submit" form="bulkEditForm" class="btn btn-primary">Save Changes</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Filling List Table -->
-    <h3 class="mt-5">Filling List</h3>
-    <table class="table table-bordered table-striped">
-        <thead>
-            <tr>
-                <th>Week Commencing</th>
-                <th>Filling Date</th>
-                <th>Fill Code</th>
-                <th>Description</th>
-                <th>Kilo per Size</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for filling in related_fillings %}
-            <tr>
-                <td>{{ filling.week_commencing | format_date }}</td>
-                <td>{{ filling.filling_date | format_date }}</td>
-                <td>{{ filling.fill_code }}</td>
-                <td>{{ filling.description }}</td>
-                <td>{{ filling.kilo_per_size }}</td>
-                <td>
-                    <a href="{{ url_for('filling.filling_edit', id=filling.id, packing_id=packing.id) }}" class="btn btn-sm btn-warning">Edit</a>
-                    <form action="{{ url_for('filling.filling_delete', id=filling.id) }}" method="POST" style="display:inline;">
-                        <input type="hidden" name="packing_id" value="{{ packing.id }}">
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this filling entry?');">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6">No related filling entries found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="4" class="text-end"><strong>Total Kilo per Size:</strong></td>
-                <td>{{ total_kilo_per_size | round(2) }}</td>
-                <td></td>
-            </tr>
-        </tfoot>
-    </table>
-
-        <!-- JavaScript for Bulk Edit and Inline Editing -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Select All Checkbox
-        const selectAll = document.getElementById('selectAll');
-        const checkboxes = document.querySelectorAll('input[name="packing_ids"]');
-
-        selectAll.addEventListener('change', function() {
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAll.checked;
-            });
-        });
-
-        // Submit Bulk Edit
-        document.getElementById('submitBulkEdit').addEventListener('click', function() {
-            const selectedIds = Array.from(checkboxes)
-                .filter(checkbox => checkbox.checked)
-                .map(checkbox => checkbox.value);
-
-            if (selectedIds.length === 0) {
-                alert('Please select at least one packing entry.');
-                return;
-            }
-
-            const data = {
-                ids: selectedIds,
-                special_order_kg: document.getElementById('bulk_special_order_kg').value,
-                calculation_factor: document.getElementById('bulk_calculation_factor').value,
-                machinery: document.getElementById('bulk_machinery').value,
-                priority: document.getElementById('bulk_priority').value
-            };
-
-            fetch('{{ url_for("packing.bulk_edit") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Packing entries updated successfully!');
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Error: ' + error);
-            });
-
-            // Close the modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEditModal'));
-            modal.hide();
-        });
-
-        // Handle select dropdowns
-        document.querySelectorAll('select[data-id]').forEach(select => {
-            select.addEventListener('change', function() {
-                updateCellSelect(this);
-            });
-        });
-    });
-    
-    // Global functions accessible from HTML attributes
-    function makeEditable(cell) {
-        // Prevent multiple edits
-        if (cell.classList.contains('editing')) {
-            return;
-        }
-        
-        const currentValue = cell.textContent.trim();
-        const field = cell.dataset.field;
-        const packingId = cell.dataset.id;
-        
-        // Create input element
-        const input = document.createElement('input');
-        input.type = field === 'priority' ? 'number' : 'number';
-        input.step = field === 'special_order_kg' ? '0.01' : '1';
-        input.value = currentValue;
-        input.min = '0';
-        
-        // Set cell to editing mode
-        cell.classList.add('editing');
-        cell.innerHTML = '';
-        cell.appendChild(input);
-        
-        // Focus and select the input
-        input.focus();
-        input.select();
-        
-        // Handle save and cancel
-        function saveEdit() {
-            const newValue = input.value;
-            updateCellValue(packingId, field, newValue, cell, currentValue);
-        }
-        
-        function cancelEdit() {
-            cell.classList.remove('editing');
-            cell.textContent = currentValue;
-        }
-        
-        // Event listeners
-        input.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                saveEdit();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                cancelEdit();
-            }
-        });
-        
-        input.addEventListener('blur', function() {
-            saveEdit();
-        });
-    }
-    
-    function updateCellValue(packingId, field, value, cell, originalValue) {
-        fetch('{{ url_for("packing.update_cell") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                id: packingId,
-                field: field,
-                value: value
-            })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Update the cell
-                cell.classList.remove('editing');
-                cell.textContent = value;
-                
-                // Show success feedback
-                cell.style.backgroundColor = '#d4edda';
-                setTimeout(() => {
-                    cell.style.backgroundColor = '';
-                }, 1000);
-                
-                // Update other calculated fields in the same row
-                if (data.updates) {
-                    const row = cell.closest('tr');
-                    for (const [key, val] of Object.entries(data.updates)) {
-                        const targetCell = row.querySelector(`td[data-field="${key}"]`);
-                        if (targetCell && targetCell !== cell) {
-                            targetCell.textContent = val;
-                            
-                            // Show brief highlight for updated fields
-                            targetCell.style.backgroundColor = '#fff3cd';
-                            setTimeout(() => {
-                                targetCell.style.backgroundColor = '';
-                            }, 800);
-                        }
-                    }
-                    
-                    // Update totals whenever any calculation field changes
-                    updateTotals();
-                }
-            } else {
-                console.error('Update failed:', data.error);
-                alert('Error updating: ' + (data.error || 'Unknown error'));
-                cell.classList.remove('editing');
-                cell.textContent = originalValue;
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error updating: ' + error.message);
-            cell.classList.remove('editing');
-            cell.textContent = originalValue;
-        });
-    }
-    
-    function updateCellSelect(select) {
-        const packingId = select.getAttribute('data-id');
-        const field = select.getAttribute('data-field');
-        const value = select.value;
-
-        updateCell(packingId, field, value);
-    }
-
-    function updateCell(packingId, field, value) {
-        // Only convert to number for specific fields
-        if (field === 'special_order_kg' || field === 'calculation_factor') {
-            value = (value === '' || isNaN(value)) ? 0 : parseFloat(value);
-        } else if (field === 'priority') {
-            value = (value === '' || isNaN(value)) ? 0 : parseInt(value);
-        } else if (field === 'machinery') {
-            if (value === '' || value == null) {
-                value = null;
-            } else {
-                value = parseInt(value);
-            }
-        }
-
-        fetch('{{ url_for("packing.update_cell") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                id: packingId,
-                field: field,
-                value: value
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.reload();
-            } else {
-                alert('Error updating cell: ' + (data.error || data.message || 'Unknown error'));
-                window.location.reload();
-            }
-        })
-        .catch(error => {
-            alert('Error updating cell: ' + error.message);
-            window.location.reload();
-        });
-    }
-    
-    function updateTotals() {
-        let totalRequirementKg = 0;
-        let totalRequirementUnit = 0;
-        
-        // Sum all requirement values
-        document.querySelectorAll('td[data-field="requirement_kg"]').forEach(cell => {
-            totalRequirementKg += parseFloat(cell.textContent) || 0;
-        });
-        
-        document.querySelectorAll('td[data-field="requirement_unit"]').forEach(cell => {
-            totalRequirementUnit += parseInt(cell.textContent) || 0;
-        });
-        
-        // Update totals in footer
-        const totalKgCell = document.querySelector('tfoot td:nth-child(8)');
-        const totalUnitCell = document.querySelector('tfoot td:nth-child(9)');
-        if (totalKgCell) totalKgCell.textContent = totalRequirementKg.toFixed(2);
-        if (totalUnitCell) totalUnitCell.textContent = totalRequirementUnit;
-    }
-    </script>
-
-    <style>
-    .fixed-production-list {
-        background-color: #fff;
-        padding: 15px;
-        border-bottom: 1px solid #dee2e6;
-    }
-
-    /* Inline editing styles */
-    .editable-cell {
-        cursor: pointer;
-        position: relative;
-        border-left: 3px solid transparent;
-        transition: all 0.2s ease;
-    }
-    
-    .editable-cell:hover {
-        background-color: #f8f9fa;
-        outline: 1px solid #dee2e6;
-        border-left: 3px solid #007bff;
-    }
-    
-    .editable-cell::before {
-        content: "✏️";
-        position: absolute;
-        top: 2px;
-        right: 2px;
-        font-size: 10px;
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-    
-    .editable-cell:hover::before {
-        opacity: 0.6;
-    }
-    
-    .editable-cell.editing {
-        padding: 0;
-    }
-    
-    .editable-cell input {
-        width: 100%;
-        border: none;
-        padding: 8px;
-        margin: 0;
-        background: #fff;
-        border: 2px solid #007bff;
-        border-radius: 3px;
-        outline: none;
-    }
-    
-    .editable-cell.editing::after {
-        content: "Press Enter to save, Esc to cancel";
-        position: absolute;
-        bottom: -20px;
-        left: 0;
-        font-size: 11px;
-        color: #666;
-        white-space: nowrap;
-        z-index: 1000;
-        background: white;
-        padding: 2px 5px;
-        border: 1px solid #ddd;
-        border-radius: 3px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-
-    /* Keep existing editable styles for compatibility */
-    .editable {
-        cursor: pointer;
-        transition: background-color 0.2s ease-in-out;
-    }
-
-    .editable:hover {
-        background-color: #e9ecef; /* Bootstrap bg-light */
-    }
-
-    .editing {
-        background-color: #e7f3ff; /* Light blue for editing state */
-    }
-
-    td input[type="text"],
-    td input[type="date"],
-    td input[type="number"] {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #ced4da; /* Bootstrap border color */
-        border-radius: 0.25rem;
-        box-sizing: border-box;
-        font-size: inherit;
-        font-family: inherit;
-    }
-
-    td input:focus {
-        outline: 2px solid transparent;
-        outline-offset: 2px;
-        border-color: #007bff; /* Bootstrap primary */
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25); /* Bootstrap focus ring */
-    }
-    </style>
+</div>
 {% endblock %}

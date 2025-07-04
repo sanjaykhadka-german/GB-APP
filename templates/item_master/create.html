@@ -174,10 +174,12 @@
                         <!-- FG Hierarchy Fields - Hidden by default -->
                         <div class="col-md-3" id="wip_selection_field" style="display: none;">
                             <div class="form-group">
-                                <label for="wip_component_id" class="form-label">WIP Component</label>
-                                <select id="wip_component_id" name="wip_component_id" class="form-select">
+                                <label for="wip_item_id" class="form-label">WIP Component</label>
+                                <select id="wip_item_id" name="wip_item_id" class="form-select">
                                     <option value="">Select WIP Item</option>
-                                    <!-- Will be populated via JavaScript -->
+                                    {% for wip_item in wip_items %}
+                                    <option value="{{ wip_item.id }}">{{ wip_item.item_code }} - {{ wip_item.description }}</option>
+                                    {% endfor %}
                                 </select>
                                 <div class="form-text">Select the WIP item this FG is produced from</div>
                             </div>
@@ -185,10 +187,12 @@
                         
                         <div class="col-md-3" id="wipf_selection_field" style="display: none;">
                             <div class="form-group">
-                                <label for="wipf_component_id" class="form-label">WIPF Component</label>
-                                <select id="wipf_component_id" name="wipf_component_id" class="form-select">
+                                <label for="wipf_item_id" class="form-label">WIPF Component</label>
+                                <select id="wipf_item_id" name="wipf_item_id" class="form-select">
                                     <option value="">Select WIPF Item</option>
-                                    <!-- Will be populated via JavaScript -->
+                                    {% for wipf_item in wipf_items %}
+                                    <option value="{{ wipf_item.id }}">{{ wipf_item.item_code }} - {{ wipf_item.description }}</option>
+                                    {% endfor %}
                                 </select>
                                 <div class="form-text">Select the WIPF item this FG is filled from</div>
                             </div>
@@ -563,45 +567,7 @@ function toggleHierarchyFields() {
     }
 }
 
-// Function to load WIP items
-function loadWipItems() {
-    fetch('/item-master/get-items-by-type/WIP')
-        .then(response => response.json())
-        .then(data => {
-            const wipSelect = document.getElementById('wip_component_id');
-            wipSelect.innerHTML = '<option value="">Select WIP Item</option>';
-            
-            if (data.success && data.items) {
-                data.items.forEach(item => {
-                    const option = new Option(`${item.item_code} - ${item.description}`, item.id);
-                    wipSelect.add(option);
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error loading WIP items:', error);
-        });
-}
-
-// Function to load WIPF items
-function loadWipfItems() {
-    fetch('/item-master/get-items-by-type/WIPF')
-        .then(response => response.json())
-        .then(data => {
-            const wipfSelect = document.getElementById('wipf_component_id');
-            wipfSelect.innerHTML = '<option value="">Select WIPF Item</option>';
-            
-            if (data.success && data.items) {
-                data.items.forEach(item => {
-                    const option = new Option(`${item.item_code} - ${item.description}`, item.id);
-                    wipfSelect.add(option);
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error loading WIPF items:', error);
-        });
-}
+// WIP and WIPF items are now loaded from the template, no need for dynamic loading
 
 // Auto-suggestion for item codes
 document.getElementById('item_code').addEventListener('input', function() {
@@ -669,14 +635,14 @@ document.getElementById('item-form').addEventListener('submit', function(e) {
     
     // Add hierarchy relationships for FG items
     if (jsonData.item_type === 'FG') {
-        const wipComponentId = document.getElementById('wip_component_id').value;
-        const wipfComponentId = document.getElementById('wipf_component_id').value;
+        const wipItemId = document.getElementById('wip_item_id').value;
+        const wipfItemId = document.getElementById('wipf_item_id').value;
         
-        if (wipComponentId) {
-            jsonData.wip_component_id = wipComponentId;
+        if (wipItemId) {
+            jsonData.wip_item_id = wipItemId;
         }
-        if (wipfComponentId) {
-            jsonData.wipf_component_id = wipfComponentId;
+        if (wipfItemId) {
+            jsonData.wipf_item_id = wipfItemId;
         }
     }
     

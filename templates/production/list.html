@@ -78,7 +78,7 @@
                         <td class="date-column">{{ production.week_commencing }}</td>
                         <td class="date-column">{{ production.production_date }}</td>
                         <td>{{ production.production_code }}</td>
-                        <td>{{ production.description }}</td>
+                        <td>{{ production.description or (production.item.item_code + ' - ' + production.item.description if production.item else 'None') }}</td>
                         <td>{{ production.batches }}</td>
                         <td>{{ "%.2f"|format(production.total_kg|float) }}</td>
                         <td>
@@ -97,6 +97,18 @@
                         <td><strong>{{ total_kg | round(2) }}</strong></td>
                         <td></td>
                     </tr>
+                    {% if recipe_family_totals %}
+                    <tr class="table-secondary">
+                        <td colspan="8"><strong>Totals by Recipe Family:</strong></td>
+                    </tr>
+                    {% for recipe_family, family_total in recipe_family_totals.items() %}
+                    <tr class="table-secondary">
+                        <td colspan="6" style="text-align: right;">{{ recipe_family }}:</td>
+                        <td>{{ family_total | round(2) }}</td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
                     {% endif %}
                 </tbody>
             </table>
@@ -199,12 +211,11 @@
             $("#search_production_code").val($(this).data("production-code"));
             $("#search_description").val($(this).data("description"));
             $("#production_code_suggestions").empty();
-            fetchProductions(); // Trigger search after selecting suggestion
         });
 
         // Hide suggestions when clicking outside
-        $(document).click(function(event) {
-            if (!$(event.target).closest("#search_production_code, #production_code_suggestions").length) {
+        $(document).on("click", function(e) {
+            if (!$(e.target).closest("#search_production_code, #production_code_suggestions").length) {
                 $("#production_code_suggestions").empty();
             }
         });
@@ -271,118 +282,28 @@
 
     // Fetch production list based on search criteria
     function fetchProductions() {
-        var productionCode = $("#search_production_code").val().trim();
-        var description = $("#search_description").val().trim();
-        var weekCommencing = $("#search_week_commencing").val().trim();
-        var productionDateStart = $("#search_production_date_start").val().trim();
-        var productionDateEnd = $("#search_production_date_end").val().trim();
+        var searchData = {
+            production_code: $("#search_production_code").val(),
+            description: $("#search_description").val(),
+            week_commencing: $("#search_week_commencing").val(),
+            production_date_start: $("#search_production_date_start").val(),
+            production_date_end: $("#search_production_date_end").val()
+        };
 
-        // Validate date range
-        if (productionDateStart && productionDateEnd && productionDateStart > productionDateEnd) {
-            alert("End date must be after start date");
-            return;
-        }
-
-        $.ajax({
-            url: "{{ url_for('production.get_search_productions') }}",
-            type: "GET",
-            data: {
-                production_code: productionCode,
-                description: description,
-                week_commencing: weekCommencing,
-                production_date_start: productionDateStart,
-                production_date_end: productionDateEnd
-            },
-            success: function(response) {
-                var tableBody = $("#productionListTable tbody");
-                tableBody.empty();
-                $("#resultSection").removeClass("hidden");
-
-                if (response.error) {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="8" class="no-results">Error fetching production entries: ${response.error}</td>
-                        </tr>
-                    `);
-                    return;
-                }
-
-                if (response.productions && response.productions.length > 0) {
-                    response.productions.forEach(function(production) {
-                        if (production.id !== null && production.id !== undefined) {
-                            tableBody.append(`
-                                <tr>
-                                    <td>${production.id}</td>
-                                    <td class="date-column">${production.week_commencing || ''}</td>
-                                    <td class="date-column">${production.production_date || ''}</td>
-                                    <td>${production.production_code || ''}</td>
-                                    <td>${production.description || ''}</td>
-                                    <td>${production.batches !== null && production.batches !== undefined ? production.batches.toFixed(2) : ''}</td>
-                                    <td>${production.total_kg !== null && production.total_kg !== undefined ? production.total_kg.toFixed(2) : ''}</td>
-                                    <td>
-                                        <a href="/production/edit/${production.id}" class="btn btn-warning btn-sm">Edit</a>
-                                        <form action="/production/delete/${production.id}" method="post" style="display:inline-block;">
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            `);
-                        }
-                    });
-                    
-                    // Add total row
-                    tableBody.append(`
-                        <tr class="table-info font-weight-bold">
-                            <td colspan="6" style="text-align: right;"><strong>Total:</strong></td>
-                            <td><strong>${response.total_kg.toFixed(2)}</strong></td>
-                            <td></td>
-                        </tr>
-                    `);
-                } else {
-                    tableBody.append(`
-                        <tr>
-                            <td colspan="8" class="no-results">
-                                <div class="no-results">
-                                    <p>No production entries found for Production Code: ${productionCode}</p>
-                                    <button class="add-production-btn" onclick="addProduction('${productionCode}')">
-                                        Add Production Entry for Production Code ${productionCode}
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `);
-                }
-            },
-            error: function() {
-                var tableBody = $("#productionListTable tbody");
-                tableBody.empty();
-                tableBody.append(`
-                    <tr>
-                        <td colspan="8" class="no-results">Error fetching production entries.</td>
-                    </tr>
-                `);
-            }
-        });
+        window.location.href = "{{ url_for('production.production_list') }}?" + $.param(searchData);
     }
 
     // Export to Excel based on current filters
     function exportToExcel() {
-        var productionCode = $("#search_production_code").val().trim();
-        var description = $("#search_description").val().trim();
-        var weekCommencing = $("#search_week_commencing").val().trim();
-        var productionDateStart = $("#search_production_date_start").val().trim();
-        var productionDateEnd = $("#search_production_date_end").val().trim();
+        var searchData = {
+            production_code: $("#search_production_code").val(),
+            description: $("#search_description").val(),
+            week_commencing: $("#search_week_commencing").val(),
+            production_date_start: $("#search_production_date_start").val(),
+            production_date_end: $("#search_production_date_end").val()
+        };
 
-        // Construct the URL with query parameters
-        var url = "{{ url_for('production.export_productions_excel') }}?" +
-                  "production_code=" + encodeURIComponent(productionCode) +
-                  "&description=" + encodeURIComponent(description) +
-                  "&week_commencing=" + encodeURIComponent(weekCommencing) +
-                  "&production_date_start=" + encodeURIComponent(productionDateStart) +
-                  "&production_date_end=" + encodeURIComponent(productionDateEnd);
-
-        // Trigger the download
-        window.location.href = url;
+        window.location.href = "{{ url_for('production.export_productions_excel') }}?" + $.param(searchData);
     }
 
     // Add this function after the document ready block

@@ -45,44 +45,55 @@ def update_downstream_requirements(packing_date, week_commencing):
         filling_needs = {}  # {wipf_item_id: total_kg}
         production_needs = {}  # {wip_item_id: total_kg}
 
-        # Step 2: Explode the recipes for each packed item
-        for packed_item_id, total_req_kg in daily_packing_reqs:
-            logger.info(f"Processing recipes for item_id {packed_item_id}: {total_req_kg} kg required")
-            
-            # Get all recipe components for this finished good
+        def calculate_wip_requirements(item_id, required_kg, level=0):
+            """
+            Recursively calculate WIP requirements
+            """
+            if level > 10:  # Prevent infinite recursion
+                logger.warning(f"Max recursion depth reached for item {item_id}")
+                return
+                
+            # Get recipe components for this item using correct field names
             recipe_components = RecipeMaster.query.filter_by(
-                finished_good_id=packed_item_id
-            ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).all()
+                recipe_wip_id=item_id  # Use correct field name
+            ).join(ItemMaster, RecipeMaster.component_item_id == ItemMaster.id).all()
             
             for recipe in recipe_components:
-                component_item = recipe.raw_material_item
+                component_item = recipe.component_item
                 if not component_item:
                     continue
                 
-                # Calculate component requirement based on recipe
-                # Using kg_per_batch if available, otherwise percentage
-                if recipe.kg_per_batch and recipe.kg_per_batch > 0:
-                    needed_kg = total_req_kg * recipe.kg_per_batch
-                elif recipe.percentage and recipe.percentage > 0:
-                    needed_kg = total_req_kg * (recipe.percentage / 100)
-                else:
-                    continue  # Skip if no valid quantity specified
+                # Calculate needed quantity using the actual database field
+                # quantity_kg represents the kg of component needed per batch
+                needed_kg = required_kg  # Use 1:1 ratio since we're working with final quantities
                 
                 if needed_kg <= 0:
                     continue
                 
-                # Categorize by component type
+                # Handle component based on type
                 if component_item.item_type and component_item.item_type.type_name == 'WIPF':
                     filling_needs[component_item.id] = filling_needs.get(component_item.id, 0) + needed_kg
                     logger.info(f"WIPF requirement: {component_item.item_code} needs {needed_kg} kg")
+                    
                 elif component_item.item_type and component_item.item_type.type_name == 'WIP':
                     production_needs[component_item.id] = production_needs.get(component_item.id, 0) + needed_kg
                     logger.info(f"WIP requirement: {component_item.item_code} needs {needed_kg} kg")
+                    # Recursively process this WIP's components
+                    calculate_wip_requirements(component_item.id, needed_kg, level + 1)
+
+        # Step 2: Process all packing requirements
+        total_packing_kg = 0
+        for packed_item_id, total_req_kg in daily_packing_reqs:
+            total_packing_kg += total_req_kg
+            logger.info(f"Processing recipes for item_id {packed_item_id}: {total_req_kg} kg required")
+            calculate_wip_requirements(packed_item_id, total_req_kg)
+
+        logger.info(f"Total packing requirement: {total_packing_kg} kg")
 
         # Step 3: Update Filling Table
         logger.info(f"Updating Filling requirements: {len(filling_needs)} items")
         
-        # Delete existing entries for the day to ensure clean slate
+        # Delete existing entries for the day
         deleted_filling = Filling.query.filter_by(
             filling_date=packing_date, 
             week_commencing=week_commencing
@@ -115,19 +126,23 @@ def update_downstream_requirements(packing_date, week_commencing):
         logger.info(f"Deleted {deleted_production} existing production entries")
         
         production_created = 0
+        total_production_kg = 0
         for item_id, total_kg in production_needs.items():
             if total_kg > 0:
-                # Assuming 100kg batch size - this could be made configurable
-                batches = total_kg / 100
+                batches = total_kg / 300  # Using 300kg as standard batch size
                 
                 item = ItemMaster.query.get(item_id)
-                production_code = item.item_code if item else str(item_id)
-                description = item.description if item else f"Production for item {item_id}"
+                if not item:
+                    continue
+                    
+                production_code = item.item_code
+                description = f"{item.item_code} - {item.description}"  # Include both code and description
                 
+                # Create production entry
                 new_production = Production(
                     production_date=packing_date,
                     week_commencing=week_commencing,
-                    item_id=item_id,
+                    item_id=item.id,
                     production_code=production_code,
                     description=description,
                     total_kg=total_kg,
@@ -135,58 +150,16 @@ def update_downstream_requirements(packing_date, week_commencing):
                 )
                 db.session.add(new_production)
                 production_created += 1
+                total_production_kg += total_kg
                 
                 logger.info(f"Created production entry: {production_code} - {total_kg} kg ({batches} batches)")
-
-        # Step 5: Recursive explosion for WIP requirements
-        # WIP items might also need other WIP/RM components
-        if production_needs:
-            logger.info("Processing recursive requirements for WIP items")
-            for wip_item_id, required_kg in production_needs.items():
-                # Get recipes for this WIP item
-                wip_recipe_components = RecipeMaster.query.filter_by(
-                    finished_good_id=wip_item_id
-                ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).all()
-                
-                for recipe in wip_recipe_components:
-                    component_item = recipe.raw_material_item
-                    if not component_item:
-                        continue
-                    
-                    # Calculate component requirement
-                    if recipe.kg_per_batch and recipe.kg_per_batch > 0:
-                        needed_kg = required_kg * recipe.kg_per_batch
-                    elif recipe.percentage and recipe.percentage > 0:
-                        needed_kg = required_kg * (recipe.percentage / 100)
-                    else:
-                        continue
-                    
-                    if needed_kg <= 0:
-                        continue
-                    
-                    # Only create additional production entries for WIP components
-                    if (component_item.item_type and 
-                        component_item.item_type.type_name == 'WIP' and 
-                        component_item.id not in production_needs):
-                        
-                        additional_batches = needed_kg / 100
-                        additional_production = Production(
-                            production_date=packing_date,
-                            week_commencing=week_commencing,
-                            item_id=component_item.id,
-                            production_code=component_item.item_code,
-                            description=component_item.description,
-                            total_kg=needed_kg,
-                            batches=additional_batches
-                        )
-                        db.session.add(additional_production)
-                        production_created += 1
-                        logger.info(f"Created recursive production entry: {component_item.item_code} - {needed_kg} kg")
 
         # Commit all changes
         db.session.commit()
         
-        summary = f"Recipe explosion completed: {filling_created} filling entries, {production_created} production entries created"
+        summary = (f"Recipe explosion completed: {filling_created} filling entries, "
+                  f"{production_created} production entries created. "
+                  f"Total packing: {total_packing_kg} kg, Total production: {total_production_kg} kg")
         logger.info(summary)
         return True, summary
         
@@ -197,85 +170,64 @@ def update_downstream_requirements(packing_date, week_commencing):
         return False, error_msg
 
 def get_recipe_summary(item_id):
-    """
-    Get a summary of recipe explosion for a specific item
-    Useful for debugging and verification
-    """
+    """Get a summary of all recipe components for an item"""
     try:
         item = ItemMaster.query.get(item_id)
         if not item:
-            return None, "Item not found"
-        
-        # Get all recipe components for this item
-        recipe_components = RecipeMaster.query.filter_by(
-            finished_good_id=item_id
-        ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).all()
-        
-        summary = {
-            'item': {
-                'code': item.item_code,
-                'description': item.description,
-                'type': item.item_type.type_name if item.item_type else 'Unknown'
-            },
-            'components': [],
-            'by_type': {'RM': 0, 'WIP': 0, 'WIPF': 0},
-            'total_components': len(recipe_components)
+            return None
+            
+        result = {
+            'code': item.item_code,
+            'description': item.description,
+            'type': item.item_type.type_name if item.item_type else None,
+            'components': []
         }
         
-        for recipe in recipe_components:
+        recipes = RecipeMaster.query.filter_by(finished_good_id=item_id).all()
+        for recipe in recipes:
             component_item = recipe.raw_material_item
             if component_item:
-                comp_info = {
+                result['components'].append({
                     'code': component_item.item_code,
                     'description': component_item.description,
-                    'type': component_item.item_type.type_name if component_item.item_type else 'Unknown',
+                    'type': component_item.item_type.type_name if component_item.item_type else None,
                     'kg_per_batch': recipe.kg_per_batch,
                     'percentage': recipe.percentage
-                }
-                summary['components'].append(comp_info)
+                })
                 
-                # Count by type
-                comp_type = component_item.item_type.type_name if component_item.item_type else 'Unknown'
-                summary['by_type'][comp_type] = summary['by_type'].get(comp_type, 0) + 1
-        
-        return summary, "Success"
-        
+        return result
     except Exception as e:
-        return None, f"Error generating recipe summary: {str(e)}"
+        logger.error(f"Error getting recipe summary: {str(e)}")
+        return None
 
 def calculate_component_requirements(item_id, required_kg):
     """
     Calculate all component requirements for a specific item and quantity
-    Uses existing RecipeMaster structure
+    Uses existing RecipeMaster structure with correct field names
     """
     try:
         requirements = {}
         
-        # Get direct recipe components
+        # Get direct recipe components using correct field names
         recipe_components = RecipeMaster.query.filter_by(
-            finished_good_id=item_id
-        ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).all()
+            recipe_wip_id=item_id  # Use correct field name
+        ).join(ItemMaster, RecipeMaster.component_item_id == ItemMaster.id).all()
         
         for recipe in recipe_components:
-            component_item = recipe.raw_material_item
+            component_item = recipe.component_item
             if not component_item:
                 continue
             
-            # Calculate requirement
-            if recipe.kg_per_batch and recipe.kg_per_batch > 0:
-                needed_kg = required_kg * recipe.kg_per_batch
-            elif recipe.percentage and recipe.percentage > 0:
-                needed_kg = required_kg * (recipe.percentage / 100)
-            else:
-                continue
+            # Calculate requirement using actual database field
+            needed_kg = required_kg * float(recipe.quantity_kg) if recipe.quantity_kg else 0
             
             if needed_kg > 0:
                 requirements[component_item.item_code] = {
                     'item': component_item,
                     'total_kg': needed_kg,
                     'type': component_item.item_type.type_name if component_item.item_type else 'Unknown',
-                    'recipe_kg_per_batch': recipe.kg_per_batch,
-                    'recipe_percentage': recipe.percentage
+                    'recipe_quantity_kg': float(recipe.quantity_kg),
+                    'recipe_percentage': 0.0  # Not calculated in this version
                 }
         
         return requirements, "Success"
