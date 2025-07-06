@@ -71,14 +71,14 @@ class EnhancedBOMService:
         }
         
         # Get WIP item if exists
-        if fg_item.wip_component:
-            hierarchy['production_code'] = fg_item.wip_component.item_code
-            hierarchy['production_description'] = fg_item.wip_component.description
+        if fg_item.wip_item:
+            hierarchy['production_code'] = fg_item.wip_item.item_code
+            hierarchy['production_description'] = fg_item.wip_item.description
             
         # Get WIPF item if exists
-        if fg_item.wipf_component:
-            hierarchy['filling_code'] = fg_item.wipf_component.item_code
-            hierarchy['filling_description'] = fg_item.wipf_component.description
+        if fg_item.wipf_item:
+            hierarchy['filling_code'] = fg_item.wipf_item.item_code
+            hierarchy['filling_description'] = fg_item.wipf_item.description
             
         # Determine flow type
         if hierarchy['filling_code'] and hierarchy['production_code']:
@@ -101,8 +101,8 @@ class EnhancedBOMService:
         for fg in fg_items:
             hierarchy = {
                 'fg_code': fg.item_code,
-                'filling_code': fg.wipf_component.item_code if fg.wipf_component else None,
-                'production_code': fg.wip_component.item_code if fg.wip_component else None,
+                'filling_code': fg.wipf_item.item_code if fg.wipf_item else None,
+                'production_code': fg.wip_item.item_code if fg.wip_item else None,
                 'calculation_factor': fg.calculation_factor or 1.0,
                 'flow_type': 'Direct production (FG only)'
             }

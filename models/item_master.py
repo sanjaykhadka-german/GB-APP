@@ -46,8 +46,8 @@ class ItemMaster(db.Model):
 
     # --- FG Composition (Self-referencing Foreign Keys) ---
     # These will only be populated for Finished Goods (FG)
-    wip_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=True)
-    wipf_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=True)
+    wip_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='SET NULL'), nullable=True)
+    wipf_item_id = db.Column(db.Integer, db.ForeignKey('item_master.id', ondelete='SET NULL'), nullable=True)
 
     # --- Relationships ---
 
@@ -62,8 +62,8 @@ class ItemMaster(db.Model):
     
     # These relationships allow an FG to easily access its WIP and WIPF components
     # We specify foreign_keys and remote_side to resolve ambiguity for self-referencing relationships
-    wip_component = relationship("ItemMaster", foreign_keys=[wip_item_id], remote_side=[id])
-    wipf_component = relationship("ItemMaster", foreign_keys=[wipf_item_id], remote_side=[id])
+    wip_item = relationship("ItemMaster", foreign_keys=[wip_item_id], remote_side=[id], backref=db.backref('wip_used_by', lazy='dynamic'))
+    wipf_item = relationship("ItemMaster", foreign_keys=[wipf_item_id], remote_side=[id], backref=db.backref('wipf_used_by', lazy='dynamic'))
     
     # --- Recipe Relationships ---
     

@@ -1,7 +1,7 @@
 from app import app
 from models.item_master import ItemMaster
 from models.item_type import ItemType
-from models.joining import Joining
+#from models.joining import Joining
 from database import db
 import sqlalchemy as sa
 

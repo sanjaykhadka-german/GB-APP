@@ -89,8 +89,8 @@ def verify_migration():
         # Show sample results
         print(f"\n📋 Sample hierarchy (item_master):")
         for fg in fg_items[:5]:
-            wip_code = fg.wip_component.item_code if fg.wip_component else "None"
-            wipf_code = fg.wipf_component.item_code if fg.wipf_component else "None"
+            wip_code = fg.wip_item.item_code if fg.wip_item else "None"
+            wipf_code = fg.wipf_item.item_code if fg.wipf_item else "None"
             print(f"   FG: {fg.item_code} → WIP: {wip_code} → WIPF: {wipf_code}")
 
 if __name__ == "__main__":

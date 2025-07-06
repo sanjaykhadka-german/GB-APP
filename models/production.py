@@ -16,6 +16,8 @@ class Production(db.Model):
     description = db.Column(db.String(255))
     batches = db.Column(db.Float, default=0.0)
     total_kg = db.Column(db.Float, default=0.0)
+    requirement_kg = db.Column(db.Float, default=0.0)  # Add this for compatibility
+    priority = db.Column(db.Integer, default=0)  # Add priority field
 
     # Relationships
     item = db.relationship('ItemMaster', backref='production_records')

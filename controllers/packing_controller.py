@@ -8,9 +8,7 @@ from models.item_master import ItemMaster
 from models.allergen import Allergen
 from datetime import date, datetime, timedelta
 from database import db
-from sqlalchemy.sql import text
-from sqlalchemy import asc, desc, func
-import pandas as pd
+from sqlalchemy import asc, desc
 import io
 import logging
 import math
@@ -26,132 +24,27 @@ packing = Blueprint('packing', __name__, url_prefix='/packing')
 
 def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=None):
     """
-    Re-aggregate all filling and production entries for a specific date.
-    This ensures totals are correct across all recipe families.
+    Re-aggregate all production entries for a specific date based on packing requirements only.
+    Uses the BOM service to properly handle recipe explosion.
     """
     try:
-        logger.info(f"Re-aggregating filling and production for date {packing_date}, week {week_commencing}")
+        logger.info(f"Re-aggregating production for date {packing_date}, week {week_commencing}")
         
-        # Get ALL packing entries for this date and week
-        all_packings = Packing.query.filter(
-            Packing.packing_date == packing_date,
-            Packing.week_commencing == week_commencing
-        ).all()
+        # Use the BOM service to handle recipe explosion
+        from controllers.bom_service import update_downstream_requirements
+        success, message = update_downstream_requirements(packing_date, week_commencing)
         
-        if not all_packings:
-            logger.info("No packing entries found for re-aggregation")
-            return
-        
-        # Group by WIPF items across ALL recipe families
-        wipf_totals = {}
-        wip_totals = {}
-        
-        logger.info(f"Processing {len(all_packings)} packing entries for aggregation")
-        
-        for packing in all_packings:
-            item = packing.item
-            if not item:
-                logger.warning(f"No ItemMaster found for packing {packing.id}")
-                continue
-                
-            requirement_kg = packing.requirement_kg or 0.0
-            logger.debug(f"Packing {item.item_code}: {requirement_kg} kg")
+        if not success:
+            logger.error(f"Failed to re-aggregate production: {message}")
+            return False, message
             
-            # Get WIPF items that this FG item is produced from
-            if hasattr(item, 'wipf_component') and item.wipf_component:
-                wipf_item = item.wipf_component
-                if wipf_item.id not in wipf_totals:
-                    wipf_totals[wipf_item.id] = {
-                        'total_kg': 0.0,
-                        'item': wipf_item,
-                        'recipe_family': None
-                    }
-                wipf_totals[wipf_item.id]['total_kg'] += requirement_kg
-                if not wipf_totals[wipf_item.id]['recipe_family']:
-                    wipf_totals[wipf_item.id]['recipe_family'] = item.item_code.split('.')[0]
-                logger.debug(f"Added {requirement_kg} kg to WIPF {wipf_item.item_code}, total now: {wipf_totals[wipf_item.id]['total_kg']}")
-                
-            # Get WIP items that this FG item is produced from
-            if hasattr(item, 'wip_component') and item.wip_component:
-                wip_item = item.wip_component
-                if wip_item.id not in wip_totals:
-                    wip_totals[wip_item.id] = {
-                        'total_kg': 0.0,
-                        'item': wip_item,
-                        'recipe_family': None
-                    }
-                wip_totals[wip_item.id]['total_kg'] += requirement_kg
-                if not wip_totals[wip_item.id]['recipe_family']:
-                    wip_totals[wip_item.id]['recipe_family'] = item.item_code.split('.')[0]
-                logger.debug(f"Added {requirement_kg} kg to WIP {wip_item.item_code}, total now: {wip_totals[wip_item.id]['total_kg']}")
-        
-        logger.info(f"WIPF totals: {wipf_totals}")
-        logger.info(f"WIP totals: {wip_totals}")
-        
-        # Delete existing entries first to avoid duplicates
-        existing_fillings = Filling.query.filter(
-            Filling.filling_date == packing_date,
-            Filling.week_commencing == week_commencing
-        ).all()
-        for filling in existing_fillings:
-            db.session.delete(filling)
-            
-        existing_productions = Production.query.filter(
-            Production.production_date == packing_date,
-            Production.week_commencing == week_commencing
-        ).all()
-        for production in existing_productions:
-            db.session.delete(production)
-        
-        # Create new Filling entries with correct totals
-        for wipf_id, data in wipf_totals.items():
-            total_kg = data['total_kg']
-            wipf_item = data['item']
-            recipe_family = data['recipe_family']
-            
-            if total_kg <= 0:
-                continue
-                
-            filling = Filling(
-                filling_date=packing_date,
-                item_id=wipf_item.id,
-                kilo_per_size=total_kg,
-                week_commencing=week_commencing
-            )
-            db.session.add(filling)
-            logger.info(f"Created filling for {wipf_item.item_code}: {total_kg} kg")
-        
-        # Create new Production entries with correct totals
-        for wip_id, data in wip_totals.items():
-            total_kg = data['total_kg']
-            wip_item = data['item']
-            recipe_family = data['recipe_family']
-            
-            if total_kg <= 0:
-                continue
-            
-            # Calculate batches (using 300kg as default batch size)
-            batches = total_kg / 300.0 if total_kg > 0 else 0.0
-            
-            production = Production(
-                production_date=packing_date,
-                item_id=wip_item.id,  # Set the foreign key
-                production_code=recipe_family or wip_item.item_code,  # Use recipe family code if available
-                description=wip_item.description,
-                batches=batches,
-                total_kg=total_kg,
-                week_commencing=week_commencing
-            )
-            db.session.add(production)
-            logger.info(f"Created production {recipe_family or wip_item.item_code}: {total_kg} kg, {batches} batches")
-        
-        db.session.commit()
-        logger.info("Re-aggregation completed successfully")
+        logger.info(f"Successfully re-aggregated production: {message}")
+        return True, message
         
     except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error during re-aggregation: {str(e)}")
-        raise e
+        error_msg = f"Failed to re-aggregate production: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return False, error_msg
 
 def create_or_update_soh_entry(product_code, week_commencing, soh_units=0):
     """Create or update SOH entry for a product if it doesn't exist."""
@@ -306,16 +199,21 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
         packing.soh_units = soh_units
 
+        # Save changes
         db.session.commit()
-
-        # ✅ NEW: Always re-aggregate after any packing change to ensure consistency
-        re_aggregate_filling_and_production_for_date(packing.packing_date, week_commencing)
-
-        return True, "Packing entry updated successfully"
+        
+        # After successfully saving the packing entry, update downstream requirements
+        success, message = re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
+        if not success:
+            logger.warning(f"Failed to update downstream requirements: {message}")
+            # Don't return error - we still want to save the packing entry
+            
+        return True, "Successfully updated packing entry"
     except Exception as e:
         db.session.rollback()
-        logger.warning(f"Error updating packing entry for {fg_code}: {str(e)}")
-        return False, f"Error updating packing entry: {str(e)}"
+        error_msg = f"Error updating packing entry: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return False, error_msg
 
 @packing.route('/')
 def packing_list():
@@ -653,15 +551,15 @@ def packing_edit(id):
                     return redirect(url_for('packing.packing_edit', id=id))
                 packing.item_id = new_item.id
             
-            packing.special_order_kg = float(request.form['special_order_kg']) if request.form['special_order_kg'] else 0.0
-            packing.calculation_factor = float(request.form['calculation_factor']) if request.form['calculation_factor'] else 0.0
+            # Only update if value is provided, else keep existing
+            packing.special_order_kg = float(request.form['special_order_kg']) if request.form['special_order_kg'] else packing.special_order_kg
+            packing.calculation_factor = float(request.form['calculation_factor']) if request.form['calculation_factor'] else packing.calculation_factor
             machinery_value = request.form.get('machinery')
             if machinery_value and machinery_value.strip():
                 packing.machinery_id = int(machinery_value)
-            else:
-                packing.machinery_id = None
-            packing.priority = int(request.form['priority']) if request.form['priority'] else 0
-            week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else None
+            # else: do not overwrite with None
+            packing.priority = int(request.form['priority']) if request.form['priority'] else packing.priority
+            week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else packing.week_commencing
 
             if not week_commencing:
                 def get_monday_of_week(dt):

@@ -18,7 +18,7 @@ def check_item_relationships():
             print(f"\nWIP Item: {wip.item_code} - {wip.description}")
             
             # Get FG items that use this WIP
-            fg_items = ItemMaster.query.filter(ItemMaster.wip_component == wip).all()
+            fg_items = ItemMaster.query.filter(ItemMaster.wip_item == wip).all()
             if fg_items:
                 print("Used by FG items:")
                 for fg in fg_items:
@@ -49,7 +49,7 @@ def check_item_relationships():
             print(f"\nWIPF Item: {wipf.item_code} - {wipf.description}")
             
             # Get FG items that use this WIPF
-            fg_items = ItemMaster.query.filter(ItemMaster.wipf_component == wipf).all()
+            fg_items = ItemMaster.query.filter(ItemMaster.wipf_item == wipf).all()
             if fg_items:
                 print("Used by FG items:")
                 for fg in fg_items:

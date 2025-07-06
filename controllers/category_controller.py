@@ -1,5 +1,4 @@
-from flask import Blueprint, request, jsonify
-from flask import flash, redirect, url_for
+from flask import Blueprint, request, jsonify, flash
 from models.category import Category
 from database import db
 import sqlalchemy

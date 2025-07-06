@@ -3,13 +3,11 @@ from sqlalchemy.sql import text
 from decimal import Decimal
 import sqlalchemy.exc
 from datetime import datetime, timedelta
-import pandas as pd
 from io import BytesIO
 from database import db
 from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster, ItemType
 from models.usage_report import UsageReport
 from models.recipe_master import RecipeMaster
-from models.production import Production
 # from models.joining import Joining  # REMOVED - joining table deprecated
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment

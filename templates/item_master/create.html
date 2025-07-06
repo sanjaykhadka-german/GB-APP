@@ -181,7 +181,7 @@
                                     <option value="{{ wip_item.id }}">{{ wip_item.item_code }} - {{ wip_item.description }}</option>
                                     {% endfor %}
                                 </select>
-                                <div class="form-text">Select the WIP item this FG is produced from</div>
+                                <div class="form-text" id="wip_help_text">Select the WIP item this FG/WIPF is produced from</div>
                             </div>
                         </div>
                         
@@ -543,6 +543,7 @@ function toggleHierarchyFields() {
     const wipField = document.getElementById('wip_selection_field');
     const wipfField = document.getElementById('wipf_selection_field');
     const categoryField = document.getElementById('category_field');
+    const wipHelpText = document.getElementById('wip_help_text');
     
     if (itemType === 'FG') {
         // Show WIP and WIPF selection fields for FG items
@@ -550,24 +551,30 @@ function toggleHierarchyFields() {
         wipfField.style.display = 'block';
         categoryField.classList.remove('col-md-3');
         categoryField.classList.add('col-md-3');
-        
-        // Load WIP and WIPF items
-        loadWipItems();
-        loadWipfItems();
+        wipHelpText.textContent = 'Select the WIP item this FG is produced from';
+    } else if (itemType === 'WIPF') {
+        // Show only WIP selection field for WIPF items
+        wipField.style.display = 'block';
+        wipfField.style.display = 'none';
+        categoryField.classList.remove('col-md-3');
+        categoryField.classList.add('col-md-3');
+        wipHelpText.textContent = 'Select the WIP item this WIPF is produced from';
     } else {
-        // Hide fields for non-FG items
+        // Hide fields for other item types
         wipField.style.display = 'none';
         wipfField.style.display = 'none';
         categoryField.classList.remove('col-md-3');
         categoryField.classList.add('col-md-3');
+    }
         
-        // Clear selections
-        document.getElementById('wip_component_id').value = '';
-        document.getElementById('wipf_component_id').value = '';
+    // Clear selections when changing item type
+    if (itemType !== 'FG') {
+        document.getElementById('wipf_item_id').value = '';
+    }
+    if (itemType !== 'FG' && itemType !== 'WIPF') {
+        document.getElementById('wip_item_id').value = '';
     }
 }
-
-// WIP and WIPF items are now loaded from the template, no need for dynamic loading
 
 // Auto-suggestion for item codes
 document.getElementById('item_code').addEventListener('input', function() {

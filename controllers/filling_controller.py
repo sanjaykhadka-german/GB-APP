@@ -3,10 +3,6 @@ from datetime import datetime, timedelta
 from database import db
 from models.filling import Filling
 from models.item_master import ItemMaster
-from models.production import Production
-from models.recipe_master import RecipeMaster
-from sqlalchemy import func
-from sqlalchemy.sql import text
 import openpyxl
 from io import BytesIO
 
@@ -110,16 +106,6 @@ def filling_create():
             db.session.add(new_filling)
             db.session.commit()
 
-            # Update or create corresponding Production entries
-            # Find finished goods that use this WIPF item in their recipes
-            from models.recipe_master import RecipeMaster
-            fg_items_query = db.session.query(ItemMaster).join(
-                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
-            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
-            fg_items = fg_items_query.all()
-            for fg_item in fg_items:
-                update_production_entry(filling_date, wipf_item.item_code, fg_item, week_commencing)
-
             flash('Filling entry created successfully!', 'success')
             return redirect(url_for('filling.filling_list'))
         except ValueError as e:
@@ -144,8 +130,6 @@ def filling_edit(id):
     if request.method == 'POST':
         try:
             filling_date_str = request.form['filling_date']
-            old_filling_date = filling.filling_date
-            old_wipf_item = filling.item
             filling.filling_date = datetime.strptime(filling_date_str, '%Y-%m-%d').date()
             filling.item_id = int(request.form['wipf_id'])
             filling.kilo_per_size = float(request.form['kilo_per_size']) if request.form.get('kilo_per_size') else 0.0
@@ -165,27 +149,6 @@ def filling_edit(id):
                 return render_template('filling/edit.html', filling=filling, current_page="filling")
 
             db.session.commit()
-
-            # Update corresponding Production entries
-            # Find finished goods that use this WIPF item in their recipes
-            from models.recipe_master import RecipeMaster
-            fg_items_query = db.session.query(ItemMaster).join(
-                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
-            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
-            fg_items = fg_items_query.all()
-            for fg_item in fg_items:
-                update_production_entry(filling.filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
-
-            # If date changed or WIPF item changed, also update old production entries
-            if old_filling_date != filling.filling_date or old_wipf_item != filling.item:
-                if old_wipf_item:
-                    old_fg_items_query = db.session.query(ItemMaster).join(
-                        RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
-                    ).filter(RecipeMaster.raw_material_id == old_wipf_item.id)
-                    old_fg_items = old_fg_items_query.all()
-                    for old_fg_item in old_fg_items:
-                        update_production_entry(old_filling_date, old_wipf_item.item_code, old_fg_item, filling.week_commencing)
-
             flash('Filling entry updated successfully!', 'success')
             return redirect(url_for('filling.filling_list'))
         except ValueError as e:
@@ -207,21 +170,8 @@ def filling_edit(id):
 def filling_delete(id):
     filling = Filling.query.get_or_404(id)
     try:
-        filling_date = filling.filling_date
-        wipf_item = filling.item
         db.session.delete(filling)
         db.session.commit()
-
-        # Update corresponding Production entries
-        if wipf_item:
-            from models.recipe_master import RecipeMaster
-            fg_items_query = db.session.query(ItemMaster).join(
-                RecipeMaster, RecipeMaster.finished_good_id == ItemMaster.id
-            ).filter(RecipeMaster.raw_material_id == wipf_item.id)
-            fg_items = fg_items_query.all()
-            for fg_item in fg_items:
-                update_production_entry(filling_date, wipf_item.item_code, fg_item, filling.week_commencing)
-
         flash("Filling entry deleted successfully!", "danger")
     except Exception as e:
         db.session.rollback()
@@ -231,18 +181,28 @@ def filling_delete(id):
 # Autocomplete for Filling Fill Code
 @filling_bp.route('/autocomplete_filling', methods=['GET'])
 def autocomplete_filling():
-    search = request.args.get('query', '').strip()
-
-    if not search:
+    query = request.args.get('query', '').strip()
+    if not query:
         return jsonify([])
 
     try:
-        query = text("SELECT fill_code, description FROM filling WHERE fill_code LIKE :search LIMIT 10")
-        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
-        suggestions = [{"fill_code": row[0], "description": row[1]} for row in results]
+        # Search for WIPF items that match the query
+        wipf_items = ItemMaster.query.join(ItemMaster.item_type).filter(
+            ItemMaster.item_type.has(type_name='WIPF'),
+            ItemMaster.item_code.ilike(f"%{query}%")
+        ).limit(10).all()
+
+        suggestions = [
+            {
+                'id': item.id,
+                'fill_code': item.item_code,
+                'description': item.description
+            }
+            for item in wipf_items
+        ]
         return jsonify(suggestions)
     except Exception as e:
-        print("Error fetching filling autocomplete suggestions:", e)
+        print("Error in autocomplete:", e)
         return jsonify([])
 
 # Search Fillings via AJAX
@@ -375,76 +335,8 @@ def export_fillings_excel():
         return redirect(url_for('filling.filling_list'))
 
 def update_production_entry(filling_date, fill_code, fg_item, week_commencing=None):
-    """Helper function to create or update a Production entry."""
-    try:
-        # Get production_code from finished good item
-        production_code = fg_item.production_code if fg_item else None
-        if not production_code:
-            return  # No production code, nothing to update
-            
-        # Get WIP item for description
-        from models.item_type import ItemType
-        wip_type = ItemType.query.filter_by(type_name='WIP').first()
-        wip_item = ItemMaster.query.filter_by(item_code=production_code, item_type_id=wip_type.id).first() if wip_type else None
-        description = wip_item.description if wip_item else f"{production_code} - WIP"
-
-        # Get all WIPF items that are used in this FG's recipes
-        from models.recipe_master import RecipeMaster
-        from models.item_type import ItemType
-        wipf_recipes = RecipeMaster.query.filter(
-            RecipeMaster.finished_good_id == fg_item.id
-        ).join(ItemMaster, RecipeMaster.raw_material_id == ItemMaster.id).join(
-            ItemType, ItemMaster.item_type_id == ItemType.id
-        ).filter(ItemType.type_name == 'WIPF').all()
-        
-        wipf_items = [recipe.raw_material_item for recipe in wipf_recipes]
-        
-        if not wipf_items:
-            return  # No WIPF items in recipe, nothing to update
-
-        # Get the total kg from all filling entries for these WIPF items
-        total_kg = 0.0
-        for wipf_item in wipf_items:
-            filling_total = db.session.query(func.sum(Filling.kilo_per_size)).filter(
-                Filling.filling_date == filling_date,
-                Filling.item_id == wipf_item.id
-            ).scalar() or 0.0
-            total_kg += filling_total
-
-        # If total_kg is 0, delete the Production entry if it exists
-        if total_kg == 0.0:
-            production = Production.query.filter_by(
-                production_date=filling_date,
-                production_code=production_code
-            ).first()
-            if production:
-                db.session.delete(production)
-                db.session.commit()
-            return
-
-        # Create or update Production entry
-        production = Production.query.filter_by(
-            production_date=filling_date,
-            production_code=production_code
-        ).first()
-
-        if production:
-            production.total_kg = total_kg
-            production.description = description
-            production.week_commencing = week_commencing
-        else:
-            production = Production(
-                production_date=filling_date,
-                production_code=production_code,
-                description=description,
-                total_kg=total_kg,
-                week_commencing=week_commencing
-            )
-            db.session.add(production)
-
-        db.session.commit()
-        print(f"✓ Updated Production entry for {production_code}: {total_kg} kg")
-
-    except Exception as e:
-        print(f"Error updating Production entry: {str(e)}")
-        db.session.rollback()
+    """
+    This function is deprecated and no longer used.
+    Production entries should only be created/updated based on packing requirements.
+    """
+    pass  # Do nothing - production entries should only come from packing

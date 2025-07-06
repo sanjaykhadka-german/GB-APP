@@ -1,19 +1,12 @@
-import pandas as pd
 import os
 from flask import Blueprint, jsonify, render_template, request, redirect, url_for, flash
-from sqlalchemy.sql import text
 from sqlalchemy import asc, desc
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import pytz
-import math
 
-from controllers.packing_controller import update_packing_entry
-from controllers.enhanced_bom_service import EnhancedBOMService
 from models.item_master import ItemMaster
 from models.packing import Packing
-from models.filling import Filling
-from models.production import Production
 # from models.joining import Joining  # REMOVED - using item_master hierarchy
 
 
@@ -28,12 +21,11 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     """
     Create or update a packing entry when SOH data is uploaded.
     This is a simplified version specifically for SOH uploads.
-    Now uses the enhanced BOM service with joining table for optimized performance.
+    Now uses the BOM service for downstream requirements.
     """
     from app import db
     from models.packing import Packing
-    from models.filling import Filling
-    from models.production import Production
+    from controllers.bom_service import update_downstream_requirements
     
     try:
         # Get all required values from ItemMaster
@@ -42,132 +34,52 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         max_level = item.max_level or 0.0
         calculation_factor = item.calculation_factor or 0.0
         
-        print(f"Processing SOH->Packing for {fg_code}: soh_units={soh_total_units}, avg_weight={avg_weight_per_unit}, calc_factor={calculation_factor}")
+        print(f"Processing SOH->Packing for {fg_code}")
+        print(f"SOH Units: {soh_total_units}, Min: {min_level}, Max: {max_level}, Factor: {calculation_factor}")
         
-        # Calculate SOH requirement based on min/max levels
-        soh_requirement_units_week = int(max_level - soh_total_units) if soh_total_units < min_level else 0
+        # Calculate required units and kg
+        required_units = max(0, max_level - float(soh_total_units))
+        required_kg = required_units * avg_weight_per_unit
         
-        # Check if packing entry already exists
-        existing_packing = Packing.query.filter_by(
+        # Get the packing date (today)
+        packing_date = datetime.now().date()
+        
+        # Create or update packing entry
+        packing = Packing.query.filter_by(
             item_id=item.id,
-            week_commencing=week_commencing,
-            packing_date=week_commencing  # Use week_commencing as packing_date for SOH-generated entries
+            packing_date=packing_date,
+            week_commencing=week_commencing
         ).first()
         
-        if existing_packing:
-            packing = existing_packing
-            packing.soh_requirement_units_week = soh_requirement_units_week
-            packing.soh_units = soh_total_units
-            packing.avg_weight_per_unit = avg_weight_per_unit
-            packing.calculation_factor = calculation_factor
+        if packing:
+            packing.requirement_kg = required_kg
+            print(f"Updated packing entry: {required_kg} kg")
         else:
             packing = Packing(
-                packing_date=week_commencing,
                 item_id=item.id,
+                packing_date=packing_date,
                 week_commencing=week_commencing,
-                soh_requirement_units_week=soh_requirement_units_week,
-                soh_units=soh_total_units,
-                avg_weight_per_unit=avg_weight_per_unit,
-                calculation_factor=calculation_factor
+                requirement_kg=required_kg
             )
             db.session.add(packing)
+            print(f"Created packing entry: {required_kg} kg")
         
-        # Calculate derived values
-        packing.soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        packing.soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.total_stock_kg = packing.soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
-        packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + (packing.special_order_kg or 0), 0) if (packing.total_stock_kg - packing.soh_kg + (packing.special_order_kg or 0)) > 0 else 0
-        packing.requirement_unit = packing.total_stock_units - soh_total_units + (packing.special_order_unit or 0) if (packing.total_stock_units - soh_total_units + (packing.special_order_unit or 0)) > 0 else 0
-        
+        # Commit packing changes first
         db.session.commit()
-        print(f"✓ Packing entry saved: requirement_kg={packing.requirement_kg}, requirement_unit={packing.requirement_unit}")
         
-        # Use Enhanced BOM Service for downstream requirements creation
-        if packing.requirement_kg > 0:
-            try:
-                # Calculate downstream requirements using joining table
-                requirements = EnhancedBOMService.calculate_downstream_requirements(
-                    fg_code, packing.requirement_kg
-                )
-                
-                if requirements:
-                    created_entries = []
-                    
-                    # Create filling entry if needed
-                    if 'filling' in requirements:
-                        filling_req = requirements['filling']
-                        # Find the item by item_code to get its ID
-                        filling_item = ItemMaster.query.filter_by(item_code=filling_req['item_code']).first()
-                        if filling_item:
-                            existing_filling = Filling.query.filter_by(
-                                item_id=filling_item.id,
-                                week_commencing=week_commencing
-                            ).first()
-                            
-                            if not existing_filling:
-                                filling = Filling(
-                                    item_id=filling_item.id,
-                                    filling_date=week_commencing,  # Use filling_date field
-                                    week_commencing=week_commencing,
-                                    kilo_per_size=filling_req['requirement_kg']  # Add the requirement_kg value
-                                )
-                                db.session.add(filling)
-                                created_entries.append(f"Filling: {filling_req['item_code']}")
-                    
-                    # Create production entry if needed
-                    if 'production' in requirements:
-                        production_req = requirements['production']
-                        # Find the item by item_code to get its ID
-                        production_item = ItemMaster.query.filter_by(item_code=production_req['item_code']).first()
-                        if production_item:
-                            existing_production = Production.query.filter_by(
-                                item_id=production_item.id,
-                                week_commencing=week_commencing
-                            ).first()
-                            
-                            if not existing_production:
-                                # Calculate batches (using 100kg as default batch size, or item-specific if available)
-                                batches = production_req['requirement_kg'] / 100.0 if production_req['requirement_kg'] > 0 else 0.0
-                                
-                                production = Production(
-                                    item_id=production_item.id,
-                                    production_date=week_commencing,  # Use production_date field
-                                    production_code=production_req['item_code'],  # Keep for compatibility
-                                    week_commencing=week_commencing,
-                                    total_kg=production_req['requirement_kg'],  # Use total_kg field
-                                    batches=batches  # Add batches calculation
-                                )
-                                db.session.add(production)
-                                created_entries.append(f"Production: {production_req['item_code']}")
-                    
-                    # Commit downstream entries
-                    db.session.commit()
-                    
-                    if created_entries:
-                        message = f"Packing created. Downstream entries: {', '.join(created_entries)}"
-                        print(f"✓ Enhanced BOM successful: {message}")
-                        return True, message
-                    else:
-                        print("✓ Enhanced BOM: No new downstream entries needed")
-                        return True, "Packing created (existing downstream entries found)"
-                        
-                else:
-                    # No hierarchy found, fall back to direct production
-                    print(f"✓ No hierarchy found for {fg_code}, direct production flow")
-                    return True, "Packing created (direct production flow)"
-                    
-            except Exception as e:
-                print(f"✗ Enhanced BOM failed: {str(e)}")
-                # Don't fail the whole operation, packing was still created
-                return True, f"Packing created but enhanced BOM failed: {str(e)}"
-        else:
-            print("✓ Packing entry created (no downstream requirements due to zero kg)")
-            return True, "Packing entry created"
-            
+        # Always update downstream requirements regardless of required_kg
+        try:
+            update_downstream_requirements(packing_date, week_commencing)
+            print(f"Updated downstream requirements via BOM service")
+        except Exception as e:
+            print(f"Warning: Error updating downstream requirements: {str(e)}")
+            # Don't rollback here - packing entry is already committed
+        
+        return True, "Successfully created/updated entries"
+        
     except Exception as e:
+        print(f"Error creating entries: {str(e)}")
         db.session.rollback()
-        print(f"✗ Error creating packing entry: {str(e)}")
         return False, str(e)
 
 @soh_bp.route('/soh_upload', methods=['GET', 'POST'])
@@ -175,6 +87,7 @@ def soh_upload():
     from app import db
     from models.soh import SOH
     from models.item_master import ItemMaster
+    from controllers.bom_service import update_downstream_requirements
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -235,6 +148,8 @@ def soh_upload():
             soh_processed = 0
             packing_created = 0
             packing_failed = 0
+            # Track all (packing_date, week_commencing) pairs
+            downstream_pairs = set()
 
             for _, row in df.iterrows():
                 print("Processing row:", row.to_dict())
@@ -365,12 +280,13 @@ def soh_upload():
                             packing_failed += 1
                             flash(f"Warning: Could not create entries for FG Code {fg_code}: {message}", "warning")
 
-            # Provide detailed summary to user
-            flash(f"SOH data uploaded successfully! Processed {soh_processed} SOH entries.", "success")
-            if packing_created > 0:
-                flash(f"✓ Automatically created {packing_created} packing entries (with related filling/production entries where applicable).", "success")
-            if packing_failed > 0:
-                flash(f"⚠ Failed to create packing entries for {packing_failed} products. Check warnings above.", "warning")
+            # After all rows, call BOM service for each unique pair
+            for packing_date, week_commencing in downstream_pairs:
+                try:
+                    update_downstream_requirements(packing_date, week_commencing)
+                except Exception as e:
+                    print(f"Warning: Error updating downstream requirements for {packing_date}, {week_commencing}: {str(e)}")
+            flash(f"SOH upload complete. {soh_processed} entries processed.", "success")
             return redirect(url_for('soh.soh_list'))
 
         except Exception as e:

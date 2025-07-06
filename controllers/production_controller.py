@@ -2,7 +2,6 @@ from flask import Blueprint, jsonify, render_template, request, redirect, url_fo
 from datetime import datetime, timedelta
 from database import db  
 from models.production import Production
-from models.filling import Filling
 from models.item_master import ItemMaster
 from models.packing import Packing
 from sqlalchemy.sql import text
@@ -171,6 +170,27 @@ def production_create():
                          packing_entry=packing_entry,
                          current_page="production")
 
+def update_production_soh_calculations(production):
+    """
+    Updates SOH-related calculations for a production entry using item_master calculation_factor.
+    Args:
+        production: Production model instance to update
+    """
+    if not production.item:
+        return
+        
+    # Get calculation factor from item_master
+    calculation_factor = float(production.item.calculation_factor or 1.0)
+    total_kg = float(production.total_kg or 0.0)
+    
+    # Calculate batches
+    production.batches = total_kg / 300 if total_kg > 0 else 0
+    
+    # Calculate total stock units
+    total_stock_units = total_kg / calculation_factor if calculation_factor > 0 else 0
+    
+    return total_stock_units
+
 @production_bp.route('/production_edit/<int:id>', methods=['GET', 'POST'])
 def production_edit(id):
     production = Production.query.get_or_404(id)
@@ -181,6 +201,8 @@ def production_edit(id):
             production_date = datetime.strptime(production_date_str, '%Y-%m-%d').date()
             production_code = request.form['production_code']
             product_description = request.form['product_description']
+            total_kg = float(request.form.get('total_kg', 0.0))
+            priority = int(request.form.get('priority', 0))
 
             # Calculate week commencing (Monday of the production date)
             def get_monday_of_week(dt):
@@ -199,21 +221,21 @@ def production_edit(id):
                     flash(f"No WIP item found for production code {production_code}.", 'error')
                     return render_template('production/edit.html', production=production, current_page="production")
 
-            # Update the production entry
+            # Update basic fields
             production.production_date = production_date
+            production.week_commencing = week_commencing
             production.production_code = production_code
             production.description = product_description
-            production.week_commencing = week_commencing
+            production.total_kg = total_kg
+            production.priority = priority
             
-            # Only update total_kg and batches if provided in form
-            if 'total_kg' in request.form and request.form['total_kg']:
-                production.total_kg = float(request.form['total_kg'])
-                production.batches = production.total_kg / 300.0 if production.total_kg > 0 else 0.0
-
+            # Update SOH calculations
+            total_stock_units = update_production_soh_calculations(production)
+            
             db.session.commit()
-            flash('Production updated successfully!', 'success')
+            flash("Production entry updated successfully!", "success")
             return redirect(url_for('production.production_list'))
-
+            
         except ValueError as e:
             db.session.rollback()
             flash(f"Invalid input: {str(e)}. Please check your data.", 'error')
@@ -544,3 +566,75 @@ def production_raw_material_report():
                              raw_material_data=[],
                              week_commencing=week_commencing,
                              current_page='production_raw_material_report')
+
+def create_or_update_production_entry(production_date, week_commencing, item_id, production_code, description, total_kg):
+    """
+    Create or update a production entry with proper batch calculation.
+    Only for WIP items required by FG items, not for filling.
+    """
+    try:
+        # Get the item type
+        item = ItemMaster.query.get(item_id)
+        if not item or not item.item_type:
+            return False, "Item not found or no item type specified"
+            
+        # Only create production entries for WIP items
+        if item.item_type.type_name != 'WIP':
+            return False, f"Production entries can only be created for WIP items, not {item.item_type.type_name}"
+        
+        # Calculate batches correctly
+        batches = total_kg / 300.0  # Standard batch size is 300kg
+        
+        # Check if entry exists
+        existing = Production.query.filter_by(
+            production_date=production_date,
+            week_commencing=week_commencing,
+            item_id=item_id
+        ).first()
+        
+        if existing:
+            # Update existing entry
+            existing.production_code = production_code
+            existing.description = description
+            existing.total_kg = total_kg
+            existing.batches = batches
+        else:
+            # Create new entry
+            new_entry = Production(
+                production_date=production_date,
+                week_commencing=week_commencing,
+                item_id=item_id,
+                production_code=production_code,
+                description=description,
+                total_kg=total_kg,
+                batches=batches
+            )
+            db.session.add(new_entry)
+            
+        db.session.commit()
+        return True, "Production entry updated successfully"
+        
+    except Exception as e:
+        db.session.rollback()
+        return False, f"Error updating production entry: {str(e)}"
+
+def update_production_totals():
+    """
+    Update all production totals to match packing requirements.
+    Ensures only WIP items are included, not filling.
+    """
+    try:
+        # Get all production entries
+        production_entries = Production.query.all()
+        
+        # Update batch calculations
+        for entry in production_entries:
+            if entry.total_kg is not None:
+                entry.batches = entry.total_kg / 300.0
+        
+        db.session.commit()
+        return True, "Production totals updated successfully"
+        
+    except Exception as e:
+        db.session.rollback()
+        return False, f"Error updating production totals: {str(e)}"

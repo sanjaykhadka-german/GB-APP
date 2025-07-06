@@ -4,8 +4,7 @@ from models.inventory import Inventory
 from models.category import Category
 from models.production import Production
 from database import db
-from datetime import datetime, timedelta
-import pandas as pd
+from datetime import datetime
 from io import BytesIO
 
 inventory_bp = Blueprint('inventory', __name__, template_folder='../templates')

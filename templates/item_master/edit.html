@@ -314,40 +314,34 @@
                     </div>
                 </div>
 
-                <!-- Component Relationships Section (for FG items) -->
-                <div class="field-section" id="component-section" style="display: none;">
-                    <div class="section-header">Component Relationships (for Finished Goods)</div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="wip_item_id" class="form-label">WIP Component</label>
-                                <select id="wip_item_id" name="wip_item_id" class="form-select">
-                                    <option value="">Select WIP Component</option>
-                                    {% for wip_item in wip_items %}
-                                    <option value="{{ wip_item.id }}" 
-                                            {{ 'selected' if item and item.wip_item_id == wip_item.id else '' }}>
-                                        {{ wip_item.item_code }} - {{ wip_item.description }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text">Select the WIP (Work in Progress) component for this finished good</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="wipf_item_id" class="form-label">WIPF Component</label>
-                                <select id="wipf_item_id" name="wipf_item_id" class="form-select">
-                                    <option value="">Select WIPF Component</option>
-                                    {% for wipf_item in wipf_items %}
-                                    <option value="{{ wipf_item.id }}" 
-                                            {{ 'selected' if item and item.wipf_item_id == wipf_item.id else '' }}>
-                                        {{ wipf_item.item_code }} - {{ wipf_item.description }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text">Select the WIPF (Work in Progress Filled) component for this finished good</div>
-                            </div>
-                        </div>
+                <!-- FG Hierarchy Fields - Hidden by default -->
+                <div class="col-md-3" id="wip_selection_field" style="display: none;">
+                    <div class="form-group">
+                        <label for="wip_item_id" class="form-label">WIP Component</label>
+                        <select id="wip_item_id" name="wip_item_id" class="form-select">
+                            <option value="">Select WIP Item</option>
+                            {% for wip_item in wip_items %}
+                            <option value="{{ wip_item.id }}" {% if item.wip_item_id == wip_item.id %}selected{% endif %}>
+                                {{ wip_item.item_code }} - {{ wip_item.description }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text" id="wip_help_text">Select the WIP item this FG/WIPF is produced from</div>
+                    </div>
+                </div>
+
+                <div class="col-md-3" id="wipf_selection_field" style="display: none;">
+                    <div class="form-group">
+                        <label for="wipf_item_id" class="form-label">WIPF Component</label>
+                        <select id="wipf_item_id" name="wipf_item_id" class="form-select">
+                            <option value="">Select WIPF Item</option>
+                            {% for wipf_item in wipf_items %}
+                            <option value="{{ wipf_item.id }}" {% if item.wipf_item_id == wipf_item.id %}selected{% endif %}>
+                                {{ wipf_item.item_code }} - {{ wipf_item.description }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select the WIPF item this FG is filled from</div>
                     </div>
                 </div>
 
@@ -650,65 +644,48 @@ document.getElementById('save-new-machinery').addEventListener('click', function
     }
 });
 
-// Show/hide component section based on item type
-function toggleComponentSection() {
-    const itemTypeSelect = document.getElementById('item_type');
-    const componentSection = document.getElementById('component-section');
+// Function to toggle hierarchy fields based on item type selection
+function toggleHierarchyFields() {
+    const itemType = document.getElementById('item_type').value;
+    const wipField = document.getElementById('wip_selection_field');
+    const wipfField = document.getElementById('wipf_selection_field');
+    const categoryField = document.getElementById('category_field');
+    const wipHelpText = document.getElementById('wip_help_text');
     
-    if (!itemTypeSelect || !componentSection) {
-        console.log('Elements not found:', { itemTypeSelect, componentSection });
-        return;
+    if (itemType === 'FG') {
+        // Show WIP and WIPF selection fields for FG items
+        wipField.style.display = 'block';
+        wipfField.style.display = 'block';
+        categoryField.classList.remove('col-md-3');
+        categoryField.classList.add('col-md-3');
+        wipHelpText.textContent = 'Select the WIP item this FG/WIPF is produced from';
+    } else if (itemType === 'WIPF') {
+        // Show only WIP selection field for WIPF items
+        wipField.style.display = 'block';
+        wipfField.style.display = 'none';
+        categoryField.classList.remove('col-md-3');
+        categoryField.classList.add('col-md-3');
+        wipHelpText.textContent = 'Select the WIP item this WIPF is produced from';
+    } else {
+        // Hide fields for other item types
+        wipField.style.display = 'none';
+        wipfField.style.display = 'none';
+        categoryField.classList.remove('col-md-3');
+        categoryField.classList.add('col-md-3');
     }
     
-    const itemType = itemTypeSelect.value;
-    console.log('toggleComponentSection called with itemType:', itemType);
-    
-    if (itemType === 'FG' || itemType === 'Finished Goods') {
-        componentSection.style.display = 'block';
-        console.log('Component section shown for FG item');
-    } else {
-        componentSection.style.display = 'none';
-        // Clear selections when hiding
-        const wipSelect = document.getElementById('wip_item_id');
-        const wipfSelect = document.getElementById('wipf_item_id');
-        if (wipSelect) wipSelect.value = '';
-        if (wipfSelect) wipfSelect.value = '';
-        console.log('Component section hidden for non-FG item');
+    // Clear selections when changing item type
+    if (itemType !== 'FG') {
+        document.getElementById('wipf_item_id').value = '';
+    }
+    if (itemType !== 'FG' && itemType !== 'WIPF') {
+        document.getElementById('wip_item_id').value = '';
     }
 }
 
-// Initialize component section visibility on page load
+// Call toggleHierarchyFields on page load to set initial state
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Page loaded, initializing component section');
-    
-    // Add event listener to item type dropdown
-    const itemTypeSelect = document.getElementById('item_type');
-    if (itemTypeSelect) {
-        itemTypeSelect.addEventListener('change', toggleComponentSection);
-        console.log('Event listener added to item type dropdown');
-    }
-    
-    // Check if we're editing an FG item (server-side data)
-    const form = document.getElementById('item-form');
-    const currentItemType = form ? form.getAttribute('data-item-type') : null;
-    console.log('Current item type from server:', currentItemType);
-    
-    if (currentItemType === 'FG') {
-        console.log('Editing FG item, showing component section');
-        const componentSection = document.getElementById('component-section');
-        if (componentSection) {
-            componentSection.style.display = 'block';
-        }
-    }
-    
-    // Initial call to set visibility based on dropdown
-    toggleComponentSection();
-    
-    // Debug logging
-    const componentSection = document.getElementById('component-section');
-    if (componentSection) {
-        console.log('Component section element found, current display:', componentSection.style.display);
-    }
+    toggleHierarchyFields();
 });
 </script>
 {% endblock %}

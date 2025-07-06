@@ -3,7 +3,6 @@ from sqlalchemy.sql import text
 from decimal import Decimal
 import sqlalchemy.exc
 from datetime import datetime, timedelta
-import pandas as pd
 from io import BytesIO
 from database import db
 from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster, ItemType

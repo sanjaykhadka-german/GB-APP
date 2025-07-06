@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, flash, session
+from flask import Blueprint, render_template, request, jsonify, send_file, flash, session
 from database import db
 from models.item_master import ItemMaster
 from models.category import Category
@@ -7,13 +7,11 @@ from models.machinery import Machinery
 from models.uom import UOM
 from models.allergen import Allergen
 from models.item_type import ItemType
-from models.user import User
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import io
 import os
-from werkzeug.utils import secure_filename
 
 item_master_bp = Blueprint('item_master', __name__)
 
@@ -249,8 +247,8 @@ def save_item(id=None):
             item.avg_weight_per_unit = data.get('avg_weight_per_unit') if data.get('avg_weight_per_unit') else None
             item.loss_percentage = data.get('loss_percentage') if data.get('loss_percentage') else None
         
-        # Handle FG hierarchy relationships
-        if item_type_name == 'FG':
+        # Handle FG and WIPF hierarchy relationships
+        if item_type_name in ['FG', 'WIPF']:
             # Set WIP component relationship
             wip_item_id = data.get('wip_item_id')
             if wip_item_id:
@@ -258,14 +256,18 @@ def save_item(id=None):
             else:
                 item.wip_item_id = None
                 
-            # Set WIPF component relationship  
-            wipf_item_id = data.get('wipf_item_id')
-            if wipf_item_id:
-                item.wipf_item_id = int(wipf_item_id)
+            # Set WIPF component relationship only for FG items
+            if item_type_name == 'FG':
+                wipf_item_id = data.get('wipf_item_id')
+                if wipf_item_id:
+                    item.wipf_item_id = int(wipf_item_id)
+                else:
+                    item.wipf_item_id = None
             else:
+                # Clear WIPF relationship for WIPF items
                 item.wipf_item_id = None
         else:
-            # Clear hierarchy relationships for non-FG items
+            # Clear all hierarchy relationships for other item types
             item.wip_item_id = None
             item.wipf_item_id = None
         

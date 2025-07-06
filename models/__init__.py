@@ -14,7 +14,7 @@ from .raw_material_report import RawMaterialReport
 from .allergen import Allergen
 # from .joining_allergen import JoiningAllergen  # REMOVED - joining_allergen table dropped
 from .inventory import Inventory
-from .usage_report import UsageReport
+from .usage_report import UsageReport   
 from .item_type import ItemType
 from .user import User
 from .raw_material_stocktake import RawMaterialStocktake

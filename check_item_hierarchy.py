@@ -23,8 +23,8 @@ with app.app_context():
     
     print("\nSample FG hierarchy from item_master:")
     for fg in fg_items[:5]:
-        wip_code = fg.wip_component.item_code if fg.wip_component else "None"
-        wipf_code = fg.wipf_component.item_code if fg.wipf_component else "None"
+        wip_code = fg.wip_item.item_code if fg.wip_item else "None"
+        wipf_code = fg.wipf_item.item_code if fg.wipf_item else "None"
         print(f"  FG: {fg.item_code} → WIP: {wip_code} → WIPF: {wipf_code}")
     
     print("\n=== JOINING TABLE HIERARCHY ===")
@@ -45,8 +45,8 @@ with app.app_context():
         joining_record = Joining.query.filter_by(fg_code=fg.item_code).first()
         
         if joining_record:
-            item_wip = fg.wip_component.item_code if fg.wip_component else None
-            item_wipf = fg.wipf_component.item_code if fg.wipf_component else None
+            item_wip = fg.wip_item.item_code if fg.wip_item else None
+            item_wipf = fg.wipf_item.item_code if fg.wipf_item else None
             
             joining_wip = joining_record.production_code
             joining_wipf = joining_record.filling_code
