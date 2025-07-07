@@ -10,7 +10,7 @@ import pytz
 import math
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from app import db
+from database import db
 
 from controllers.packing_controller import update_packing_entry
 from controllers.bom_service import BOMService
@@ -19,6 +19,7 @@ from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
 from models.soh import SOH
+from models.usage_report_table import UsageReportTable
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
 
@@ -54,7 +55,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     This is a simplified version specifically for SOH uploads.
     Now uses the BOM service for downstream requirements.
     """
-    from app import db
+    from database import db
     from models.packing import Packing
     from models.filling import Filling
     from models.production import Production
@@ -104,7 +105,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
             packing.avg_weight_per_unit = avg_weight_per_unit
             packing.calculation_factor = calculation_factor
             packing.requirement_kg = soh_requirement_kg
-            packing.requirement_units = soh_requirement_units_week
+            packing.requirement_unit = soh_requirement_units_week  # FIXED: use requirement_unit
             packing.department_id = item.department_id
             packing.machinery_id = item.machinery_id
         else:
@@ -117,7 +118,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
                 avg_weight_per_unit=avg_weight_per_unit,
                 calculation_factor=calculation_factor,
                 requirement_kg=soh_requirement_kg,
-                requirement_units=soh_requirement_units_week,
+                requirement_unit=soh_requirement_units_week,  # FIXED: use requirement_unit
                 department_id=item.department_id,
                 machinery_id=item.machinery_id
             )
@@ -229,41 +230,69 @@ def soh_upload():
             # Process each row
             for index, row in df.iterrows():
                 try:
-                    # Get required fields
-                    fg_code = str(row['FG Code']).strip()
-                    description = str(row.get('Description', '')).strip()
-                    soh_total_boxes = safe_float(row.get('Soh_total_Box', 0))
-                    soh_total_units = safe_float(row.get('Soh_total_Unit', 0))
-                    units_per_bag = safe_float(row.get('Units per Bag', 0))
-                    
-                    print(f"\\nProcessing row {index + 2}:")
-                    print(f"FG Code: {fg_code}")
-                    print(f"Description: {description}")
-                    print(f"SOH Total Boxes: {soh_total_boxes}")
-                    print(f"SOH Total Units: {soh_total_units}")
-                    print(f"Units per Bag: {units_per_bag}")
-                    
-                    # Find item in database
+                    fg_code_raw = row['FG Code']
+                    print(f"Row {index+2} raw FG Code: {fg_code_raw} (type: {type(fg_code_raw)})")
+                    fg_code = str(fg_code_raw).strip()
+                    print(f"Row {index+2} processed FG Code: '{fg_code}'")
+                    if not fg_code or fg_code.lower() == 'nan' or fg_code == 'None':
+                        error_count += 1
+                        errors.append(f"FG Code missing in row {index + 2}")
+                        continue
+
                     item = ItemMaster.query.filter_by(item_code=fg_code).first()
                     if not item:
                         error_count += 1
                         errors.append(f"Item not found with code {fg_code} in row {index + 2}")
                         continue
-                    
+
+                    description_raw = row.get('Description', '')
+                    print(f"Row {index+2} raw Description: {description_raw} (type: {type(description_raw)})")
+                    description = str(description_raw).strip()
+                    print(f"Row {index+2} processed Description: '{description}'")
+                    if not description or description.lower() == 'nan' or description == 'None':
+                        error_count += 1
+                        errors.append(f"Description missing in row {index + 2}")
+                        continue
+                    soh_dispatch_boxes = safe_float(row.get('Soh_dispatch_Box', 0))
+                    soh_dispatch_units = safe_float(row.get('Soh_dispatch_Unit', 0))
+                    soh_packing_boxes = safe_float(row.get('Soh_packing_Box', 0))
+                    soh_packing_units = safe_float(row.get('Soh_packing_Unit', 0))
+                    soh_total_boxes = safe_float(row.get('Soh_total_Box', 0))
+                    soh_total_units = safe_float(row.get('Soh_total_Unit', 0))
+                    units_per_bag = safe_float(row.get('Units per Bag', 0))
+
+                    print(f"\nProcessing row {index + 2}:")
+                    print(f"FG Code: {fg_code}")
+                    print(f"Description: {description}")
+                    print(f"SOH Dispatch Boxes: {soh_dispatch_boxes}")
+                    print(f"SOH Dispatch Units: {soh_dispatch_units}")
+                    print(f"SOH Packing Boxes: {soh_packing_boxes}")
+                    print(f"SOH Packing Units: {soh_packing_units}")
+                    print(f"SOH Total Boxes: {soh_total_boxes}")
+                    print(f"SOH Total Units: {soh_total_units}")
+                    print(f"Units per Bag: {units_per_bag}")
+
                     # Calculate total units if not provided
                     if soh_total_units == 0 and soh_total_boxes > 0 and units_per_bag > 0:
                         soh_total_units = soh_total_boxes * units_per_bag
-                    
-                    # Create SOH record
+
+                    # Create SOH record with all required fields
                     soh = SOH(
                         item_id=item.id,
+                        fg_code=fg_code,
+                        description=description,
                         week_commencing=week_commencing,
+                        soh_dispatch_boxes=soh_dispatch_boxes,
+                        soh_dispatch_units=soh_dispatch_units,
+                        soh_packing_boxes=soh_packing_boxes,
+                        soh_packing_units=soh_packing_units,
                         soh_total_boxes=soh_total_boxes,
-                        soh_total_units=soh_total_units
+                        soh_total_units=soh_total_units,
+                        edit_date=datetime.now(pytz.timezone('Australia/Sydney'))
                     )
                     db.session.add(soh)
                     db.session.flush()  # Get the SOH ID
-                    
+
                     # Create packing entry and downstream entries
                     success, message = create_packing_entry_from_soh(
                         fg_code=fg_code,
@@ -272,13 +301,13 @@ def soh_upload():
                         soh_total_units=soh_total_units,
                         item=item
                     )
-                    
+
                     if success:
                         success_count += 1
                     else:
                         error_count += 1
                         errors.append(f"Error processing row for FG Code {fg_code}: {message}")
-                
+
                 except Exception as e:
                     error_count += 1
                     errors.append(f"Error processing row for FG Code {fg_code}: {str(e)}")
@@ -382,7 +411,7 @@ def download_template():
 
 @soh_bp.route('/soh_list', methods=['GET'])
 def soh_list():
-    from app import db
+    from database import db
     from models.item_master import ItemMaster
 
     search_fg_code = request.args.get('fg_code', '').strip()
@@ -444,8 +473,9 @@ def soh_list():
 
 @soh_bp.route('/soh_create', methods=['GET', 'POST'])
 def soh_create():
-    from app import db
+    from database import db
     from models.item_master import ItemMaster
+    from models.packing import Packing
 
     if request.method == 'POST':
         try:
@@ -498,9 +528,8 @@ def soh_create():
             db.session.commit()
 
             if soh_total_boxes >= 0 or soh_total_units >= 0: # Condition for update_packing_entry
-                # Ensure packing_date is a date object
                 packing_date_for_update = week_commencing_date if week_commencing_date else date.today()
-                success = create_packing_entry_from_soh(
+                success, message = create_packing_entry_from_soh(
                     fg_code=fg_code,
                     description=description,
                     week_commencing=packing_date_for_update,
@@ -508,7 +537,7 @@ def soh_create():
                     item=item
                 )
                 if not success:
-                    flash(f"Warning: Could not update Packing for FG Code {fg_code}", "warning")
+                    flash(f"Warning: Could not update Packing for FG Code {fg_code}: {message}", "warning")
 
             flash("SOH entry created successfully!", "success")
             return redirect(url_for('soh.soh_list'))
@@ -523,8 +552,9 @@ def soh_create():
 
 @soh_bp.route('/soh_edit/<int:id>', methods=['GET', 'POST'])
 def soh_edit(id):
-    from app import db
+    from database import db
     from models.item_master import ItemMaster
+    from models.packing import Packing
 
     soh = SOH.query.get_or_404(id)
 
@@ -589,12 +619,10 @@ def soh_edit(id):
             db.session.commit()
 
             if soh_total_boxes > 0 or soh_total_units > 0: # Condition for update_packing_entry
-                # Fetch item to get calculation_factor
                 item = ItemMaster.query.filter_by(item_code=fg_code).first()
                 avg_weight_per_unit = item.kg_per_unit if item and item.kg_per_unit else 0.0
-                
                 packing_date = week_commencing_date if week_commencing_date else date.today()
-                success = create_packing_entry_from_soh(
+                success, message = create_packing_entry_from_soh(
                     fg_code=fg_code,
                     description=description,
                     week_commencing=packing_date,
@@ -602,7 +630,7 @@ def soh_edit(id):
                     item=item
                 )
                 if not success:
-                    flash(f"Warning: Could not update Packing for FG Code {fg_code}", "warning")
+                    flash(f"Warning: Could not update Packing for FG Code {fg_code}: {message}", "warning")
 
             flash("SOH entry updated successfully!", "success")
             return redirect(url_for('soh.soh_list'))
@@ -621,24 +649,26 @@ def soh_edit(id):
 
 @soh_bp.route('/soh_delete/<int:id>', methods=['POST'])
 def soh_delete(id):
-    from app import db
+    from database import db
     from models.soh import SOH
-    # from datetime import datetime # Already imported
-
+    from models.packing import Packing
     try:
         soh = SOH.query.get_or_404(id)
+        # Remove related packing entry
+        packing_entry = Packing.query.filter_by(fg_code=soh.fg_code, week_commencing=soh.week_commencing).first()
+        if packing_entry:
+            db.session.delete(packing_entry)
         db.session.delete(soh)
         db.session.commit()
-        flash("SOH entry deleted successfully!", "success")
+        flash("SOH entry and related Packing entry deleted successfully!", "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting SOH entry: {str(e)}", "danger")
-
     return redirect(url_for('soh.soh_list'))
 
 @soh_bp.route('/autocomplete_soh', methods=['GET'])
 def autocomplete_soh():
-    from app import db
+    from database import db
     from models.item_master import ItemMaster
 
     search = request.args.get('query', '').strip()
@@ -663,7 +693,7 @@ def autocomplete_soh():
 
 @soh_bp.route('/get_search_sohs', methods=['GET'])
 def get_search_sohs():
-    from app import db
+    from database import db
     from models.soh import SOH
     from models.item_master import ItemMaster
     from datetime import datetime
@@ -759,7 +789,7 @@ def get_search_sohs():
 
 @soh_bp.route('/soh_bulk_edit', methods=['POST'])
 def soh_bulk_edit():
-    from app import db
+    from database import db
     from models.soh import SOH
     from models.item_master import ItemMaster
     # from datetime import datetime # Already imported
@@ -846,7 +876,7 @@ def soh_bulk_edit():
             if soh.soh_total_boxes >= 0 or soh.soh_total_units >= 0: # Condition for create_packing_entry_from_soh
                 packing_date_for_update = soh.week_commencing if soh.week_commencing else date.today()
                 fg_code = soh.item.item_code if soh.item else soh.fg_code
-                success = create_packing_entry_from_soh(
+                success, message = create_packing_entry_from_soh(
                     fg_code=fg_code,
                     description=soh.description,
                     week_commencing=packing_date_for_update,
@@ -854,7 +884,7 @@ def soh_bulk_edit():
                     item=item
                 )
                 if not success:
-                    print(f"Failed to update Packing for {soh.fg_code} during bulk edit: {success}")
+                    print(f"Failed to update Packing for {soh.fg_code} during bulk edit: {message}")
 
         db.session.commit()
         return jsonify({"success": True})
@@ -866,7 +896,7 @@ def soh_bulk_edit():
 
 @soh_bp.route('/soh_inline_edit', methods=['POST'])
 def soh_inline_edit():
-    from app import db
+    from database import db
     from models.soh import SOH
     from models.item_master import ItemMaster
     # from datetime import datetime, date # Already imported
@@ -939,7 +969,7 @@ def soh_inline_edit():
         if soh.soh_total_boxes >= 0 or soh.soh_total_units >= 0:
             # Ensure packing_date is a date object for create_packing_entry_from_soh
             packing_date = soh.week_commencing if soh.week_commencing else date.today()
-            success = create_packing_entry_from_soh(
+            success, message = create_packing_entry_from_soh(
                 fg_code=soh.fg_code,
                 description=soh.description,
                 week_commencing=packing_date,
@@ -947,7 +977,7 @@ def soh_inline_edit():
                 item=item
             )
             if not success:
-                print(f"Failed to update Packing for {soh.fg_code} during inline edit: {success}")
+                print(f"Failed to update Packing for {soh.fg_code} during inline edit: {message}")
                 # Consider if you want to flash a warning for inline edits too
                 # flash(message, "warning")
 

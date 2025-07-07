@@ -7,7 +7,7 @@ hierarchy fields (wip_item_id, wipf_item_id) for managing production requirement
 recipe explosions, and inventory calculations.
 """
 
-from app import db
+from database import db
 from models.packing import Packing
 from models.filling import Filling  
 from models.production import Production
@@ -105,7 +105,7 @@ class BOMService:
     def update_downstream_requirements(packing_date, week_commencing):
         """Update downstream requirements based on packing entries"""
         try:
-            from app import db
+            from database import db
             from models.packing import Packing
             from models.item_master import ItemMaster
             from models.recipe_master import RecipeMaster
@@ -594,7 +594,14 @@ class BOMService:
             
             # Calculate batches (300kg per batch)
             batches = requirement_kg / 300 if requirement_kg > 0 else 0
-            
+
+            # Ensure production_code and description are set
+            production_code = wip_item.item_code if wip_item and wip_item.item_code else None
+            description = wip_item.description if wip_item and wip_item.description else None
+            if not production_code or not description:
+                print(f"Cannot create production entry: missing production_code or description for WIP item {wip_item.id if wip_item else 'None'}")
+                return None
+
             if existing_production:
                 # Update existing entry
                 existing_production.requirement_kg = requirement_kg
@@ -602,6 +609,8 @@ class BOMService:
                 existing_production.batches = batches
                 existing_production.department_id = department_id
                 existing_production.machinery_id = machinery_id
+                existing_production.production_code = production_code
+                existing_production.description = description
                 return existing_production
             
             # Create new production entry
@@ -613,7 +622,9 @@ class BOMService:
                 total_kg=requirement_kg,
                 batches=batches,
                 department_id=department_id,
-                machinery_id=machinery_id
+                machinery_id=machinery_id,
+                production_code=production_code,
+                description=description
             )
             
             db.session.add(production)
