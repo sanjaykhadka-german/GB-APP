@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+import pandas as pd
 from models.machinery import Machinery
 from models.packing import Packing
 from models.production import Production
 from models.soh import SOH
 from models.filling import Filling
-from models.item_master import ItemMaster
+from models.item_master import ItemAllergen, ItemMaster
 from models.allergen import Allergen
 from datetime import date, datetime, timedelta
 from database import db
@@ -503,6 +504,10 @@ def packing_create():
                 machinery_id=machinery,
                 priority=priority
             )
+            
+            # Copy allergens from item master
+            new_packing.allergens = item.allergens
+            
             db.session.add(new_packing)
             db.session.commit()
 
@@ -531,121 +536,170 @@ def packing_create():
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):
     packing = Packing.query.get_or_404(id)
-    machinery = Machinery.query.all()
-    from_duplicate = request.args.get('from_duplicate', False)
-
+    
     if request.method == 'POST':
         try:
-            original_requirement_kg = packing.requirement_kg or 0.0
-            original_packing_date = packing.packing_date  # Store the original packing_date
-
-            # Update packing fields
-            packing.packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
-            
-            # Handle product code change
-            new_product_code = request.form['product_code']
-            if new_product_code != packing.item.item_code:
-                new_item = ItemMaster.query.filter_by(item_code=new_product_code).first()
-                if not new_item:
-                    flash(f"No item found for product code: {new_product_code}", 'danger')
+            # Parse form data with error handling
+            try:
+                packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
+            except ValueError as e:
+                flash(f'Invalid packing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+                
+            try:
+                special_order_kg = float(request.form['special_order_kg']) if request.form.get('special_order_kg') else 0.0
+            except ValueError:
+                flash('Invalid special order kg value. Please enter a valid number.', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+                
+            try:
+                calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
+            except ValueError:
+                flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+                
+            try:
+                week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form.get('week_commencing') else None
+            except ValueError as e:
+                flash(f'Invalid week commencing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+                
+            # Handle machinery (optional)
+            machinery = None
+            if request.form.get('machinery') and request.form['machinery'].strip():
+                try:
+                    machinery = int(request.form['machinery'])
+                except ValueError:
+                    flash('Invalid machinery ID. Please select a valid machinery.', 'danger')
                     return redirect(url_for('packing.packing_edit', id=id))
-                packing.item_id = new_item.id
-            
-            # Only update if value is provided, else keep existing
-            packing.special_order_kg = float(request.form['special_order_kg']) if request.form['special_order_kg'] else packing.special_order_kg
-            packing.calculation_factor = float(request.form['calculation_factor']) if request.form['calculation_factor'] else packing.calculation_factor
-            machinery_value = request.form.get('machinery')
-            if machinery_value and machinery_value.strip():
-                packing.machinery_id = int(machinery_value)
-            # else: do not overwrite with None
-            packing.priority = int(request.form['priority']) if request.form['priority'] else packing.priority
-            week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form['week_commencing'] else packing.week_commencing
+                    
+            try:
+                priority = int(request.form['priority']) if request.form.get('priority') else 0
+            except ValueError:
+                flash('Invalid priority value. Please enter a valid number.', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
 
+            # Calculate week_commencing if not provided
             if not week_commencing:
                 def get_monday_of_week(dt):
                     return dt - timedelta(days=dt.weekday())
-                week_commencing = get_monday_of_week(packing.packing_date)
-            
-            # Validate machinery
-            if packing.machinery_id is not None:
-                machinery_exists = Machinery.query.filter_by(machineID=packing.machinery_id).first()
-                if not machinery_exists:
-                    flash(f'Invalid machinery ID {packing.machinery_id}. Please select a valid machinery.', 'danger')
-                    return redirect(url_for('packing.packing_edit', id=id))
+                week_commencing = get_monday_of_week(packing_date)
 
-            # Get item data using foreign key relationship
-            item = packing.item
-            if not item:
-                flash(f"No item record found for this packing entry.", 'danger')
+            # Check for duplicate based on uq_packing_week_product_date_machinery
+            existing_packing = Packing.query.filter(
+                Packing.week_commencing == week_commencing,
+                Packing.item_id == packing.item_id,
+                Packing.packing_date == packing_date,
+                Packing.machinery_id == machinery,
+                Packing.id != id  # Exclude current packing entry
+            ).first()
+
+            if existing_packing:
+                flash(f'DUPLICATE DETECTED: A packing entry already exists for this product on {packing_date}.', 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
-            
-            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
 
-            # Calculate soh_requirement_units_week using foreign key relationship
-            soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=week_commencing).first()
-            soh_units = soh.soh_total_units if soh else 0
+            # Validate machinery if provided
+            if machinery is not None:
+                machinery_exists = Machinery.query.filter_by(machineID=machinery).first()
+                if not machinery_exists:
+                    flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
+                    return redirect(url_for('packing.packing_edit', id=id))
+            
+            # Get all ItemMaster parameters for calculation
+            item = packing.item
+            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
             min_level = item.min_level or 0.0
             max_level = item.max_level or 0.0
-            packing.soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+            
+            # Use calculation_factor from item_master if not provided by user, otherwise use user input
+            if calculation_factor == 0.0:  # If user didn't provide calculation_factor, use from item_master
+                calculation_factor = item.calculation_factor or 0.0
+            
+            logger.info(f"Item Master data for {item.item_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
 
-            # Recalculate fields
-            special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-            packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-            packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
-            packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
+            # Fetch SOH data and calculate soh_requirement_units_week
+            soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
+            if not soh:
+                flash(f"No SOH entry exists for {item.item_code} (week {week_commencing}). Please create one first.", 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+
+            soh_units = soh.soh_total_units or 0
+            logger.info(f"Found SOH data for {item.item_code}: soh_units={soh_units}")
+
+            # Calculate SOH requirement based on min/max levels from ItemMaster
+            # If soh_units < min_level, we need (max_level - soh_units) units
+            soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+
+            logger.info(f"SOH calculation for {item.item_code}: soh_units={soh_units}, soh_requirement_units_week={soh_requirement_units_week}")
+
+            # Perform all calculations using ItemMaster parameters
+            # 1. Special Order calculations
+            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            
+            # 2. Current SOH in kg
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            
+            # 3. SOH requirement per week in kg
+            soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+            
+            # 4. Total stock target (using calculation_factor from ItemMaster)
+            total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
+            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            
+            # 5. Final requirement calculation
+            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
+            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+            
+            logger.info(f"Calculated values: requirement_kg={requirement_kg}, requirement_unit={requirement_unit}, total_stock_kg={total_stock_kg}")
+            
+            # Validate that we have meaningful calculations
+            if avg_weight_per_unit == 0:
+                flash(f"Warning: No average weight per unit found for {item.item_code}. Please update the Item Master record.", 'warning')
+            if calculation_factor == 0:
+                flash(f"Warning: No calculation factor found for {item.item_code}. Please update the Item Master record.", 'warning')
+
+            # Update packing entry
+            packing.packing_date = packing_date
+            packing.special_order_kg = special_order_kg
+            packing.special_order_unit = special_order_unit
+            packing.requirement_kg = requirement_kg
+            packing.requirement_unit = requirement_unit
+            packing.soh_requirement_kg_week = soh_requirement_kg_week
+            packing.soh_requirement_units_week = soh_requirement_units_week
+            packing.soh_kg = soh_kg
             packing.soh_units = soh_units
+            packing.total_stock_kg = total_stock_kg
+            packing.total_stock_units = total_stock_units
+            packing.calculation_factor = calculation_factor
             packing.week_commencing = week_commencing
-
+            packing.machinery_id = machinery
+            packing.priority = priority
+            
+            # Copy allergens from item master
+            packing.allergens = item.allergens
+            
             db.session.commit()
 
-            # ✅ NEW: Re-aggregate filling and production after editing packing entry
-            re_aggregate_filling_and_production_for_date(packing.packing_date, packing.week_commencing)
+            # ✅ NEW: Re-aggregate filling and production after updating packing entry
+            re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
 
             flash('Packing entry updated successfully!', 'success')
             return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()
             flash(f'Invalid data format: {str(e)}', 'danger')
-        except KeyError as e:
-            db.session.rollback()
-            flash(f'Missing required field: {str(e)}', 'danger')
         except Exception as e:
             db.session.rollback()
             flash(f'Error updating packing entry: {str(e)}', 'danger')
+            logger.error(f"Error updating packing entry: {str(e)}")
 
-    # Get recipe family code from the packing item
-    recipe_family = packing.item.item_code.split('.')[0] if '.' in packing.item.item_code else packing.item.item_code
-    
-    # Get all related packing entries for this recipe family and date
-    related_packings = Packing.query.join(ItemMaster).filter(
-        ItemMaster.item_code.like(f"{recipe_family}.%"),
-        Packing.packing_date == packing.packing_date,
-        Packing.week_commencing == packing.week_commencing
-    ).all()
-    
-    # Get all production entries for this recipe family and date
-    related_productions = Production.query.filter(
-        Production.production_code == recipe_family,
-        Production.production_date == packing.packing_date,
-        Production.week_commencing == packing.week_commencing
-    ).all()
-    
-    # Calculate totals
-    total_requirement_kg = sum(p.requirement_kg or 0 for p in related_packings)
-    total_production_kg = total_requirement_kg  # Production should match packing requirements 1:1
-
-    return render_template('packing/edit.html',
-                         packing=packing,
-                         machinery=machinery,
-                         from_duplicate=from_duplicate,
-                         related_packings=related_packings,
-                         related_productions=related_productions,
-                         total_requirement_kg=total_requirement_kg,
-                         total_production_kg=total_production_kg)
+    # Get data for form
+    products = ItemMaster.query.join(ItemMaster.item_type).filter(
+        ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
+    ).order_by(ItemMaster.item_code).all()
+    machinery = Machinery.query.all()
+    allergens = Allergen.query.all()
+    return render_template('packing/edit.html', packing=packing, products=products, machinery=machinery, allergens=allergens, current_page="packing")
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
@@ -832,27 +886,33 @@ def check_duplicate():
         logger.error(f"Error checking for duplicate: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@packing.route('/item_master_info/<product_code>', methods=['GET'])
-def get_item_master_info(product_code):
-    """Get item master information for a given product code."""
+@packing.route('/item_master/<int:item_id>/info')
+def get_item_master_info(item_id):
     try:
-        # Find the item
-        item = ItemMaster.query.filter_by(item_code=product_code).first()
+        item = ItemMaster.query.get(item_id)
         if not item:
-            return jsonify({"error": f"No item found for product code {product_code}"}), 404
-
-        # Return item information
+            return jsonify({'success': False, 'message': 'Item not found'}), 404
+            
+        # Get allergen IDs
+        allergen_ids = [allergen.allergens_id for allergen in item.allergens]
+        
         return jsonify({
-            "item_code": item.item_code,
-            "description": item.description,
-            "avg_weight_per_unit": item.avg_weight_per_unit,
-            "min_level": item.min_level,
-            "max_level": item.max_level,
-            "calculation_factor": item.calculation_factor
+            'success': True,
+            'item_code': item.item_code,
+            'description': item.description,
+            'allergen_ids': allergen_ids,  # Include allergen IDs in response
+            'category_id': item.category_id,
+            'department_id': item.department_id,
+            'machinery_id': item.machinery_id,
+            'uom_id': item.uom_id,
+            'calculation_factor': float(item.calculation_factor) if item.calculation_factor else None,
+            'kg_per_unit': float(item.kg_per_unit) if item.kg_per_unit else None,
+            'units_per_bag': float(item.units_per_bag) if item.units_per_bag else None,
+            'avg_weight_per_unit': float(item.avg_weight_per_unit) if item.avg_weight_per_unit else None
         })
     except Exception as e:
-        logger.error(f"Error fetching item master info: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        print(f"Error getting item info: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error getting item info: {str(e)}'}), 500
 
 @packing.route('/machinery_options', methods=['GET'])
 def machinery_options():

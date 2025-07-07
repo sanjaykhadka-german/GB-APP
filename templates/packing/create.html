@@ -24,7 +24,7 @@
             <select class="form-control" id="product_code" name="product_code" required onchange="updateDescription(); checkDuplicate()">
                 <option value="">Select Product Code</option>
                 {% for product in products %}
-                    <option value="{{ product.item_code }}" data-description="{{ product.description }}">{{ product.item_code }} - {{ product.description }}</option>
+                    <option value="{{ product.item_code }}" data-description="{{ product.description }}" data-item-id="{{ product.id }}">{{ product.item_code }} - {{ product.description }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -113,7 +113,7 @@
                     <div class="allergen-checkbox-wrapper">
                         <input class="form-check-input allergen-checkbox" type="checkbox" 
                                id="allergen_{{ allergen.allergens_id }}" 
-                               name="allergen_ids" 
+                               name="allergen_ids[]" 
                                value="{{ allergen.allergens_id }}">
                         <label class="form-check-label" for="allergen_{{ allergen.allergens_id }}">
                             {{ allergen.name }}
@@ -232,45 +232,67 @@
 </style>
 
 <script>
-    // Initialize Flatpickr on packing_date
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Flatpickr for date picker
     flatpickr("#packing_date", {
-        dateFormat: "Y-m-d", // Matches backend expected format (YYYY-MM-DD)
-        onChange: function(selectedDates, dateStr, instance) {
-            updateWeekCommencing();
-            checkDuplicate();
-        }
+        dateFormat: "Y-m-d",
+        defaultDate: "today"
     });
 
-    function updateDescription() {
-        const select = document.getElementById('product_code');
-        const selectedOption = select.options[select.selectedIndex];
-        const description = selectedOption.getAttribute('data-description');
+    // Set week_commencing to Monday of current week
+    const today = new Date();
+    const monday = new Date(today);
+    monday.setDate(monday.getDate() - monday.getDay() + 1);
+    document.getElementById('week_commencing').value = monday.toISOString().split('T')[0];
+});
+
+function updateDescription() {
+    const productSelect = document.getElementById('product_code');
+    const selectedOption = productSelect.options[productSelect.selectedIndex];
+    const productCode = productSelect.value;
+    
+    // Clear allergen checkboxes
+    document.querySelectorAll('.allergen-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    if (productCode) {
+        // Show the item master info section
+        document.getElementById('itemMasterInfo').style.display = 'block';
         
-        // Update ItemMaster info display
-        if (select.value) {
-            fetch(`/packing/item_master_info/${select.value}`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit || '-';
-                    document.getElementById('displayMinLevel').textContent = data.min_level || '-';
-                    document.getElementById('displayMaxLevel').textContent = data.max_level || '-';
-                    document.getElementById('displayCalcFactor').textContent = data.calculation_factor || '-';
-                    document.getElementById('itemMasterInfo').style.display = 'block';
-                    
-                    // Update calculation factor if it's 0 or empty
-                    const calcFactorInput = document.getElementById('calculation_factor');
-                    if (!calcFactorInput.value || calcFactorInput.value === '0' || calcFactorInput.value === '0.0') {
-                        calcFactorInput.value = data.calculation_factor || '0.0';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching item master info:', error);
-                    document.getElementById('itemMasterInfo').style.display = 'none';
-                });
-        } else {
-            document.getElementById('itemMasterInfo').style.display = 'none';
-        }
+        // Fetch item master info including allergens
+        fetch(`/packing/item_master_info/${productCode}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+                
+                // Update item master info display
+                document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit.toFixed(4);
+                document.getElementById('displayMinLevel').textContent = data.min_level.toFixed(0);
+                document.getElementById('displayMaxLevel').textContent = data.max_level.toFixed(0);
+                document.getElementById('displayCalcFactor').textContent = data.calculation_factor.toFixed(4);
+                
+                // Update allergen checkboxes
+                if (data.allergen_ids && Array.isArray(data.allergen_ids)) {
+                    data.allergen_ids.forEach(allergenId => {
+                        const checkbox = document.getElementById(`allergen_${allergenId}`);
+                        if (checkbox) {
+                            checkbox.checked = true;
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    } else {
+        // Hide the item master info section if no product selected
+        document.getElementById('itemMasterInfo').style.display = 'none';
     }
+}
 
     function updateWeekCommencing() {
         const packingDate = document.getElementById('packing_date').value;
@@ -339,7 +361,7 @@
                 newAllergenWrapper.innerHTML = `
                     <input class="form-check-input allergen-checkbox" type="checkbox" 
                            id="allergen_${data.allergen.id}" 
-                           name="allergen_ids" 
+                           name="allergen_ids[]" 
                            value="${data.allergen.id}">
                     <label class="form-check-label" for="allergen_${data.allergen.id}">
                         ${data.allergen.name}
@@ -360,5 +382,89 @@
             alert('Error creating allergen');
         });
     });
+
+// Add form submit handler to ensure allergen data is properly collected
+document.getElementById('packingForm').addEventListener('submit', function(e) {
+    // Get all checked allergen checkboxes
+    const checkedAllergens = document.querySelectorAll('.allergen-checkbox:checked');
+    
+    // If no allergens are checked, add a hidden input to ensure the form data includes the empty allergen list
+    if (checkedAllergens.length === 0) {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'allergen_ids';
+        hiddenInput.value = '';
+        this.appendChild(hiddenInput);
+    }
+});
+
+// Function to handle product code selection
+function handleProductCodeSelection() {
+    const productCode = document.getElementById('product_code').value;
+    if (!productCode) return;
+
+    // Get the item ID from the selected option's data attribute
+    const selectedOption = document.querySelector(`#product_code option[value="${productCode}"]`);
+    if (!selectedOption) return;
+    
+    const itemId = selectedOption.getAttribute('data-item-id');
+    if (!itemId) return;
+
+    // Fetch item master info including allergens
+    fetch(`/item_master/${itemId}/info`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update description
+                document.getElementById('description').value = data.description || '';
+                
+                // Update numeric fields
+                document.getElementById('calculation_factor').value = data.calculation_factor || '';
+                document.getElementById('kg_per_unit').value = data.kg_per_unit || '';
+                document.getElementById('units_per_bag').value = data.units_per_bag || '';
+                document.getElementById('avg_weight_per_unit').value = data.avg_weight_per_unit || '';
+                
+                // Update allergen checkboxes
+                // First uncheck all allergens
+                document.querySelectorAll('input[name="allergen_ids[]"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                
+                // Then check the ones from the response
+                if (data.allergen_ids && Array.isArray(data.allergen_ids)) {
+                    data.allergen_ids.forEach(allergenId => {
+                        const checkbox = document.querySelector(`input[name="allergen_ids[]"][value="${allergenId}"]`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+                
+                // Update other fields if needed
+                if (data.category_id) {
+                    const categorySelect = document.getElementById('category_id');
+                    if (categorySelect) categorySelect.value = data.category_id;
+                }
+                if (data.department_id) {
+                    const departmentSelect = document.getElementById('department_id');
+                    if (departmentSelect) departmentSelect.value = data.department_id;
+                }
+                if (data.machinery_id) {
+                    const machinerySelect = document.getElementById('machinery_id');
+                    if (machinerySelect) machinerySelect.value = data.machinery_id;
+                }
+                if (data.uom_id) {
+                    const uomSelect = document.getElementById('uom_id');
+                    if (uomSelect) uomSelect.value = data.uom_id;
+                }
+            } else {
+                console.error('Error fetching item info:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+}
+
+// Add event listener to product code select
+document.getElementById('product_code').addEventListener('change', handleProductCodeSelection);
 </script>
 {% endblock %}

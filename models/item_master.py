@@ -60,6 +60,15 @@ class ItemMaster(db.Model):
     machinery = relationship("Machinery", foreign_keys=[machinery_id])
     uom = relationship("UOM", foreign_keys=[uom_id])
     
+    # Allergen relationship through junction table
+    allergens = relationship(
+        "Allergen",
+        secondary="item_allergen",
+        primaryjoin="ItemMaster.id == ItemAllergen.item_id",
+        secondaryjoin="ItemAllergen.allergen_id == Allergen.allergens_id",
+        backref="items"
+    )
+    
     # These relationships allow an FG to easily access its WIP and WIPF components
     # We specify foreign_keys and remote_side to resolve ambiguity for self-referencing relationships
     wip_item = relationship("ItemMaster", foreign_keys=[wip_item_id], remote_side=[id], backref=db.backref('wip_used_by', lazy='dynamic'))

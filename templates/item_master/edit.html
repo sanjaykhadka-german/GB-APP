@@ -388,8 +388,8 @@
                             {% set item_allergen_ids = item.allergens|map(attribute='allergens_id')|list if item else [] %}
                             {% for allergen in allergens %}
                             <div class="allergen-checkbox-wrapper">
-                                <input class="form-check-input" type="checkbox" 
-                                       name="allergens" value="{{ allergen.allergens_id }}" 
+                                <input class="form-check-input allergen-checkbox" type="checkbox" 
+                                       name="allergen_ids[]" value="{{ allergen.allergens_id }}" 
                                        id="allergen_{{ allergen.allergens_id }}"
                                        {{ 'checked' if allergen.allergens_id in item_allergen_ids else '' }}>
                                 <label class="form-check-label" for="allergen_{{ allergen.allergens_id }}">
@@ -538,15 +538,21 @@
 document.getElementById('item-form').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
-    
     // Convert form data to JSON
     const jsonData = {};
+    
+    // Get all checked allergen checkboxes and convert values to integers
+    const checkedAllergens = document.querySelectorAll('input[name="allergen_ids[]"]:checked');
+    console.log('Checked allergens:', Array.from(checkedAllergens).map(cb => ({ value: cb.value, checked: cb.checked })));
+    
+    // Always include allergen_ids array, even if empty
+    jsonData.allergen_ids = Array.from(checkedAllergens).map(checkbox => parseInt(checkbox.value, 10));
+    console.log('Allergen IDs being sent:', jsonData.allergen_ids);
+    
+    // Get all other form fields
+    const formData = new FormData(this);
     for (let [key, value] of formData.entries()) {
-        if (key === 'allergens') {
-            if (!jsonData.allergens) jsonData.allergens = [];
-            jsonData.allergens.push(value);
-        } else {
+        if (key !== 'allergen_ids[]') { // Skip allergen checkboxes as we handled them above
             jsonData[key] = value;
         }
     }
@@ -567,6 +573,8 @@ document.getElementById('item-form').addEventListener('submit', function(e) {
     const url = itemId ? `/item-master/edit/${itemId.value}` : '/item-master/create';
     const method = itemId ? 'PUT' : 'POST';
     
+    console.log('Final JSON data being sent:', jsonData);
+    
     fetch(url, {
         method: method,
         headers: {
@@ -574,8 +582,14 @@ document.getElementById('item-form').addEventListener('submit', function(e) {
         },
         body: JSON.stringify(jsonData)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
+        console.log('Response from server:', data);
         if (data.success) {
             window.location.href = '/item-master';
         } else {
@@ -584,7 +598,7 @@ document.getElementById('item-form').addEventListener('submit', function(e) {
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error saving item');
+        alert('Error saving item: ' + error.message);
     });
 });
 

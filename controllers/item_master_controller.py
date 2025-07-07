@@ -174,116 +174,136 @@ def get_items():
 def save_item(id=None):
     try:
         data = request.get_json()
-        
-        # Get current user
-        current_user_id = session.get('user_id')
-        if not current_user_id:
-            return jsonify({'success': False, 'message': 'User not authenticated'}), 401
-        
-        # Validate required fields
-        required_fields = ['item_code', 'description', 'item_type']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'success': False, 'message': f'{field} is required'}), 400
-        
-        item_type_name = data.get('item_type')
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+
+        # Get current user ID for audit fields
+        current_user_id = 1  # TODO: Get from session
+
+        # Get basic required fields
         item_code = data.get('item_code')
-        description = data.get('description')
-        
-        # Validate item type exists and get the ItemType object
-        valid_item_type = ItemType.query.filter_by(type_name=item_type_name).first()
-        if not valid_item_type:
-            return jsonify({'success': False, 'message': f'Invalid item type: {item_type_name}'}), 400
-        
-        # For new item, check if item_code already exists
-        if data.get('id') or id:
-            item_id = data.get('id') or id
-            item = ItemMaster.query.get_or_404(item_id)
-            # For existing items, check if item_code is being changed and if new code already exists
-            if item.item_code != item_code:
-                if ItemMaster.query.filter_by(item_code=item_code).first():
-                    return jsonify({'success': False, 'message': 'Item code already exists'}), 400
-            # Update the updated_by field
-            item.updated_by_id = current_user_id
+        if not item_code:
+            return jsonify({'success': False, 'message': 'Item code is required'}), 400
+
+        item_type_name = data.get('item_type')
+        if not item_type_name:
+            return jsonify({'success': False, 'message': 'Item type is required'}), 400
+
+        # Get or create item
+        if id:
+            item = ItemMaster.query.get(id)
+            if not item:
+                return jsonify({'success': False, 'message': 'Item not found'}), 404
         else:
-            # Add "RM_" prefix for raw materials (only for new items)
-            if item_type_name == 'Raw Material':
-                item_code = f"{item_code}"
-            if ItemMaster.query.filter_by(item_code=item_code).first():
-                return jsonify({'success': False, 'message': 'Item code already exists'}), 400
             item = ItemMaster()
-            # Set the created_by field for new items
             item.created_by_id = current_user_id
-            item.updated_by_id = current_user_id
-        
+
         # Update basic fields
         item.item_code = item_code
-        item.description = description
-        item.item_type_id = valid_item_type.id
-        item.category_id = data.get('category_id') if data.get('category_id') else None
-        item.department_id = data.get('department_id') if data.get('department_id') else None
-        item.machinery_id = data.get('machinery_id') if data.get('machinery_id') else None
-        item.uom_id = data.get('uom_id') if data.get('uom_id') else None
-        item.min_level = data.get('min_level') if data.get('min_level') else None
-        item.max_level = data.get('max_level') if data.get('max_level') else None
-        item.price_per_kg = data.get('price_per_kg') if data.get('price_per_kg') else None
-        item.price_per_uom = data.get('price_per_uom') if data.get('price_per_uom') else None
-        item.calculation_factor = data.get('calculation_factor') if data.get('calculation_factor') else None
-        item.supplier_name = data.get('supplier_name') if data.get('supplier_name') else None
+        item.description = data.get('description')
         item.is_active = data.get('is_active', True)
-        
-        # Update type-specific fields
-        if item_type_name == 'Raw Material':
-            # Clear finished good fields
-            item.is_make_to_order = False
-            item.kg_per_unit = None
-            item.units_per_bag = None
-            item.avg_weight_per_unit = None
-            item.loss_percentage = None
-        else:
-            item.is_make_to_order = data.get('is_make_to_order', False)
-            item.kg_per_unit = data.get('kg_per_unit') if data.get('kg_per_unit') else None
-            item.units_per_bag = data.get('units_per_bag') if data.get('units_per_bag') else None
-            item.avg_weight_per_unit = data.get('avg_weight_per_unit') if data.get('avg_weight_per_unit') else None
-            item.loss_percentage = data.get('loss_percentage') if data.get('loss_percentage') else None
-        
-        # Handle FG and WIPF hierarchy relationships
-        if item_type_name in ['FG', 'WIPF']:
-            # Set WIP component relationship
-            wip_item_id = data.get('wip_item_id')
-            if wip_item_id:
-                item.wip_item_id = int(wip_item_id)
-            else:
-                item.wip_item_id = None
-                
-            # Set WIPF component relationship only for FG items
-            if item_type_name == 'FG':
-                wipf_item_id = data.get('wipf_item_id')
-                if wipf_item_id:
-                    item.wipf_item_id = int(wipf_item_id)
-                else:
-                    item.wipf_item_id = None
-            else:
-                # Clear WIPF relationship for WIPF items
-                item.wipf_item_id = None
-        else:
-            # Clear all hierarchy relationships for other item types
-            item.wip_item_id = None
-            item.wipf_item_id = None
-        
-        # Handle allergens (temporarily disabled due to model changes)
-        # if 'allergen_ids' in data:
-        #     allergens = Allergen.query.filter(Allergen.allergens_id.in_(data['allergen_ids'])).all()
-        #     item.allergens = allergens
-        
-        db.session.add(item)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Item saved successfully!', 'id': item.id}), 200
-        
+        item.is_make_to_order = data.get('is_make_to_order', False)
+        item.updated_by_id = current_user_id
+
+        # Handle numeric fields with proper type conversion and error handling
+        numeric_fields = [
+            'min_stock', 'max_stock', 'price_per_kg', 'price_per_uom',
+            'loss_percentage', 'calculation_factor', 'min_level', 'max_level',
+            'kg_per_unit', 'units_per_bag', 'avg_weight_per_unit'
+        ]
+        for field in numeric_fields:
+            value = data.get(field)
+            if value:
+                try:
+                    setattr(item, field, float(value))
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': f'Invalid value for {field}'}), 400
+
+        # Handle relationships
+        try:
+            # Item Type
+            item_type = ItemType.query.filter_by(type_name=item_type_name).first()
+            if not item_type:
+                item_type = ItemType(type_name=item_type_name)
+                db.session.add(item_type)
+                db.session.flush()  # Get the ID without committing
+            item.item_type_id = item_type.id
+
+            # Category
+            category_id = data.get('category_id')
+            if category_id:
+                item.category_id = int(category_id)
+
+            # Department
+            department_id = data.get('department_id')
+            if department_id:
+                item.department_id = int(department_id)
+
+            # Machinery
+            machinery_id = data.get('machinery_id')
+            if machinery_id:
+                item.machinery_id = int(machinery_id)
+
+            # UOM
+            uom_id = data.get('uom_id')
+            if uom_id:
+                item.uom_id = int(uom_id)
+
+            # WIP and WIPF relationships for FG items
+            if item_type_name in ['FG', 'WIPF']:
+                wip_item_id = data.get('wip_item_id')
+                if wip_item_id:
+                    item.wip_item_id = int(wip_item_id)
+
+                if item_type_name == 'FG':
+                    wipf_item_id = data.get('wipf_item_id')
+                    if wipf_item_id:
+                        item.wipf_item_id = int(wipf_item_id)
+
+            # Handle allergens
+            allergen_ids = data.get('allergen_ids', [])
+            print(f"Received allergen_ids: {allergen_ids}")
+            
+            # Always convert to a list of integers, even if empty
+            allergen_ids = [int(aid) if isinstance(aid, str) else aid for aid in allergen_ids]
+            print(f"Converted allergen_ids to integers: {allergen_ids}")
+            
+            # Get all allergens at once
+            allergens = Allergen.query.filter(Allergen.allergens_id.in_(allergen_ids)).all()
+            print(f"Found allergens: {[f'{a.name} (ID: {a.allergens_id})' for a in allergens]}")
+            
+            # Verify we found all requested allergens
+            found_ids = {a.allergens_id for a in allergens}
+            missing_ids = set(allergen_ids) - found_ids
+            if missing_ids:
+                print(f"Warning: Could not find allergens with IDs: {missing_ids}")
+            
+            # Always update the relationship, even if empty
+            item.allergens = allergens
+            print(f"Set item.allergens to: {[f'{a.name} (ID: {a.allergens_id})' for a in item.allergens]}")
+
+            # Add item to session if new
+            if not id:
+                db.session.add(item)
+
+            # Commit changes
+            db.session.commit()
+            print(f"After commit - Item {item.id} allergens: {[f'{a.name} (ID: {a.allergens_id})' for a in item.allergens]}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Item saved successfully',
+                'id': item.id
+            })
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error saving item: {str(e)}")
+            return jsonify({'success': False, 'message': f'Error saving item: {str(e)}'}), 500
+
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+        print(f"Error processing request: {str(e)}")
+        return jsonify({'success': False, 'message': f'Error processing request: {str(e)}'}), 500
 
 @item_master_bp.route('/delete-item/<int:id>', methods=['DELETE'])
 def delete_item(id):
