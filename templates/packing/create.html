@@ -250,18 +250,19 @@ function updateDescription() {
     const productSelect = document.getElementById('product_code');
     const selectedOption = productSelect.options[productSelect.selectedIndex];
     const productCode = productSelect.value;
+    const itemId = selectedOption ? selectedOption.getAttribute('data-item-id') : null;
     
     // Clear allergen checkboxes
     document.querySelectorAll('.allergen-checkbox').forEach(checkbox => {
         checkbox.checked = false;
     });
     
-    if (productCode) {
+    if (productCode && itemId) {
         // Show the item master info section
         document.getElementById('itemMasterInfo').style.display = 'block';
         
         // Fetch item master info including allergens
-        fetch(`/packing/item_master_info/${productCode}`)
+        fetch(`/item-master/get-item-info/${itemId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -270,15 +271,15 @@ function updateDescription() {
                 }
                 
                 // Update item master info display
-                document.getElementById('displayAvgWeight').textContent = data.avg_weight_per_unit.toFixed(4);
-                document.getElementById('displayMinLevel').textContent = data.min_level.toFixed(0);
-                document.getElementById('displayMaxLevel').textContent = data.max_level.toFixed(0);
-                document.getElementById('displayCalcFactor').textContent = data.calculation_factor.toFixed(4);
+                document.getElementById('displayAvgWeight').textContent = (data.avg_weight_per_unit || 0).toFixed(4);
+                document.getElementById('displayMinLevel').textContent = (data.min_level || 0).toFixed(0);
+                document.getElementById('displayMaxLevel').textContent = (data.max_level || 0).toFixed(0);
+                document.getElementById('displayCalcFactor').textContent = (data.calculation_factor || 0).toFixed(4);
                 
                 // Update allergen checkboxes
-                if (data.allergen_ids && Array.isArray(data.allergen_ids)) {
-                    data.allergen_ids.forEach(allergenId => {
-                        const checkbox = document.getElementById(`allergen_${allergenId}`);
+                if (data.allergens && Array.isArray(data.allergens)) {
+                    data.allergens.forEach(allergen => {
+                        const checkbox = document.getElementById(`allergen_${allergen.allergens_id}`);
                         if (checkbox) {
                             checkbox.checked = true;
                         }

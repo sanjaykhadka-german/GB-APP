@@ -1,13 +1,17 @@
 from flask import Blueprint, render_template, request, redirect, send_file, url_for, flash, jsonify
+import pandas as pd
 from sqlalchemy.sql import text
 from decimal import Decimal
 import sqlalchemy.exc
 from datetime import datetime, timedelta
 from io import BytesIO
 from database import db
-from models import Production, RecipeMaster, UsageReport, RawMaterialReport, ItemMaster, ItemType
-from models.usage_report import UsageReport
+from models import Production, RecipeMaster, ItemMaster, ItemType
+from models.usage_report_table import UsageReportTable
+from models.raw_material_report_table import RawMaterialReportTable
 from models.recipe_master import RecipeMaster
+from models.usage_report_table import UsageReportTable
+from models.raw_material_report_table import RawMaterialReportTable
 # from models.joining import Joining  # REMOVED - joining table deprecated
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
@@ -273,7 +277,7 @@ def usage():
         # If no date filters provided, get data from usage_report table with stored percentages
         if not from_date or not to_date:
             # Get existing data from usage_report table - use stored percentages
-            usage_reports = UsageReport.query.order_by(UsageReport.production_date.desc()).all()
+            usage_reports = UsageReportTable.query.order_by(UsageReportTable.production_date.desc()).all()
             
             for report in usage_reports:
                 date = report.production_date
@@ -317,9 +321,9 @@ def usage():
             )
                 
             # Clear existing usage_report data for the date range
-            UsageReport.query.filter(
-                UsageReport.production_date >= from_date,
-                UsageReport.production_date <= to_date
+            UsageReportTable.query.filter(
+                UsageReportTable.production_date >= from_date,
+                UsageReportTable.production_date <= to_date
             ).delete()
             
             # Get the results
@@ -357,7 +361,7 @@ def usage():
                 percentage = (data['usage_kg'] / total_kg * 100) if total_kg > 0 else 0.0
                 
                 # Save to usage_report table
-                usage_report = UsageReport(
+                usage_report = UsageReportTable(
                     week_commencing=data['week_commencing'],
                     production_date=data['date'],
                     recipe_code=data['recipe_code'],
@@ -1004,7 +1008,7 @@ def raw_material_report():
         # If no week filter provided, get data from raw_material_report table
         if not week_commencing:
             # Get existing data from raw_material_report table
-            raw_material_reports = RawMaterialReport.query.order_by(RawMaterialReport.week_commencing.desc()).all()
+            raw_material_reports = RawMaterialReportTable.query.order_by(RawMaterialReportTable.week_commencing.desc()).all()
             
             raw_material_data = [
                 {
@@ -1052,7 +1056,7 @@ def raw_material_report():
             
             # Save results to raw_material_report table
             for result in results:
-                report = RawMaterialReport(
+                report = RawMaterialReportTable(
                     production_date=result.week_commencing,  # Using week_commencing as production_date
                     week_commencing=result.week_commencing,
                     raw_material_id=result.component_item_id,  # Matches database structure

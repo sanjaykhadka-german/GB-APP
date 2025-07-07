@@ -583,7 +583,22 @@ $(document).ready(function() {
                 tableBody.empty();
                 $("#resultSection").removeClass("hidden");
 
-                if (response.length === 0) {
+                // Check if response is an error
+                if (response.error) {
+                    tableBody.append(`
+                        <tr>
+                            <td colspan="13" class="text-center text-danger">
+                                <div class="alert alert-danger">
+                                    ${response.error}
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                    return;
+                }
+
+                // Check if response is empty array
+                if (!Array.isArray(response) || response.length === 0) {
                     tableBody.append(`
                         <tr>
                             <td colspan="13">
@@ -599,6 +614,7 @@ $(document).ready(function() {
                     return;
                 }
 
+                // Process valid response array
                 response.forEach(function(soh) {
                     if (soh.id !== null && soh.id !== undefined) {
                         const editUrl = `${baseEditUrl}/${soh.id}`;
@@ -643,9 +659,25 @@ $(document).ready(function() {
                 console.error('AJAX error:', xhr.responseText);
                 var tableBody = $("#sohListTable tbody");
                 tableBody.empty();
+                
+                // Parse the error response
+                let errorMessage = 'Error fetching SOH entries';
+                try {
+                    const errorResponse = JSON.parse(xhr.responseText);
+                    if (errorResponse.error) {
+                        errorMessage = errorResponse.error;
+                    }
+                } catch (e) {
+                    console.error('Error parsing error response:', e);
+                }
+                
                 tableBody.append(`
                     <tr>
-                        <td colspan="13" class="no-results">Error fetching SOH entries:${xhr.responseText}</td>
+                        <td colspan="13" class="text-center text-danger">
+                            <div class="alert alert-danger">
+                                ${errorMessage}
+                            </div>
+                        </td>
                     </tr>
                 `);
             }
