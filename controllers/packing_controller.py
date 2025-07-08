@@ -93,144 +93,52 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
                 return False, "Invalid packing_date format. Please use 'DD-MM-YYYY'."
         packing_date = packing_date or date.today()
 
+        # Get the item master record
+        item = ItemMaster.query.filter_by(item_code=fg_code).first()
+        if not item:
+            return False, f"Item {fg_code} not found"
+
         # Use provided week_commencing, or calculate it if not provided
         if week_commencing is None:
             def get_monday_of_week(dt):
                 return dt - timedelta(days=dt.weekday())
             week_commencing = get_monday_of_week(packing_date)
 
-        # Check if SOH entry exists for the week_commencing and fg_code
-        soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
-        if not soh:
-            if create_soh:
-                # Create SOH entry if requested
-                new_soh = create_or_update_soh_entry(fg_code, week_commencing, 0)
-                if new_soh:
-                    soh = new_soh  # Update the soh variable to use the newly created entry
-                    logger.info(f"Successfully created SOH entry for {fg_code}")
-                else:
-                    return False, f"Failed to create SOH entry for {fg_code}. Cannot proceed."
-            else:
-                return False, f"No SOH entry exists for {fg_code} (week {week_commencing}). Please create one first."
-
-        # Fetch avg_weight_per_unit from Item Master table
-        item = ItemMaster.query.filter_by(item_code=fg_code).first()
-        if not item:
-            return False, f"No item found for fg_code {fg_code}"
-        avg_weight_per_unit = avg_weight_per_unit or item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
-        min_level = item.min_level or 0.0
-        max_level = item.max_level or 0.0
-
-        # Use provided calculation_factor or fetch from existing Packing entry
-        # Use foreign key relationship instead of product_code
+        # Check for existing packing entry
         packing = Packing.query.filter_by(
-            item_id=item.id, 
+            item_id=item.id,
             packing_date=packing_date,
             week_commencing=week_commencing,
-            machinery=machinery
+            machinery_id=machinery
         ).first()
-        
-        # If no packing found with the new key structure, try to find by old structure
-        if not packing:
-            packing = Packing.query.filter_by(
-                item_id=item.id, 
-                packing_date=packing_date
-            ).first()
-            
-            # If found with old structure, update it to new structure
-            if packing:
-                packing.week_commencing = week_commencing
-                packing.machinery_id = machinery
-
-        # Use provided calculation_factor (from item_master) instead of falling back to existing packing
-        # This ensures we always use the most up-to-date calculation_factor from item_master
-        if calculation_factor is None:
-            # Only fall back to existing packing calculation_factor if no calculation_factor was provided
-            calculation_factor = packing.calculation_factor if packing else 0.0
-
-        # Fetch SOH data and calculate soh_requirement_units_week
-        # Allow packing entries even if SOH doesn't exist yet
-        # Use foreign key relationship instead of fg_code
-        soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
-
-        if soh:
-            soh_units = soh.soh_total_units or 0
-            logger.info(f"Found SOH data for {fg_code}: soh_units={soh_units}")
-        else:
-            # No SOH record exists - check if user wants to create one IMMEDIATELY
-            if request.form.get('create_soh_entry'):
-                # User wants to create SOH entry - do this BEFORE any calculations
-                new_soh = create_or_update_soh_entry(fg_code, week_commencing, 0)
-                if new_soh:
-                    soh = new_soh  # Update the soh variable to use the newly created entry
-                    soh_units = 0  # We created it with 0 units
-                    flash(f"Created new SOH entry for {fg_code} with 0 units.", 'success')
-                    logger.info(f"Successfully created SOH entry for {fg_code}")
-                else:
-                    flash(f"Failed to create SOH entry for {fg_code}. Cannot proceed.", 'danger')
-                    return redirect(url_for('packing.packing_create'))
-            else:
-                # No SOH exists and user doesn't want to create one - this will fail due to FK constraint
-                flash(f"No SOH entry exists for {fg_code} (week {week_commencing}). Please check 'Create SOH entry' to proceed.", 'warning')
-                return redirect(url_for('packing.packing_create'))
-
-        # Calculate SOH requirement based on min/max levels from ItemMaster
-        # If soh_units < min_level, we need (max_level - soh_units) units
-        soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
-
-        logger.info(f"SOH calculation for {fg_code}: soh_units={soh_units}, soh_requirement_units_week={soh_requirement_units_week}")
 
         if not packing:
             packing = Packing(
-                item_id=item.id,  # Use foreign key
-                product_code=fg_code,  # Keep for backward compatibility
-                product_description=description,
+                item_id=item.id,
                 packing_date=packing_date,
-                week_commencing=week_commencing,  
-                special_order_kg=special_order_kg,
-                avg_weight_per_unit=avg_weight_per_unit,
-                soh_requirement_units_week=soh_requirement_units_week,
-                calculation_factor=calculation_factor,
-                machinery=machinery  # Set machinery
+                week_commencing=week_commencing,
+                machinery_id=machinery
             )
             db.session.add(packing)
-        else:
-            packing.product_description = description
-            packing.special_order_kg = special_order_kg
-            packing.avg_weight_per_unit = avg_weight_per_unit
-            packing.soh_requirement_units_week = soh_requirement_units_week
-            packing.calculation_factor = calculation_factor
-            packing.week_commencing = week_commencing
-            packing.machinery_id = machinery  # Update machinery
 
-        # Perform calculations
-        special_order_kg = packing.special_order_kg if packing.special_order_kg is not None else 0
-        packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-        packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.requirement_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        packing.requirement_unit = math.ceil(packing.requirement_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        
-        # Add special order requirements
-        if special_order_kg > 0:
-            packing.requirement_kg += special_order_kg
-            packing.requirement_unit += packing.special_order_unit
+        # Update packing fields
+        packing.special_order_kg = special_order_kg
+        packing.avg_weight_per_unit = avg_weight_per_unit
+        packing.soh_requirement_units_week = soh_requirement_units_week
+        packing.calculation_factor = calculation_factor
 
-        # Save changes
         db.session.commit()
-        
-        # After successfully saving the packing entry, update downstream requirements
-        success, message = re_aggregate_filling_and_production_for_week(week_commencing)
-        if not success:
-            logger.warning(f"Failed to update downstream requirements: {message}")
-            # Don't return error - we still want to save the packing entry
-            
-        return True, "Successfully updated packing entry"
+
+        # Create SOH entry if requested
+        if create_soh:
+            create_or_update_soh_entry(fg_code, week_commencing, soh_requirement_units_week or 0)
+
+        return True, "Packing entry updated successfully"
+
     except Exception as e:
         db.session.rollback()
-        error_msg = f"Error updating packing entry: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return False, error_msg
+        logger.error(f"Error updating packing entry: {str(e)}", exc_info=True)
+        return False, str(e)
 
 @packing.route('/')
 def packing_list():
