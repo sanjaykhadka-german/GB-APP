@@ -6,6 +6,7 @@ from models.usage_report_table import UsageReportTable
 from models.raw_material_report_table import RawMaterialReportTable
 from models.recipe_master import RecipeMaster
 from models.item_master import ItemMaster
+from models.item_type import ItemType
 from datetime import datetime
 
 def check_downstream():
@@ -64,6 +65,15 @@ def check_downstream():
                     for report in raw_reports:
                         print(f"- Raw Material: {report.raw_material}")
                         print(f"  Required KG: {report.meat_required}")
+
+def check_missing_wipf():
+    missing_wipf = db.session.query(ItemMaster).join(ItemType).filter(
+        ItemMaster.item_code.in_(['2015.100', '2015.125']),
+        ItemType.type_name == 'WIPF'
+    ).all()
+    
+    if not missing_wipf:
+        print("WIPF items 2015.100 and 2015.125 are missing")
 
 if __name__ == "__main__":
     app = create_app()

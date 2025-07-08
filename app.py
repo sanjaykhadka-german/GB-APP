@@ -73,7 +73,7 @@ def create_app():
     app.register_blueprint(login_bp)
 
     # Import models
-    from models import soh, finished_goods, item_master, recipe_master, usage_report
+    from models import soh, finished_goods, item_master, recipe_master
 
     from models import machinery, department, category, production, packing, filling, allergen
 

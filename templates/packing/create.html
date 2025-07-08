@@ -244,9 +244,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const monday = new Date(today);
     monday.setDate(monday.getDate() - monday.getDay() + 1);
     document.getElementById('week_commencing').value = monday.toISOString().split('T')[0];
-});
+    });
 
-function updateDescription() {
+    function updateDescription() {
     const productSelect = document.getElementById('product_code');
     const selectedOption = productSelect.options[productSelect.selectedIndex];
     const productCode = productSelect.value;
@@ -263,8 +263,8 @@ function updateDescription() {
         
         // Fetch item master info including allergens
         fetch(`/item-master/get-item-info/${itemId}`)
-            .then(response => response.json())
-            .then(data => {
+                .then(response => response.json())
+                .then(data => {
                 if (data.error) {
                     console.error('Error:', data.error);
                     return;
@@ -275,7 +275,7 @@ function updateDescription() {
                 document.getElementById('displayMinLevel').textContent = (data.min_level || 0).toFixed(0);
                 document.getElementById('displayMaxLevel').textContent = (data.max_level || 0).toFixed(0);
                 document.getElementById('displayCalcFactor').textContent = (data.calculation_factor || 0).toFixed(4);
-                
+                    
                 // Update allergen checkboxes
                 if (data.allergens && Array.isArray(data.allergens)) {
                     data.allergens.forEach(allergen => {
@@ -284,16 +284,16 @@ function updateDescription() {
                             checkbox.checked = true;
                         }
                     });
-                }
-            })
-            .catch(error => {
+                    }
+                })
+                .catch(error => {
                 console.error('Error:', error);
-            });
-    } else {
+                });
+        } else {
         // Hide the item master info section if no product selected
-        document.getElementById('itemMasterInfo').style.display = 'none';
+            document.getElementById('itemMasterInfo').style.display = 'none';
+        }
     }
-}
 
     function updateWeekCommencing() {
         const packingDate = document.getElementById('packing_date').value;

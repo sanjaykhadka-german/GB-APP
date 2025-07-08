@@ -194,11 +194,13 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
-        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
-        packing.soh_units = soh_units
+        packing.requirement_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
+        packing.requirement_unit = math.ceil(packing.requirement_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        
+        # Add special order requirements
+        if special_order_kg > 0:
+            packing.requirement_kg += special_order_kg
+            packing.requirement_unit += packing.special_order_unit
 
         # Save changes
         db.session.commit()

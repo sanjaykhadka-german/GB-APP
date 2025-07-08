@@ -4,7 +4,7 @@ Enhanced BOM (Bill of Materials) Service
 
 This service provides optimized BOM calculations using the item_master
 hierarchy fields (wip_item_id, wipf_item_id) for managing production requirements,
-recipe explosions, and inventory calculations.
+recipe explosions, sand inventory calculations.
 """
 
 from app import db
@@ -130,7 +130,7 @@ class BOMService:
                     
                     # Calculate requirements
                     requirement_kg = packing.requirement_kg or 0.0
-                    requirement_units = packing.requirement_units or 0
+                    requirement_unit = packing.requirement_unit or 0  # Using requirement_unit (singular)
                     
                     # Create filling entry if WIPF exists
                     if fg_item.wipf_item_id:
@@ -139,7 +139,7 @@ class BOMService:
                             item_id=fg_item.id,
                             week_commencing=week_commencing,
                             requirement_kg=requirement_kg,
-                            requirement_units=requirement_units
+                            requirement_unit=requirement_unit  # Using requirement_unit (singular)
                         )
                         if filling:
                             print(f"Created filling entry: {filling.id}")
@@ -152,7 +152,7 @@ class BOMService:
                             item_id=fg_item.id,
                             week_commencing=week_commencing,
                             requirement_kg=requirement_kg,
-                            requirement_units=requirement_units
+                            requirement_unit=requirement_unit  # Using requirement_unit (singular)
                         )
                         if production:
                             print(f"Created production entry: {production.id}")
@@ -164,12 +164,11 @@ class BOMService:
                                 item_id=fg_item.id,
                                 week_commencing=week_commencing,
                                 requirement_kg=requirement_kg,
-                                requirement_units=requirement_units
+                                requirement_unit=requirement_unit  # Using requirement_unit (singular)
                             )
                             if usage_reports:
                                 print(f"Created {len(usage_reports)} usage report entries")
                                 db.session.flush()
-                    
                 except Exception as e:
                     print(f"Error processing packing entry {packing.id}: {str(e)}")
                     continue
@@ -318,14 +317,14 @@ class BOMService:
                                             recipe['quantity_required']
                                         )
                                         results['usage_reports_created'] += 1
-                                
+                    
                     results['processed'] += 1
                     
                 except Exception as e:
                     error_msg = f"Error processing SOH record {soh_record.id}: {str(e)}"
                     logger.error(error_msg)
                     results['errors'].append(error_msg)
-                    
+            
             db.session.commit()
             return results
             
@@ -340,6 +339,7 @@ class BOMService:
         entry = Packing(
             item_id=soh_record.item_id,
             requirement_kg=soh_record.current_stock,
+            requirement_unit=soh_record.current_stock,  # Using requirement_unit (singular)
             week_commencing=soh_record.week_commencing,
             packing_date=soh_record.week_commencing
         )
@@ -352,7 +352,7 @@ class BOMService:
         entry = Packing(
             item_id=soh_record.item_id,
             requirement_kg=packing_req['requirement_kg'],
-            requirement_unit=packing_req['requirement_unit'],
+            requirement_unit=packing_req['requirement_unit'],  # Using requirement_unit (singular)
             week_commencing=soh_record.week_commencing,
             packing_date=soh_record.week_commencing
         )
@@ -390,7 +390,9 @@ class BOMService:
             requirement_kg=production_req['requirement_kg'],
             batches=batches,
             week_commencing=soh_record.week_commencing,
-            production_date=soh_record.week_commencing
+            production_date=soh_record.week_commencing,
+            production_code=item.item_code,  # Set production_code from item
+            description=item.description  # Set description from item
         )
         db.session.add(entry)
         return entry
@@ -418,7 +420,7 @@ class BOMService:
             item = ItemMaster.query.get(item_id)
             if not item:
                 return None
-            
+                
             result = {
                 'code': item.item_code,
                 'description': item.description,
@@ -437,7 +439,7 @@ class BOMService:
                         'kg_per_batch': recipe.kg_per_batch,
                         'percentage': recipe.percentage
                     })
-            
+                    
             return result
         except Exception as e:
             logger.error(f"Error getting recipe summary: {str(e)}")
@@ -498,197 +500,159 @@ class BOMService:
             return None
 
     @staticmethod
-    def create_filling_entry(item_id, week_commencing, requirement_kg, requirement_units):
-        """Create a filling entry with proper department and machinery assignments"""
+    def create_filling_entry(item_id, week_commencing, requirement_kg, requirement_unit):
+        """Create or update filling entry for WIPF"""
         try:
-            # Get the FG item and its WIPF component
+            # Get the FG item and its WIPF
             fg_item = ItemMaster.query.get(item_id)
-            if not fg_item or not fg_item.wipf_item_id:
-                print(f"No WIPF component found for item {item_id}")
+            if not fg_item or not fg_item.wipf_item:
                 return None
-                
-            wipf_item = ItemMaster.query.get(fg_item.wipf_item_id)
-            if not wipf_item:
-                print(f"WIPF item {fg_item.wipf_item_id} not found")
-                return None
-                
-            # Use WIPF item's department/machinery if set, otherwise use FG item's
-            department_id = wipf_item.department_id or fg_item.department_id
-            machinery_id = wipf_item.machinery_id or fg_item.machinery_id
-            
-            # Validate department and machinery
-            if not department_id:
-                print(f"No department assigned for WIPF item {wipf_item.item_code} or FG item {fg_item.item_code}")
-                return None
-                
-            if not machinery_id:
-                print(f"No machinery assigned for WIPF item {wipf_item.item_code} or FG item {fg_item.item_code}")
-                return None
-            
-            # Check for existing filling entry
+
+            # Check for existing filling entry for this WIPF and date
             existing_filling = Filling.query.filter_by(
-                item_id=wipf_item.id,
-                week_commencing=week_commencing
+                item_id=fg_item.wipf_item.id,
+                week_commencing=week_commencing,
+                filling_date=week_commencing
             ).first()
-            
+
             if existing_filling:
                 # Update existing entry
-                existing_filling.requirement_kg = requirement_kg
-                existing_filling.kilo_per_size = requirement_kg
-                existing_filling.department_id = department_id
-                existing_filling.machinery_id = machinery_id
+                existing_filling.requirement_kg += requirement_kg
+                existing_filling.kilo_per_size = existing_filling.requirement_kg
                 return existing_filling
-            
-            # Create new filling entry
-            filling = Filling(
-                item_id=wipf_item.id,
-                week_commencing=week_commencing,
-                filling_date=week_commencing,
-                requirement_kg=requirement_kg,
-                kilo_per_size=requirement_kg,
-                department_id=department_id,
-                machinery_id=machinery_id
-            )
-            
-            db.session.add(filling)
-            print(f"Created filling entry for {wipf_item.item_code} with dept {department_id} and machinery {machinery_id}")
-            return filling
-            
+            else:
+                # Create new entry
+                new_filling = Filling(
+                    filling_date=week_commencing,
+                    week_commencing=week_commencing,
+                    item_id=fg_item.wipf_item.id,
+                    requirement_kg=requirement_kg,
+                    kilo_per_size=requirement_kg
+                )
+                db.session.add(new_filling)
+                return new_filling
+
         except Exception as e:
-            print(f"Error creating filling entry: {str(e)}")
+            logger.error(f"Error creating filling entry: {str(e)}")
             return None
 
     @staticmethod
-    def create_production_entry(item_id, week_commencing, requirement_kg, requirement_units):
-        """Create a production entry with proper department and machinery assignments"""
+    def create_production_entry(item_id, week_commencing, requirement_kg, requirement_unit):
+        """Create or update production entry for WIP"""
         try:
-            # Get the FG item and its WIP component
+            # Get the FG item and its WIP
             fg_item = ItemMaster.query.get(item_id)
-            if not fg_item or not fg_item.wip_item_id:
-                print(f"No WIP component found for item {item_id}")
+            if not fg_item or not fg_item.wip_item:
                 return None
-                
-            wip_item = ItemMaster.query.get(fg_item.wip_item_id)
-            if not wip_item:
-                print(f"WIP item {fg_item.wip_item_id} not found")
-                return None
-                
-            # Use WIP item's department/machinery if set, otherwise use FG item's
-            department_id = wip_item.department_id or fg_item.department_id
-            machinery_id = wip_item.machinery_id or fg_item.machinery_id
-            
-            # Validate department and machinery
-            if not department_id:
-                print(f"No department assigned for WIP item {wip_item.item_code} or FG item {fg_item.item_code}")
-                return None
-                
-            if not machinery_id:
-                print(f"No machinery assigned for WIP item {wip_item.item_code} or FG item {fg_item.item_code}")
-                return None
-            
-            # Check for existing production entry
+
+            # Check for existing production entry for this WIP and date
             existing_production = Production.query.filter_by(
-                item_id=wip_item.id,
-                week_commencing=week_commencing
+                item_id=fg_item.wip_item.id,
+                week_commencing=week_commencing,
+                production_date=week_commencing
             ).first()
-            
-            # Calculate batches (300kg per batch)
-            batches = requirement_kg / 300 if requirement_kg > 0 else 0
-            
+
             if existing_production:
                 # Update existing entry
-                existing_production.requirement_kg = requirement_kg
-                existing_production.total_kg = requirement_kg
-                existing_production.batches = batches
-                existing_production.department_id = department_id
-                existing_production.machinery_id = machinery_id
+                existing_production.total_kg += requirement_kg
+                existing_production.batches = existing_production.total_kg / 300.0
                 return existing_production
-            
-            # Create new production entry
-            production = Production(
-                item_id=wip_item.id,
-                week_commencing=week_commencing,
-                production_date=week_commencing,
-                requirement_kg=requirement_kg,
-                total_kg=requirement_kg,
-                batches=batches,
-                department_id=department_id,
-                machinery_id=machinery_id
-            )
-            
-            db.session.add(production)
-            print(f"Created production entry for {wip_item.item_code} with dept {department_id} and machinery {machinery_id}")
-            return production
-            
+            else:
+                # Create new entry
+                new_production = Production(
+                    production_date=week_commencing,
+                    week_commencing=week_commencing,
+                    item_id=fg_item.wip_item.id,
+                    production_code=fg_item.wip_item.item_code,
+                    description=fg_item.wip_item.description,
+                    total_kg=requirement_kg,
+                    batches=requirement_kg / 300.0
+                )
+                db.session.add(new_production)
+                return new_production
+
         except Exception as e:
-            print(f"Error creating production entry: {str(e)}")
+            logger.error(f"Error creating production entry: {str(e)}")
             return None
 
     @staticmethod
-    def create_usage_report(item_id, week_commencing, requirement_kg, requirement_units):
-        """Create usage report entries for a production requirement"""
+    def create_usage_report(item_id, week_commencing, requirement_kg, requirement_unit):
+        """Create usage report entries for raw materials"""
         try:
-            # Get the FG item and its WIP component
+            # Get the FG item and its WIP
             fg_item = ItemMaster.query.get(item_id)
-            if not fg_item or not fg_item.wip_item_id:
-                print(f"No WIP component found for FG item {item_id}")
+            if not fg_item or not fg_item.wip_item:
                 return None
-            
-            wip_item = ItemMaster.query.get(fg_item.wip_item_id)
-            if not wip_item:
-                print(f"WIP item {fg_item.wip_item_id} not found")
+
+            # Get recipe components for the WIP
+            recipe_components = RecipeMaster.query.filter_by(
+                recipe_wip_id=fg_item.wip_item.id
+            ).all()
+
+            if not recipe_components:
                 return None
-            
-            print(f"Looking for recipes with recipe_wip_id = {wip_item.id} for WIP {wip_item.item_code}")
-            
-            # Get all recipe components for this WIP item
-            recipes = RecipeMaster.query.filter_by(recipe_wip_id=wip_item.id).all()
-            if not recipes:
-                print(f"No recipe components found for WIP item {wip_item.item_code}")
+
+            # Calculate total recipe quantity
+            total_recipe_qty = sum(float(r.quantity_kg or 0) for r in recipe_components)
+            if total_recipe_qty <= 0:
                 return None
-            
-            print(f"Found {len(recipes)} recipe components for WIP {wip_item.item_code}")
-            
-            # Create usage report entries for each raw material
+
             usage_reports = []
-            for recipe in recipes:
-                component_item = ItemMaster.query.get(recipe.component_item_id)
-                if not component_item:
+            for recipe in recipe_components:
+                if not recipe.component_item:
                     continue
-                    
-                # Calculate usage based on recipe percentage
-                usage_kg = (requirement_kg * recipe.percentage / 100) if recipe.percentage else 0
-                
-                print(f"Creating usage report for {component_item.item_code}: {usage_kg} kg")
-                
-                # Create usage report
-                usage_report = UsageReportTable(
+
+                # Calculate usage and percentage
+                usage_kg = (float(recipe.quantity_kg) / total_recipe_qty) * requirement_kg
+                percentage = (float(recipe.quantity_kg) / total_recipe_qty) * 100
+
+                # Check for existing usage report
+                existing_usage = UsageReportTable.query.filter_by(
                     week_commencing=week_commencing,
                     production_date=week_commencing,
-                    recipe_code=recipe.recipe_code,
-                    raw_material=component_item.item_code,
-                    usage_kg=usage_kg,
-                    percentage=recipe.percentage
-                )
-                
-                db.session.add(usage_report)
-                usage_reports.append(usage_report)
-                
-                # Create raw material report entry
-                raw_material_report = RawMaterialReportTable(
-                    production_date=week_commencing,
+                    recipe_code=fg_item.wip_item.item_code,
+                    raw_material=recipe.component_item.description
+                ).first()
+
+                if existing_usage:
+                    # Update existing entry
+                    existing_usage.usage_kg += usage_kg
+                    existing_usage.percentage = percentage
+                    usage_reports.append(existing_usage)
+                else:
+                    # Create new usage report
+                    new_usage = UsageReportTable(
+                        week_commencing=week_commencing,
+                        production_date=week_commencing,
+                        recipe_code=fg_item.wip_item.item_code,
+                        raw_material=recipe.component_item.description,
+                        usage_kg=usage_kg,
+                        percentage=percentage
+                    )
+                    db.session.add(new_usage)
+                    usage_reports.append(new_usage)
+
+                # Create/update raw material report
+                existing_raw = RawMaterialReportTable.query.filter_by(
                     week_commencing=week_commencing,
-                    raw_material=component_item.item_code,
-                    meat_required=usage_kg,
-                    raw_material_id=component_item.id
-                )
-                
-                db.session.add(raw_material_report)
-            
-            print(f"Created {len(usage_reports)} usage report entries")
-            db.session.flush()  # Save the entries
+                    production_date=week_commencing,
+                    raw_material_id=recipe.component_item.id
+                ).first()
+
+                if existing_raw:
+                    existing_raw.meat_required += usage_kg
+                else:
+                    new_raw = RawMaterialReportTable(
+                        week_commencing=week_commencing,
+                        production_date=week_commencing,
+                        raw_material_id=recipe.component_item.id,
+                        raw_material=recipe.component_item.description,
+                        meat_required=usage_kg
+                    )
+                    db.session.add(new_raw)
+
             return usage_reports
-            
+
         except Exception as e:
-            print(f"Error creating usage report: {str(e)}")
-            return None 
+            logger.error(f"Error creating usage report: {str(e)}")
+            return None
