@@ -83,7 +83,7 @@ def create_or_update_soh_entry(product_code, week_commencing, soh_units=0):
         return None
 
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-                         soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None):
+                         soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False):
     try:
         # Convert packing_date to date object if it's a string
         if isinstance(packing_date, str):
@@ -102,7 +102,16 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         # Check if SOH entry exists for the week_commencing and fg_code
         soh = SOH.query.filter_by(fg_code=fg_code, week_commencing=week_commencing).first()
         if not soh:
-            return False, f"No SOH entry found for fg_code {fg_code} and week_commencing {week_commencing}"
+            if create_soh:
+                # Create SOH entry if requested
+                new_soh = create_or_update_soh_entry(fg_code, week_commencing, 0)
+                if new_soh:
+                    soh = new_soh  # Update the soh variable to use the newly created entry
+                    logger.info(f"Successfully created SOH entry for {fg_code}")
+                else:
+                    return False, f"Failed to create SOH entry for {fg_code}. Cannot proceed."
+            else:
+                return False, f"No SOH entry exists for {fg_code} (week {week_commencing}). Please create one first."
 
         # Fetch avg_weight_per_unit from Item Master table
         item = ItemMaster.query.filter_by(item_code=fg_code).first()
@@ -436,30 +445,19 @@ def packing_create():
             
             logger.info(f"Item Master data for {product_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
 
-            # Fetch SOH data and calculate soh_requirement_units_week
-            # Allow packing entries even if SOH doesn't exist yet
-            soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
+            # Get create_soh parameter from form
+            create_soh = bool(request.form.get('create_soh_entry'))
 
+            # Fetch SOH data and calculate soh_requirement_units_week
+            soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
             if soh:
                 soh_units = soh.soh_total_units or 0
                 logger.info(f"Found SOH data for {product_code}: soh_units={soh_units}")
             else:
-                # No SOH record exists - check if user wants to create one IMMEDIATELY
-                if request.form.get('create_soh_entry'):
-                    # User wants to create SOH entry - do this BEFORE any calculations
-                    new_soh = create_or_update_soh_entry(product_code, week_commencing, 0)
-                    if new_soh:
-                        soh = new_soh  # Update the soh variable to use the newly created entry
-                        soh_units = 0  # We created it with 0 units
-                        flash(f"Created new SOH entry for {product_code} with 0 units.", 'success')
-                        logger.info(f"Successfully created SOH entry for {product_code}")
-                    else:
-                        flash(f"Failed to create SOH entry for {product_code}. Cannot proceed.", 'danger')
-                        return redirect(url_for('packing.packing_create'))
-                else:
-                    # No SOH exists and user doesn't want to create one - this will fail due to FK constraint
+                if not create_soh:
                     flash(f"No SOH entry exists for {product_code} (week {week_commencing}). Please check 'Create SOH entry' to proceed.", 'warning')
                     return redirect(url_for('packing.packing_create'))
+                soh_units = 0
 
             # Calculate SOH requirement based on min/max levels from ItemMaster
             # If soh_units < min_level, we need (max_level - soh_units) units
@@ -467,61 +465,26 @@ def packing_create():
 
             logger.info(f"SOH calculation for {product_code}: soh_units={soh_units}, soh_requirement_units_week={soh_requirement_units_week}")
 
-            # Perform all calculations using ItemMaster parameters
-            # 1. Special Order calculations
-            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 2. Current SOH in kg
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            
-            # 3. SOH requirement per week in kg
-            soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 4. Total stock target (using calculation_factor from ItemMaster)
-            total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
-            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 5. Final requirement calculation
-            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
-            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
-            
-            logger.info(f"Calculated values: requirement_kg={requirement_kg}, requirement_unit={requirement_unit}, total_stock_kg={total_stock_kg}")
-            
-            # Validate that we have meaningful calculations
-            if avg_weight_per_unit == 0:
-                flash(f"Warning: No average weight per unit found for {product_code}. Please update the Item Master record.", 'warning')
-            if calculation_factor == 0:
-                flash(f"Warning: No calculation factor found for {product_code}. Please update the Item Master record.", 'warning')
-
-            # Create the packing entry (SOH entry now exists if needed)
-            new_packing = Packing(
+            # Create the packing entry
+            success, message = update_packing_entry(
+                fg_code=product_code,
+                description=item.description,
                 packing_date=packing_date,
-                item_id=item.id,
                 special_order_kg=special_order_kg,
-                special_order_unit=special_order_unit,
-                requirement_kg=requirement_kg,
-                requirement_unit=requirement_unit,
-                soh_requirement_kg_week=soh_requirement_kg_week,
+                avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=soh_requirement_units_week,
-                soh_kg=soh_kg,
-                soh_units=soh_units,
-                total_stock_kg=total_stock_kg,
-                total_stock_units=total_stock_units,
                 calculation_factor=calculation_factor,
                 week_commencing=week_commencing,
-                machinery_id=machinery,
-                priority=priority
+                machinery=machinery,
+                create_soh=create_soh
             )
-            
-            db.session.add(new_packing)
-            db.session.commit()
 
-            # ✅ Auto-create filling (WIPF) and production (WIP) entries
-            success, message = re_aggregate_filling_and_production_for_week(week_commencing)
             if success:
-                flash(f'✅ SUCCESS: Packing entry created for {product_code} ({requirement_kg:.1f} kg)! {message}', 'success')
+                flash(f'✅ SUCCESS: Packing entry created for {product_code}! {message}', 'success')
             else:
-                flash(f'⚠️ WARNING: Packing entry created for {product_code} but downstream creation failed: {message}', 'warning')
+                flash(f'⚠️ ERROR: {message}', 'danger')
+                return redirect(url_for('packing.packing_create'))
+
             return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()
@@ -640,61 +603,26 @@ def packing_edit(id):
 
             logger.info(f"SOH calculation for {item.item_code}: soh_units={soh_units}, soh_requirement_units_week={soh_requirement_units_week}")
 
-            # Perform all calculations using ItemMaster parameters
-            # 1. Special Order calculations
-            special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 2. Current SOH in kg
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            
-            # 3. SOH requirement per week in kg
-            soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 4. Total stock target (using calculation_factor from ItemMaster)
-            total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
-            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            
-            # 5. Final requirement calculation
-            requirement_kg = round(total_stock_kg - soh_kg + special_order_kg, 0) if (total_stock_kg - soh_kg + special_order_kg) > 0 else 0
-            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
-            
-            logger.info(f"Calculated values: requirement_kg={requirement_kg}, requirement_unit={requirement_unit}, total_stock_kg={total_stock_kg}")
-            
-            # Validate that we have meaningful calculations
-            if avg_weight_per_unit == 0:
-                flash(f"Warning: No average weight per unit found for {item.item_code}. Please update the Item Master record.", 'warning')
-            if calculation_factor == 0:
-                flash(f"Warning: No calculation factor found for {item.item_code}. Please update the Item Master record.", 'warning')
+            # Update the packing entry
+            success, message = update_packing_entry(
+                fg_code=item.item_code,
+                description=item.description,
+                packing_date=packing_date,
+                special_order_kg=special_order_kg,
+                avg_weight_per_unit=avg_weight_per_unit,
+                soh_requirement_units_week=soh_requirement_units_week,
+                calculation_factor=calculation_factor,
+                week_commencing=week_commencing,
+                machinery=machinery,
+                create_soh=False  # Don't create SOH in edit mode
+            )
 
-            # Update packing entry
-            packing.packing_date = packing_date
-            packing.special_order_kg = special_order_kg
-            packing.special_order_unit = special_order_unit
-            packing.requirement_kg = requirement_kg
-            packing.requirement_unit = requirement_unit
-            packing.soh_requirement_kg_week = soh_requirement_kg_week
-            packing.soh_requirement_units_week = soh_requirement_units_week
-            packing.soh_kg = soh_kg
-            packing.soh_units = soh_units
-            packing.total_stock_kg = total_stock_kg
-            packing.total_stock_units = total_stock_units
-            packing.calculation_factor = calculation_factor
-            packing.week_commencing = week_commencing
-            packing.machinery_id = machinery
-            packing.priority = priority
-            
-            # Copy allergens from item master
-            packing.allergens = item.allergens
-
-            db.session.commit()
-
-            # ✅ NEW: Re-aggregate filling and production after updating packing entry
-            success, message = re_aggregate_filling_and_production_for_week(week_commencing)
-            
             if success:
-                flash(f'✅ SUCCESS: Packing entry updated for {item.item_code} ({requirement_kg:.1f} kg)! {message}', 'success')
+                flash(f'✅ SUCCESS: Packing entry updated for {item.item_code}! {message}', 'success')
             else:
-                flash(f'⚠️ WARNING: Packing entry updated for {item.item_code} but downstream update failed: {message}', 'warning')
+                flash(f'⚠️ ERROR: {message}', 'danger')
+                return redirect(url_for('packing.packing_edit', id=id))
+
             return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()

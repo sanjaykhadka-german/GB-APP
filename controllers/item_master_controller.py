@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, request, jsonify, send_file, flash, session
+from flask import Blueprint, render_template, request, jsonify, send_file, flash, session, redirect, url_for
 from database import db
-from models.item_master import ItemMaster
+from models.item_master import ItemMaster, ItemAllergen
 from models.category import Category
 from models.department import Department
 from models.machinery import Machinery
@@ -12,45 +12,61 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import io
 import os
+from sqlalchemy.orm import joinedload
+from sqlalchemy import asc
+import logging
+import pytz
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 item_master_bp = Blueprint('item_master', __name__)
 
 @item_master_bp.route('/item-master', methods=['GET'])
 def item_master_list():
-    # Get all lookup data for the filters
+    # Preload related data for efficiency
+    items = ItemMaster.query.options(
+        joinedload(ItemMaster.category),
+        joinedload(ItemMaster.department),
+        joinedload(ItemMaster.uom),
+        joinedload(ItemMaster.item_type)
+    ).order_by(asc(ItemMaster.item_code)).all()
+    
     categories = Category.query.all()
     departments = Department.query.all()
     item_types = ItemType.query.all()
-    return render_template('item_master/list.html',
-                         categories=categories,
-                         departments=departments,
-                         item_types=item_types,
-                         current_page='item_master')
+    
+    return render_template(
+        'item_master/list.html', 
+        items=items,
+        categories=categories,
+        departments=departments,
+        item_types=item_types,
+        current_page='item_master'
+    )
 
 @item_master_bp.route('/item-master/create', methods=['GET'])
 def item_master_create():
-    # Get all lookup data
     categories = Category.query.all()
     departments = Department.query.all()
     machineries = Machinery.query.all()
     uoms = UOM.query.all()
     allergens = Allergen.query.all()
     item_types = ItemType.query.all()
-    
-    # Get WIP and WIPF items for component dropdowns
     wip_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIP').all()
     wipf_items = ItemMaster.query.join(ItemType).filter(ItemType.type_name == 'WIPF').all()
     
-    return render_template('item_master/create.html',
-                         categories=categories,
-                         departments=departments,
-                         machineries=machineries,
-                         uoms=uoms,
-                         allergens=allergens,
-                         item_types=item_types,
-                         wip_items=wip_items,
-                         wipf_items=wipf_items,
-                         current_page='item_master')
+    return render_template('item_master/create.html', 
+                           categories=categories, 
+                           departments=departments, 
+                           machineries=machineries, 
+                           uoms=uoms, 
+                           allergens=allergens,
+                           item_types=item_types,
+                           wip_items=wip_items,
+                           wipf_items=wipf_items,
+                           current_page='item_master')
 
 @item_master_bp.route('/item-master/edit/<int:id>', methods=['GET'])
 def item_master_edit(id):
@@ -81,103 +97,70 @@ def item_master_edit(id):
                          wipf_items=wipf_items,
                          current_page='item_master')
 
-@item_master_bp.route('/get_items', methods=['GET'])
-def get_items():
-    search_code = request.args.get('item_code', '').strip()
-    search_description = request.args.get('description', '').strip()
-    search_type = request.args.get('item_type', '').strip()
-    
-    # Get sorting parameters
-    sort_by = request.args.get('sort_by', 'item_code')  # Default sort by item_code
-    sort_order = request.args.get('sort_order', 'asc')  # Default ascending
-    
-    # Start with base query and join ItemType for all queries
-    query = ItemMaster.query.join(ItemType, ItemMaster.item_type_id == ItemType.id)
-    
-    # Apply filters
-    if search_code:
-        query = query.filter(ItemMaster.item_code.ilike(f"%{search_code}%"))
-    if search_description:
-        query = query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
-    if search_type:
-        # Use exact type name matching
-        query = query.filter(ItemType.type_name == search_type)
+@item_master_bp.route('/item_master/delete/<int:id>', methods=['POST'])
+def item_master_delete(id):
+    item = ItemMaster.query.get_or_404(id)
+    db.session.delete(item)
+    db.session.commit()
+    flash(f'Item {item.item_code} has been deleted.', 'success')
+    return redirect(url_for('item_master.item_master_list'))
 
-    # Apply sorting with proper joins
-    if sort_by == 'item_code':
-        query = query.order_by(ItemMaster.item_code.asc() if sort_order.lower() == 'asc' else ItemMaster.item_code.desc())
-    elif sort_by == 'description':
-        query = query.order_by(ItemMaster.description.asc() if sort_order.lower() == 'asc' else ItemMaster.description.desc())
-    elif sort_by == 'item_type':
-        # ItemType is already joined, so we can sort directly
-        query = query.order_by(ItemType.type_name.asc() if sort_order.lower() == 'asc' else ItemType.type_name.desc())
-    elif sort_by == 'category':
-        query = query.outerjoin(Category).order_by(Category.name.asc() if sort_order.lower() == 'asc' else Category.name.desc())
-    elif sort_by == 'department':
-        query = query.outerjoin(Department).order_by(Department.departmentName.asc() if sort_order.lower() == 'asc' else Department.departmentName.desc())
-    elif sort_by == 'machinery':
-        query = query.outerjoin(Machinery).order_by(Machinery.machineryName.asc() if sort_order.lower() == 'asc' else Machinery.machineryName.desc())
-    elif sort_by == 'uom':
-        query = query.outerjoin(UOM).order_by(UOM.UOMName.asc() if sort_order.lower() == 'asc' else UOM.UOMName.desc())
-    elif sort_by == 'min_level':
-        query = query.order_by(ItemMaster.min_level.asc() if sort_order.lower() == 'asc' else ItemMaster.min_level.desc())
-    elif sort_by == 'max_level':
-        query = query.order_by(ItemMaster.max_level.asc() if sort_order.lower() == 'asc' else ItemMaster.max_level.desc())
-    elif sort_by == 'price_per_kg':
-        query = query.order_by(ItemMaster.price_per_kg.asc() if sort_order.lower() == 'asc' else ItemMaster.price_per_kg.desc())
-    elif sort_by == 'price_per_uom':
-        query = query.order_by(ItemMaster.price_per_uom.asc() if sort_order.lower() == 'asc' else ItemMaster.price_per_uom.desc())
-    elif sort_by == 'supplier_name':
-        query = query.order_by(ItemMaster.supplier_name.asc() if sort_order.lower() == 'asc' else ItemMaster.supplier_name.desc())
-    else:
-        # Default sorting
-        query = query.order_by(ItemMaster.item_code.asc())
-
-    items = query.all()
-    
-    items_data = []
-    for item in items:
+@item_master_bp.route('/item_master/get-item-info/<int:item_id>')
+def get_item_info_json(item_id):
+    try:
+        item = ItemMaster.query.options(
+            joinedload(ItemMaster.allergens)
+        ).get(item_id)
+        
+        if not item:
+            return jsonify({'error': 'Item not found'}), 404
+            
+        # Get allergen IDs associated with the item
+        allergen_ids = [item_allergen.allergens_id for item_allergen in item.allergens]
+        
         item_data = {
-            "id": item.id,
-            "item_code": item.item_code,
-            "description": item.description,
-            "item_type": item.item_type.type_name if item.item_type else None,
-            "category": item.category.name if item.category else None,
-            "department": item.department.departmentName if item.department else None,
-            "machinery": item.machinery.machineryName if item.machinery else None,
-            "uom": item.uom.UOMName if item.uom else None,
-            "min_level": item.min_level,
-            "max_level": item.max_level,
-            "price_per_kg": item.price_per_kg,
-            "price_per_uom": item.price_per_uom,
-            "calculation_factor": item.calculation_factor,
-            "is_make_to_order": item.is_make_to_order,
-            "kg_per_unit": item.kg_per_unit,
-            "units_per_bag": item.units_per_bag,
-            "avg_weight_per_unit": item.avg_weight_per_unit,
-            "loss_percentage": item.loss_percentage,
-            "supplier_name": item.supplier_name,
-            "is_active": item.is_active,
-            "allergens": [],  # Allergen relationship temporarily removed
-            "created_by": None,  # User relationship temporarily removed  
-            "updated_by": None,  # User relationship temporarily removed
-            "created_at": item.created_at.strftime("%Y-%m-%d %H:%M:%S") if item.created_at else None,
-            "updated_at": item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else None
+            'id': item.id,
+            'item_code': item.item_code,
+            'description': item.description,
+            'category_id': item.category_id,
+            'department_id': item.department_id,
+            'uom_id': item.uom_id,
+            'machinery_id': item.machinery_id,
+            'min_level': item.min_level,
+            'max_level': item.max_level,
+            'price_per_kg': item.price_per_kg,
+            'price_per_uom': item.price_per_uom,
+            'supplier_name': item.supplier_name,
+            'is_active': item.is_active,
+            'is_make_to_order': item.is_make_to_order,
+            'fw': item.fw,
+            'loss_percentage': item.loss_percentage,
+            'kg_per_unit': item.kg_per_unit,
+            'units_per_bag': item.units_per_bag,
+            'avg_weight_per_unit': item.avg_weight_per_unit,
+            'calculation_factor': item.calculation_factor,
+            'item_type_id': item.item_type_id,
+            'wip_item_id': item.wip_item_id,
+            'wipf_item_id': item.wipf_item_id,
+            'allergens': allergen_ids
         }
-        items_data.append(item_data)
-    
-    return jsonify(items_data)
+        return jsonify(item_data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching item info for ID {item_id}: {str(e)}")
+        return jsonify({'error': 'Internal Server Error'}), 500
 
 @item_master_bp.route('/item-master/create', methods=['POST'])
-@item_master_bp.route('/item-master', methods=['POST'])
 @item_master_bp.route('/item-master/edit/<int:id>', methods=['PUT'])
 def save_item(id=None):
     try:
         data = request.get_json()
+        logger.info(f"Received data for save/update: {data}")
         
         # Get item type
         item_type_name = data.get('item_type')
-        if not item_type_name:
+        item_type = ItemType.query.filter_by(type_name=item_type_name).first()
+        if not item_type:
             return jsonify({'success': False, 'message': 'Item type is required'}), 400
             
         # Check if department and machinery are required
@@ -194,36 +177,170 @@ def save_item(id=None):
         # Get or create item
         if id:
             item = ItemMaster.query.get_or_404(id)
+            item.updated_at = datetime.now(pytz.timezone('Australia/Sydney'))
         else:
             item = ItemMaster()
+            item.created_at = datetime.now(pytz.timezone('Australia/Sydney'))
             
         # Update basic fields
         item.item_code = data.get('item_code')
         item.description = data.get('description')
+        item.item_type_id = item_type.id
         
         # Update department and machinery
-        if department_id:
-            item.department_id = int(department_id)
-        if machinery_id:
-            item.machinery_id = int(machinery_id)
-            
-        # Rest of your existing save logic...
+        item.department_id = int(department_id) if department_id else None
+        item.machinery_id = int(machinery_id) if machinery_id else None
         
-        return jsonify({'success': True, 'message': 'Item saved successfully'})
+        # Update other fields, handling None for empty strings
+        item.category_id = int(data.get('category_id')) if data.get('category_id') else None
+        item.uom_id = int(data.get('uom_id')) if data.get('uom_id') else None
+        item.min_level = float(data.get('min_level')) if data.get('min_level') else None
+        item.max_level = float(data.get('max_level')) if data.get('max_level') else None
+        item.price_per_kg = float(data.get('price_per_kg')) if data.get('price_per_kg') else None
+        item.price_per_uom = float(data.get('price_per_uom')) if data.get('price_per_uom') else None
+        item.supplier_name = data.get('supplier_name') or None
+        item.is_active = data.get('is_active', False)
+        item.is_make_to_order = data.get('is_make_to_order', False)
+        item.fw = data.get('fw', False)
+        item.loss_percentage = float(data.get('loss_percentage')) if data.get('loss_percentage') else None
+        item.kg_per_unit = float(data.get('kg_per_unit')) if data.get('kg_per_unit') else None
+        item.units_per_bag = float(data.get('units_per_bag')) if data.get('units_per_bag') else None
+        item.avg_weight_per_unit = float(data.get('avg_weight_per_unit')) if data.get('avg_weight_per_unit') else None
+        item.calculation_factor = float(data.get('calculation_factor')) if data.get('calculation_factor') else None
         
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        # Update component relationships
+        item.wip_item_id = int(data.get('wip_item_id')) if data.get('wip_item_id') else None
+        item.wipf_item_id = int(data.get('wipf_item_id')) if data.get('wipf_item_id') else None
+        
+        # Update Allergens
+        allergen_ids = data.get('allergen_ids', [])
+        
+        # Clear existing allergens
+        ItemAllergen.query.filter_by(item_id=item.id).delete()
+        
+        # Add new allergens
+        if allergen_ids:
+            for allergen_id in allergen_ids:
+                item_allergen = ItemAllergen(item_id=item.id, allergen_id=allergen_id)
+                db.session.add(item_allergen)
 
-@item_master_bp.route('/delete-item/<int:id>', methods=['DELETE'])
-def delete_item(id):
-    try:
-        item = ItemMaster.query.get_or_404(id)
-        db.session.delete(item)
+        if not id:
+            db.session.add(item)
+            
         db.session.commit()
-        return jsonify({'message': 'Item deleted successfully!'}), 200
+        
+        return jsonify({'success': True, 'message': 'Item saved successfully', 'id': item.id})
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error saving item: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@item_master_bp.route('/get_items', methods=['GET'])
+def get_items():
+    try:
+        # Base query
+        query = ItemMaster.query
+
+        # Search filters
+        search_code = request.args.get('item_code')
+        search_desc = request.args.get('description')
+        search_type = request.args.get('item_type')
+        search_category = request.args.get('category')
+        search_department = request.args.get('department')
+        search_is_active = request.args.get('is_active')
+
+        # Sorting
+        sort_by = request.args.get('sort_by', 'item_code')
+        sort_order = request.args.get('sort_order', 'asc')
+
+        # Determine which tables we need to join based on search and sort
+        required_joins = set()
+        if search_type or sort_by == 'item_type':
+            required_joins.add('item_type')
+        if search_category or sort_by == 'category':
+            required_joins.add('category')
+        if search_department or sort_by == 'department':
+            required_joins.add('department')
+
+        # Apply joins
+        if 'item_type' in required_joins:
+            query = query.join(ItemType, isouter=True)
+        if 'category' in required_joins:
+            query = query.join(Category, isouter=True)
+        if 'department' in required_joins:
+            query = query.join(Department, isouter=True)
+
+        # Apply filters
+        if search_code:
+            query = query.filter(ItemMaster.item_code.ilike(f'%{search_code}%'))
+        if search_desc:
+            query = query.filter(ItemMaster.description.ilike(f'%{search_desc}%'))
+        if search_type:
+            query = query.filter(ItemType.type_name == search_type)
+        if search_category:
+            query = query.filter(Category.name == search_category)
+        if search_department:
+            query = query.filter(Department.departmentName == search_department)
+        if search_is_active is not None:
+            query = query.filter(ItemMaster.is_active == (search_is_active.lower() in ['true', '1']))
+
+        # Map API sort columns to model attributes
+        sort_map = {
+            'item_code': ItemMaster.item_code,
+            'description': ItemMaster.description,
+            'item_type': ItemType.type_name,
+            'category': Category.name,
+            'department': Department.departmentName
+        }
+        
+        sort_column = sort_map.get(sort_by, ItemMaster.item_code)
+
+        # Apply sorting direction
+        if sort_order == 'desc':
+            query = query.order_by(sort_column.desc())
+        else:
+            query = query.order_by(sort_column.asc())
+
+        # Eager load related objects to avoid N+1 query problem
+        items = query.options(
+            joinedload(ItemMaster.category),
+            joinedload(ItemMaster.department),
+            joinedload(ItemMaster.uom),
+            joinedload(ItemMaster.item_type)
+        ).all()
+        
+        # Format data for JSON response
+        item_list = []
+        for item in items:
+            # Convert User objects to strings if needed
+            created_by = str(item.created_by) if item.created_by else None
+            updated_by = str(item.updated_by) if item.updated_by else None
+            
+            item_list.append({
+                'id': item.id,
+                'item_code': item.item_code,
+                'description': item.description,
+                'item_type': item.item_type.type_name if item.item_type else '',
+                'category': item.category.name if item.category else '',
+                'department': item.department.departmentName if item.department else '',
+                'uom': item.uom.UOMName if item.uom else '',
+                'min_level': item.min_level,
+                'max_level': item.max_level,
+                'price_per_kg': item.price_per_kg,
+                'price_per_uom': item.price_per_uom,
+                'supplier_name': item.supplier_name,
+                'is_active': item.is_active,
+                'created_by': created_by,
+                'created_at': item.created_at.strftime('%d-%m-%Y %H:%M') if item.created_at else '',
+                'updated_by': updated_by,
+                'updated_at': item.updated_at.strftime('%d-%m-%Y %H:%M') if item.updated_at else ''
+            })
+            
+        return jsonify(item_list)
+    except Exception as e:
+        logger.error(f"Error in get_items: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An internal error occurred. Please check the server logs.'}), 500
 
 @item_master_bp.route('/item-master/upload-excel', methods=['POST'])
 def upload_excel():
