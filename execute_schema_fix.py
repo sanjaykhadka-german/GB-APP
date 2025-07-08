@@ -10,7 +10,7 @@ from models.filling import Filling
 from models.production import Production
 from models.recipe_master import RecipeMaster
 from models.raw_materials import RawMaterials
-from models.usage_report import UsageReport
+from models.usage_report_table import UsageReportTable
 from models.raw_material_report import RawMaterialReport
 from models.item_master import ItemMaster
 from sqlalchemy import text

@@ -6,6 +6,8 @@ Script to check item types in the database and identify any mismatches
 import os
 import sys
 from dotenv import load_dotenv
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
 
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -16,74 +18,40 @@ load_dotenv()
 from database import db
 from models.item_type import ItemType
 from models.item_master import ItemMaster
+from app import app, create_app
+from models.department import Department
+from models.machinery import Machinery
 
 def check_item_types():
-    print("Checking Item Types in Database...")
-    print("=" * 50)
-    
-    # Check ItemType table
-    print("1. ItemType table contents:")
+    """Check item types and their assignments"""
+    # Get all item types
     item_types = ItemType.query.all()
-    if item_types:
-        for item_type in item_types:
-            print(f"   - ID: {item_type.id}, Name: '{item_type.type_name}'")
-    else:
-        print("   No item types found in ItemType table")
+    print(f"\nFound {len(item_types)} item types:")
     
-    print()
-    
-    # Check ItemMaster table for unique item_type values
-    print("2. Unique item_type values in ItemMaster table:")
-    unique_types = db.session.query(ItemMaster.item_type).distinct().all()
-    if unique_types:
-        for (item_type,) in unique_types:
-            if item_type:
-                print(f"   - '{item_type}'")
-            else:
-                print("   - NULL/Empty")
-    else:
-        print("   No items found in ItemMaster table")
-    
-    print()
-    
-    # Check for mismatches
-    print("3. Checking for mismatches:")
-    item_type_names = [it.type_name for it in item_types]
-    master_types = [mt[0] for mt in unique_types if mt[0]]
-    
-    print(f"   ItemType table names: {item_type_names}")
-    print(f"   ItemMaster table types: {master_types}")
-    
-    # Find types in ItemMaster that don't exist in ItemType
-    missing_in_itemtype = set(master_types) - set(item_type_names)
-    if missing_in_itemtype:
-        print(f"   ⚠️  Types in ItemMaster but not in ItemType: {missing_in_itemtype}")
-    else:
-        print("   ✅ All ItemMaster types exist in ItemType table")
-    
-    # Find types in ItemType that aren't used in ItemMaster
-    unused_in_itemtype = set(item_type_names) - set(master_types)
-    if unused_in_itemtype:
-        print(f"   ℹ️  Types in ItemType but not used in ItemMaster: {unused_in_itemtype}")
-    else:
-        print("   ✅ All ItemType entries are used in ItemMaster")
-    
-    print()
-    print("4. Recommendations:")
-    if missing_in_itemtype:
-        print("   - Add missing item types to ItemType table")
-        for missing_type in missing_in_itemtype:
-            print(f"     INSERT INTO item_type (type_name) VALUES ('{missing_type}');")
-    
-    if not item_types:
-        print("   - ItemType table is empty, consider adding default types:")
-        print("     INSERT INTO item_type (type_name) VALUES ('Raw Material');")
-        print("     INSERT INTO item_type (type_name) VALUES ('Finished Good');")
+    for item_type in item_types:
+        print(f"\nType: {item_type.type_name}")
+        items = ItemMaster.query.filter_by(item_type_id=item_type.id).all()
+        print(f"Items of this type: {len(items)}")
+        
+        for item in items:
+            print(f"\n- Item: {item.item_code}")
+            print(f"  Description: {item.description}")
+            print(f"  Department: {item.department.departmentName if item.department else 'None'}")
+            print(f"  Machine: {item.machinery.machineryName if item.machinery else 'None'}")
+            
+            if item_type.type_name == 'FG':
+                print(f"  WIP Item: {item.wip_item.item_code if item.wip_item else 'None'}")
+                print(f"  WIPF Item: {item.wipf_item.item_code if item.wipf_item else 'None'}")
+                
+                if item.wip_item:
+                    print(f"  WIP Department: {item.wip_item.department.departmentName if item.wip_item.department else 'None'}")
+                    print(f"  WIP Machine: {item.wip_item.machinery.machineryName if item.wip_item.machinery else 'None'}")
+                
+                if item.wipf_item:
+                    print(f"  WIPF Department: {item.wipf_item.department.departmentName if item.wipf_item.department else 'None'}")
+                    print(f"  WIPF Machine: {item.wipf_item.machinery.machineryName if item.wipf_item.machinery else 'None'}")
 
 if __name__ == "__main__":
-    # Create app context
-    from app import create_app
     app = create_app()
-    
     with app.app_context():
         check_item_types() 

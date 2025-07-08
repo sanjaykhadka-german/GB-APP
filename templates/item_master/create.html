@@ -219,7 +219,7 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <div class="form-group">
-                                <label for="department_id" class="form-label">Department</label>
+                                <label for="department_id" class="form-label">Department <span class="text-danger required-field d-none">*</span></label>
                                 <div class="input-group">
                                     <select id="department_id" name="department_id" class="form-select">
                                         <option value="">Select Department</option>
@@ -231,6 +231,7 @@
                                         <i class="fas fa-plus"></i>
                                     </button>
                                 </div>
+                                <div class="invalid-feedback">Please select a department.</div>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -251,7 +252,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
-                                <label for="machinery_id" class="form-label">Machinery</label>
+                                <label for="machinery_id" class="form-label">Machinery <span class="text-danger required-field d-none">*</span></label>
                                 <div class="input-group">
                                     <select id="machinery_id" name="machinery_id" class="form-select">
                                         <option value="">Select Machinery</option>
@@ -263,6 +264,7 @@
                                         <i class="fas fa-plus"></i>
                                     </button>
                                 </div>
+                                <div class="invalid-feedback">Please select machinery.</div>
                             </div>
                         </div>
                     </div>
@@ -732,6 +734,37 @@ document.getElementById('save-new-machinery').addEventListener('click', function
         modal.hide();
         document.getElementById('new-machinery-form').reset();
     }
+});
+
+function updateRequiredFields() {
+    const itemType = document.getElementById('item_type').value;
+    const requiredForTypes = ['FG', 'WIPF', 'WIP']; // Item types that require department/machinery
+    
+    // Get the type name from the selected option
+    const selectedType = document.querySelector(`#item_type option[value="${itemType}"]`);
+    const typeName = selectedType ? selectedType.textContent.trim() : '';
+    
+    // Check if this type requires department/machinery
+    const isRequired = requiredForTypes.includes(typeName);
+    
+    // Update department field
+    const deptField = document.getElementById('department_id');
+    const deptLabel = document.querySelector('label[for="department_id"] .required-field');
+    deptField.required = isRequired;
+    deptLabel.classList.toggle('d-none', !isRequired);
+    
+    // Update machinery field
+    const machField = document.getElementById('machinery_id');
+    const machLabel = document.querySelector('label[for="machinery_id"] .required-field');
+    machField.required = isRequired;
+    machLabel.classList.toggle('d-none', !isRequired);
+}
+
+// Call this when page loads and when item type changes
+document.addEventListener('DOMContentLoaded', function() {
+    const itemTypeSelect = document.getElementById('item_type');
+    itemTypeSelect.addEventListener('change', updateRequiredFields);
+    updateRequiredFields(); // Initial call
 });
 </script>
 {% endblock %}

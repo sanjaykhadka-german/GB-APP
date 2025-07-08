@@ -4,7 +4,7 @@ from models.raw_material_stocktake import RawMaterialStocktake
 from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
-from models.usage_report import UsageReport
+from models.usage_report_table import UsageReportTable
 from models.raw_material_report import RawMaterialReport
 
 def verify_tables_empty():
@@ -17,7 +17,7 @@ def verify_tables_empty():
                 'Packing': Packing.query.count(),
                 'Filling': Filling.query.count(),
                 'Production': Production.query.count(),
-                'Usage Report': UsageReport.query.count(),
+                'Usage Report': UsageReportTable.query.count(),
                 'Raw Material Report': RawMaterialReport.query.count()
             }
             

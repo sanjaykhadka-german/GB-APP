@@ -194,11 +194,13 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.special_order_unit = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         packing.soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         packing.soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.total_stock_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-        packing.total_stock_units = math.ceil(packing.total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        packing.requirement_kg = round(packing.total_stock_kg - packing.soh_kg + special_order_kg, 0) if (packing.total_stock_kg - packing.soh_kg + special_order_kg) > 0 else 0
-        packing.requirement_unit = packing.total_stock_units - soh_units + packing.special_order_unit if (packing.total_stock_units - soh_units + packing.special_order_unit) > 0 else 0
-        packing.soh_units = soh_units
+        packing.requirement_kg = packing.soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
+        packing.requirement_unit = math.ceil(packing.requirement_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        
+        # Add special order requirements
+        if special_order_kg > 0:
+            packing.requirement_kg += special_order_kg
+            packing.requirement_unit += packing.special_order_unit
 
         # Save changes
         db.session.commit()
@@ -536,7 +538,7 @@ def packing_create():
 @packing.route('/edit/<int:id>', methods=['GET', 'POST'])
 def packing_edit(id):
     packing = Packing.query.get_or_404(id)
-    
+
     if request.method == 'POST':
         try:
             # Parse form data with error handling
@@ -604,7 +606,7 @@ def packing_edit(id):
                 if not machinery_exists:
                     flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
                     return redirect(url_for('packing.packing_edit', id=id))
-            
+
             # Get all ItemMaster parameters for calculation
             item = packing.item
             avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
@@ -622,7 +624,7 @@ def packing_edit(id):
             if not soh:
                 flash(f"No SOH entry exists for {item.item_code} (week {week_commencing}). Please create one first.", 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
-
+            
             soh_units = soh.soh_total_units or 0
             logger.info(f"Found SOH data for {item.item_code}: soh_units={soh_units}")
 
@@ -677,7 +679,7 @@ def packing_edit(id):
             
             # Copy allergens from item master
             packing.allergens = item.allergens
-            
+
             db.session.commit()
 
             # ✅ NEW: Re-aggregate filling and production after updating packing entry
@@ -692,7 +694,7 @@ def packing_edit(id):
             db.session.rollback()
             flash(f'Error updating packing entry: {str(e)}', 'danger')
             logger.error(f"Error updating packing entry: {str(e)}")
-
+    
     # Get data for form
     products = ItemMaster.query.join(ItemMaster.item_type).filter(
         ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
@@ -892,7 +894,7 @@ def get_item_master_info(item_id):
         item = ItemMaster.query.get(item_id)
         if not item:
             return jsonify({'success': False, 'message': 'Item not found'}), 404
-            
+
         # Get allergen IDs
         allergen_ids = [allergen.allergens_id for allergen in item.allergens]
         

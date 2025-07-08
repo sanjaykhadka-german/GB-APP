@@ -4,7 +4,7 @@ from models.raw_material_stocktake import RawMaterialStocktake
 from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
-from models.usage_report import UsageReport
+from models.usage_report_table import UsageReportTable
 from models.raw_material_report import RawMaterialReport
 from sqlalchemy import text
 
@@ -21,7 +21,7 @@ def force_truncate_tables():
                 Packing,
                 Filling,
                 Production,
-                UsageReport,
+                UsageReportTable,
                 RawMaterialReport
             ]
             
