@@ -102,84 +102,87 @@ class BOMService:
         return hierarchies
 
     @staticmethod
-    def update_downstream_requirements(packing_date, week_commencing):
-        """Update downstream requirements based on packing entries"""
+    def update_downstream_requirements(week_commencing):
+        """Update downstream requirements based on packing entries for an entire week."""
         try:
             from app import db
             from models.packing import Packing
-            from models.item_master import ItemMaster
-            from models.recipe_master import RecipeMaster
+            from models.filling import Filling
+            from models.production import Production
             
-            # Get all packing entries for the given date
-            packing_entries = Packing.query.filter_by(
-                packing_date=packing_date,
-                week_commencing=week_commencing
-            ).all()
+            logger.info(f"Starting downstream requirement update for week: {week_commencing}")
+
+            # Get all packing entries for the entire week
+            packing_entries = Packing.query.filter_by(week_commencing=week_commencing).all()
             
-            print(f"Found {len(packing_entries)} packing entries for {packing_date}")
-            
+            if not packing_entries:
+                logger.warning(f"No packing entries found for week {week_commencing}. Clearing downstream entries.")
+                Filling.query.filter_by(week_commencing=week_commencing).delete()
+                Production.query.filter_by(week_commencing=week_commencing).delete()
+                db.session.commit()
+                return True
+
+            wipf_aggregations = {}
+            wip_aggregations = {}
+
+            # First pass: Aggregate requirements
             for packing in packing_entries:
-                try:
-                    # Get the FG item
-                    fg_item = ItemMaster.query.get(packing.item_id)
-                    if not fg_item:
-                        print(f"FG item not found for packing entry {packing.id}")
-                        continue
-                    
-                    print(f"\nProcessing FG item: {fg_item.item_code}")
-                    
-                    # Calculate requirements
-                    requirement_kg = packing.requirement_kg or 0.0
-                    requirement_unit = packing.requirement_unit or 0  # Using requirement_unit (singular)
-                    
-                    # Create filling entry if WIPF exists
-                    if fg_item.wipf_item_id:
-                        print(f"Creating filling entry for WIPF {fg_item.wipf_item_id}")
-                        filling = BOMService.create_filling_entry(
-                            item_id=fg_item.id,
-                            week_commencing=week_commencing,
-                            requirement_kg=requirement_kg,
-                            requirement_unit=requirement_unit  # Using requirement_unit (singular)
-                        )
-                        if filling:
-                            print(f"Created filling entry: {filling.id}")
-                            db.session.flush()
-                    
-                    # Create production entry if WIP exists
-                    if fg_item.wip_item_id:
-                        print(f"Creating production entry for WIP {fg_item.wip_item_id}")
-                        production = BOMService.create_production_entry(
-                            item_id=fg_item.id,
-                            week_commencing=week_commencing,
-                            requirement_kg=requirement_kg,
-                            requirement_unit=requirement_unit  # Using requirement_unit (singular)
-                        )
-                        if production:
-                            print(f"Created production entry: {production.id}")
-                            db.session.flush()
-                            
-                            # Create usage report entries for raw materials
-                            print("Creating usage report entries")
-                            usage_reports = BOMService.create_usage_report(
-                                item_id=fg_item.id,
-                                week_commencing=week_commencing,
-                                requirement_kg=requirement_kg,
-                                requirement_unit=requirement_unit  # Using requirement_unit (singular)
-                            )
-                            if usage_reports:
-                                print(f"Created {len(usage_reports)} usage report entries")
-                                db.session.flush()
-                except Exception as e:
-                    print(f"Error processing packing entry {packing.id}: {str(e)}")
+                if not packing.item:
                     continue
-            
-            # Commit all changes
+
+                if packing.item.wipf_item:
+                    wipf_id = packing.item.wipf_item.id
+                    if wipf_id not in wipf_aggregations:
+                        wipf_aggregations[wipf_id] = {'total_kg': 0, 'item': packing.item.wipf_item}
+                    wipf_aggregations[wipf_id]['total_kg'] += packing.requirement_kg
+
+                if packing.item.wip_item:
+                    wip_id = packing.item.wip_item.id
+                    if wip_id not in wip_aggregations:
+                        wip_aggregations[wip_id] = {'total_kg': 0, 'item': packing.item.wip_item}
+                    wip_aggregations[wip_id]['total_kg'] += packing.requirement_kg
+
+            # Log aggregations
+            logger.info(f"WIPF aggregations for week {week_commencing}: { {data['item'].item_code: data['total_kg'] for data in wipf_aggregations.values()} }")
+            logger.info(f"WIP aggregations for week {week_commencing}: { {data['item'].item_code: data['total_kg'] for data in wip_aggregations.values()} }")
+
+            # Clear existing downstream entries for the week before creating new ones
+            Filling.query.filter_by(week_commencing=week_commencing).delete()
+            Production.query.filter_by(week_commencing=week_commencing).delete()
+            logger.info(f"Cleared existing Filling and Production entries for week {week_commencing}")
+
+            # Second pass: Create new Filling entries
+            for wipf_id, data in wipf_aggregations.items():
+                new_filling = Filling(
+                    filling_date=week_commencing,
+                    week_commencing=week_commencing,
+                    item_id=wipf_id,
+                    requirement_kg=data['total_kg'],
+                    kilo_per_size=data['total_kg']
+                )
+                db.session.add(new_filling)
+                logger.info(f"Created Filling entry for {data['item'].item_code} with {data['total_kg']} kg")
+
+            # Third pass: Create new Production entries
+            for wip_id, data in wip_aggregations.items():
+                new_production = Production(
+                    production_date=week_commencing,
+                    week_commencing=week_commencing,
+                    item_id=wip_id,
+                    production_code=data['item'].item_code,
+                    total_kg=data['total_kg'],
+                    batches=data['total_kg'] / 300.0
+                )
+                db.session.add(new_production)
+                logger.info(f"Created Production entry for {data['item'].item_code} with {data['total_kg']} kg")
+
             db.session.commit()
+            logger.info(f"Successfully updated downstream requirements for week {week_commencing}")
             return True
-            
+
         except Exception as e:
-            print(f"Error updating downstream requirements: {str(e)}")
             db.session.rollback()
+            logger.error(f"Error in update_downstream_requirements for week {week_commencing}: {e}", exc_info=True)
             return False
 
     @staticmethod
@@ -505,10 +508,21 @@ class BOMService:
         try:
             # Get the FG item and its WIPF
             fg_item = ItemMaster.query.get(item_id)
-            if not fg_item or not fg_item.wipf_item:
+            if not fg_item:
+                logger.warning(f"FG item {item_id} not found")
+                return None
+                
+            if not fg_item.wipf_item:
+                logger.info(f"No WIPF item relationship for {fg_item.item_code}")
                 return None
 
-            # Check for existing filling entry for this WIPF and date
+            # Get all packing entries for this FG and week to calculate total requirement
+            total_requirement_kg = db.session.query(func.sum(Packing.requirement_kg)).filter(
+                Packing.item_id == item_id,
+                Packing.week_commencing == week_commencing
+            ).scalar() or 0.0
+
+            # Check for existing filling entry for this WIPF and week
             existing_filling = Filling.query.filter_by(
                 item_id=fg_item.wipf_item.id,
                 week_commencing=week_commencing,
@@ -516,9 +530,10 @@ class BOMService:
             ).first()
 
             if existing_filling:
-                # Update existing entry
-                existing_filling.requirement_kg += requirement_kg
-                existing_filling.kilo_per_size = existing_filling.requirement_kg
+                # Update existing entry with total requirement from all packing entries
+                existing_filling.requirement_kg = total_requirement_kg
+                existing_filling.kilo_per_size = total_requirement_kg
+                logger.info(f"Updated existing filling entry {existing_filling.id} for WIPF {fg_item.wipf_item.item_code} to {existing_filling.requirement_kg} kg")
                 return existing_filling
             else:
                 # Create new entry
@@ -526,10 +541,11 @@ class BOMService:
                     filling_date=week_commencing,
                     week_commencing=week_commencing,
                     item_id=fg_item.wipf_item.id,
-                    requirement_kg=requirement_kg,
-                    kilo_per_size=requirement_kg
+                    requirement_kg=total_requirement_kg,
+                    kilo_per_size=total_requirement_kg
                 )
                 db.session.add(new_filling)
+                logger.info(f"Created new filling entry for WIPF {fg_item.wipf_item.item_code} ({total_requirement_kg} kg)")
                 return new_filling
 
         except Exception as e:
@@ -542,10 +558,21 @@ class BOMService:
         try:
             # Get the FG item and its WIP
             fg_item = ItemMaster.query.get(item_id)
-            if not fg_item or not fg_item.wip_item:
+            if not fg_item:
+                logger.warning(f"FG item {item_id} not found")
+                return None
+                
+            if not fg_item.wip_item:
+                logger.info(f"No WIP item relationship for {fg_item.item_code}")
                 return None
 
-            # Check for existing production entry for this WIP and date
+            # Get all packing entries for this FG and week to calculate total requirement
+            total_requirement_kg = db.session.query(func.sum(Packing.requirement_kg)).filter(
+                Packing.item_id == item_id,
+                Packing.week_commencing == week_commencing
+            ).scalar() or 0.0
+
+            # Check for existing production entry for this WIP and week
             existing_production = Production.query.filter_by(
                 item_id=fg_item.wip_item.id,
                 week_commencing=week_commencing,
@@ -553,9 +580,10 @@ class BOMService:
             ).first()
 
             if existing_production:
-                # Update existing entry
-                existing_production.total_kg += requirement_kg
-                existing_production.batches = existing_production.total_kg / 300.0
+                # Update existing entry with total requirement from all packing entries
+                existing_production.total_kg = total_requirement_kg
+                existing_production.batches = total_requirement_kg / 300.0  # Recalculate batches based on new total
+                logger.info(f"Updated existing production entry {existing_production.id} for WIP {fg_item.wip_item.item_code} to {existing_production.total_kg} kg")
                 return existing_production
             else:
                 # Create new entry
@@ -565,10 +593,11 @@ class BOMService:
                     item_id=fg_item.wip_item.id,
                     production_code=fg_item.wip_item.item_code,
                     description=fg_item.wip_item.description,
-                    total_kg=requirement_kg,
-                    batches=requirement_kg / 300.0
+                    total_kg=total_requirement_kg,
+                    batches=total_requirement_kg / 300.0  # Calculate batches as Total KG/300
                 )
                 db.session.add(new_production)
+                logger.info(f"Created new production entry for WIP {fg_item.wip_item.item_code} ({total_requirement_kg} kg)")
                 return new_production
 
         except Exception as e:
@@ -656,3 +685,66 @@ class BOMService:
         except Exception as e:
             logger.error(f"Error creating usage report: {str(e)}")
             return None
+
+    @staticmethod
+    def verify_totals(week_commencing):
+        """Verify that packing and production totals match for a given week"""
+        try:
+            from app import db
+            from sqlalchemy import func
+            from models.packing import Packing
+            from models.filling import Filling
+            from models.production import Production
+            
+            # Get total packing requirements for the week
+            packing_totals = {}  # Key: wip_item_id, Value: total_kg
+            packing_entries = Packing.query.filter_by(week_commencing=week_commencing).all()
+            
+            for packing in packing_entries:
+                if not packing.item or not packing.item.wip_item:
+                    continue
+                    
+                wip_id = packing.item.wip_item.id
+                if wip_id not in packing_totals:
+                    packing_totals[wip_id] = {
+                        'total_kg': 0,
+                        'wip_code': packing.item.wip_item.item_code,
+                        'fg_codes': set()
+                    }
+                packing_totals[wip_id]['total_kg'] += packing.requirement_kg
+                packing_totals[wip_id]['fg_codes'].add(packing.item.item_code)
+            
+            # Get production totals for the week
+            production_entries = Production.query.filter_by(week_commencing=week_commencing).all()
+            
+            mismatches = []
+            for wip_id, packing_data in packing_totals.items():
+                production = next((p for p in production_entries if p.item_id == wip_id), None)
+                if not production:
+                    mismatches.append({
+                        'wip_code': packing_data['wip_code'],
+                        'packing_total': packing_data['total_kg'],
+                        'production_total': 0,
+                        'fg_codes': list(packing_data['fg_codes']),
+                        'error': 'Missing production entry'
+                    })
+                elif abs(production.total_kg - packing_data['total_kg']) > 0.01:  # Allow small rounding differences
+                    mismatches.append({
+                        'wip_code': packing_data['wip_code'],
+                        'packing_total': packing_data['total_kg'],
+                        'production_total': production.total_kg,
+                        'fg_codes': list(packing_data['fg_codes']),
+                        'error': 'Total mismatch'
+                    })
+            
+            return {
+                'success': len(mismatches) == 0,
+                'mismatches': mismatches
+            }
+            
+        except Exception as e:
+            logger.error(f"Error verifying totals: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e)
+            }

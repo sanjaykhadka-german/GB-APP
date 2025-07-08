@@ -23,24 +23,29 @@ logger = logging.getLogger(__name__)
 
 packing = Blueprint('packing', __name__, url_prefix='/packing')
 
-def re_aggregate_filling_and_production_for_date(packing_date, week_commencing=None):
+def re_aggregate_filling_and_production_for_week(week_commencing):
     """
-    Re-aggregate all production entries for a specific date based on packing requirements only.
+    Re-aggregate all production entries for a specific week based on all packing requirements.
     Uses the BOM service to properly handle recipe explosion.
     """
     try:
-        logger.info(f"Re-aggregating production for date {packing_date}, week {week_commencing}")
+        if not week_commencing:
+            logger.error("Cannot re-aggregate without a week_commencing date.")
+            return False, "Missing week commencing date."
+
+        logger.info(f"Re-aggregating downstream entries for week {week_commencing}")
         
-        # Use the BOM service to handle recipe explosion
-        from controllers.bom_service import update_downstream_requirements
-        success, message = update_downstream_requirements(packing_date, week_commencing)
+        from controllers.bom_service import BOMService
+        success = BOMService.update_downstream_requirements(week_commencing)
         
         if not success:
-            logger.error(f"Failed to re-aggregate production: {message}")
-            return False, message
+            error_msg = f"Failed to create downstream entries for week {week_commencing}"
+            logger.error(error_msg)
+            return False, error_msg
             
-        logger.info(f"Successfully re-aggregated production: {message}")
-        return True, message
+        success_msg = f"Successfully re-aggregated downstream entries for week {week_commencing}"
+        logger.info(success_msg)
+        return True, success_msg
         
     except Exception as e:
         error_msg = f"Failed to re-aggregate production: {str(e)}"
@@ -206,7 +211,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         db.session.commit()
         
         # After successfully saving the packing entry, update downstream requirements
-        success, message = re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
+        success, message = re_aggregate_filling_and_production_for_week(week_commencing)
         if not success:
             logger.warning(f"Failed to update downstream requirements: {message}")
             # Don't return error - we still want to save the packing entry
@@ -409,7 +414,8 @@ def packing_create():
             ).first()
 
             if existing_packing:
-                flash(f'DUPLICATE DETECTED: A packing entry already exists for product {product_code} on {packing_date}. You have been redirected to EDIT the existing entry (ID: {existing_packing.id}).', 'info')
+                machinery_name = existing_packing.machinery.machineryName if existing_packing.machinery else "No Machinery"
+                flash(f'🔄 DUPLICATE DETECTED: A packing entry already exists for product {product_code} on {packing_date} with {machinery_name}. You have been redirected to EDIT the existing entry (ID: {existing_packing.id}). Note: You can create another entry with a different machinery.', 'info')
                 return redirect(url_for('packing.packing_edit', id=existing_packing.id, from_duplicate='true'))
 
             # Validate machinery if provided
@@ -417,7 +423,7 @@ def packing_create():
                 machinery_exists = Machinery.query.filter_by(machineID=machinery).first()
                 if not machinery_exists:
                     flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
-                return redirect(url_for('packing.packing_create'))
+                    return redirect(url_for('packing.packing_create'))
             
             # Get all ItemMaster parameters for calculation
             avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
@@ -507,16 +513,15 @@ def packing_create():
                 priority=priority
             )
             
-            # Copy allergens from item master
-            new_packing.allergens = item.allergens
-            
             db.session.add(new_packing)
             db.session.commit()
 
-            # ✅ NEW: Re-aggregate filling and production after creating packing entry
-            re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
-
-            flash('Packing entry created successfully!', 'success')
+            # ✅ Auto-create filling (WIPF) and production (WIP) entries
+            success, message = re_aggregate_filling_and_production_for_week(week_commencing)
+            if success:
+                flash(f'✅ SUCCESS: Packing entry created for {product_code} ({requirement_kg:.1f} kg)! {message}', 'success')
+            else:
+                flash(f'⚠️ WARNING: Packing entry created for {product_code} but downstream creation failed: {message}', 'warning')
             return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()
@@ -597,7 +602,8 @@ def packing_edit(id):
             ).first()
 
             if existing_packing:
-                flash(f'DUPLICATE DETECTED: A packing entry already exists for this product on {packing_date}.', 'danger')
+                machinery_name = "No Machinery" if machinery is None else f"Machinery ID {machinery}"
+                flash(f'🔄 DUPLICATE DETECTED: A packing entry already exists for this product on {packing_date} with {machinery_name}.', 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
 
             # Validate machinery if provided
@@ -683,9 +689,12 @@ def packing_edit(id):
             db.session.commit()
 
             # ✅ NEW: Re-aggregate filling and production after updating packing entry
-            re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
-
-            flash('Packing entry updated successfully!', 'success')
+            success, message = re_aggregate_filling_and_production_for_week(week_commencing)
+            
+            if success:
+                flash(f'✅ SUCCESS: Packing entry updated for {item.item_code} ({requirement_kg:.1f} kg)! {message}', 'success')
+            else:
+                flash(f'⚠️ WARNING: Packing entry updated for {item.item_code} but downstream update failed: {message}', 'warning')
             return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()
@@ -706,31 +715,25 @@ def packing_edit(id):
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
     packing = Packing.query.get_or_404(id)
-    try:
-        # Adjust corresponding Filling entry using foreign key relationship
-        item = packing.item
-        if item and item.filling_records:
-            # Get the WIPF item's filling records for this date
-            filling = Filling.query.filter_by(
-                filling_date=packing.packing_date,
-                item_id=item.id
-            ).first()
-            
-            if filling:
-                filling.kilo_per_size -= packing.requirement_kg
-                if filling.kilo_per_size <= 0:
-                    db.session.delete(filling)
-                else:
-                    db.session.commit()
-                # Update corresponding Production entry
-                update_production_entry(packing.packing_date, item.item_code, item, packing.week_commencing)
+    week_to_update = packing.week_commencing  # Capture week before deleting
 
+    try:
         db.session.delete(packing)
         db.session.commit()
-        flash('Packing entry deleted successfully!', 'success')
+
+        # After successfully deleting, re-aggregate the entire week
+        success, message = re_aggregate_filling_and_production_for_week(week_to_update)
+        
+        if success:
+            flash(f'✅ Packing entry deleted successfully! {message}', 'success')
+        else:
+            flash(f'⚠️ Packing entry deleted, but downstream re-aggregation failed: {message}', 'warning')
+
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting packing entry: {str(e)}', 'danger')
+        logger.error(f"Error deleting packing entry {id}: {e}", exc_info=True)
+
     return redirect(url_for('packing.packing_list'))
 
 # Autocomplete for Packing Product Code
@@ -933,23 +936,25 @@ def machinery_options():
         logger.error(f"Error fetching machinery options: {str(e)}")
         return jsonify([])
 
-@packing.route('/re_aggregate', methods=['POST'])
+@packing.route('/manual_re_aggregate', methods=['POST'])
 def manual_re_aggregate():
     """Manual re-aggregation endpoint for fixing totals"""
     try:
         data = request.get_json()
-        packing_date_str = data.get('packing_date')
         week_commencing_str = data.get('week_commencing')
         
-        if not packing_date_str or not week_commencing_str:
-            return jsonify({'success': False, 'message': 'Missing packing_date or week_commencing'})
+        if not week_commencing_str:
+            return jsonify({'success': False, 'message': 'Missing week_commencing'})
         
-        packing_date = datetime.strptime(packing_date_str, '%Y-%m-%d').date()
         week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
         
-        re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
+        success, message = re_aggregate_filling_and_production_for_week(week_commencing)
         
-        return jsonify({'success': True, 'message': 'Re-aggregation completed successfully'})
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message})
+            
     except Exception as e:
         logger.error(f"Manual re-aggregation failed: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
@@ -1049,8 +1054,9 @@ def bulk_edit():
         db.session.commit()
 
         # Re-aggregate filling and production for affected dates
-        for packing_date, week_commencing in dates_to_reaggregate:
-            re_aggregate_filling_and_production_for_date(packing_date, week_commencing)
+        weeks_to_reaggregate = set(packing.week_commencing for packing in packings if (packing.week_commencing, packing.id) in dates_to_reaggregate)
+        for week_commencing in weeks_to_reaggregate:
+            re_aggregate_filling_and_production_for_week(week_commencing)
 
         return jsonify({'success': True, 'message': f'Successfully updated {len(packings)} packing entries'})
 
@@ -1128,7 +1134,7 @@ def update_cell():
             db.session.commit()
             
             # Re-aggregate filling and production
-            re_aggregate_filling_and_production_for_date(packing.packing_date, packing.week_commencing)
+            re_aggregate_filling_and_production_for_week(packing.week_commencing)
 
             # Return updated values
             return jsonify({

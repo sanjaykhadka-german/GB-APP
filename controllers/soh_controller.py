@@ -12,8 +12,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from app import db
 
-from controllers.packing_controller import update_packing_entry
-from controllers.bom_service import BOMService
+from controllers.packing_controller import update_packing_entry, re_aggregate_filling_and_production_for_week
 from models.item_master import ItemMaster
 from models.packing import Packing
 from models.filling import Filling
@@ -38,136 +37,74 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     """
     Create or update a packing entry when SOH data is uploaded.
     This is a simplified version specifically for SOH uploads.
-    Now uses the BOM service for downstream requirements.
+    It NO LONGER creates downstream entries directly. This is handled by the re-aggregation function.
     """
     from app import db
     from models.packing import Packing
-    from models.filling import Filling
-    from models.production import Production
-    from controllers.bom_service import BOMService
+
+    if not item:
+        raise ValueError(f"Item not found for code {fg_code}")
+        
+    if not item.department_id:
+        raise ValueError(f"No department assigned for item {fg_code}")
+        
+    if not item.machinery_id:
+        raise ValueError(f"No machinery assigned for item {fg_code}")
     
-    try:
-        print(f"\nCreating packing entry for {fg_code}:")
-        print(f"Week Commencing: {week_commencing}")
-        print(f"SOH Total Units: {soh_total_units}")
-        
-        # Validate item has required fields
-        if not item:
-            return False, f"Item not found for code {fg_code}"
-            
-        # Validate department and machinery assignments
-        if not item.department_id:
-            return False, f"No department assigned for item {fg_code}"
-            
-        if not item.machinery_id:
-            return False, f"No machinery assigned for item {fg_code}"
-        
-        # Get all required values from ItemMaster
-        avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
-        min_level = item.min_level or 0.0
-        max_level = item.max_level or 0.0
-        calculation_factor = item.calculation_factor or 1.0  # Default to 1.0 if not set
-        
-        print(f"Item values - avg_weight: {avg_weight_per_unit}, min: {min_level}, max: {max_level}, calc_factor: {calculation_factor}")
-        
-        # Calculate SOH requirement based on min/max levels
-        soh_requirement_units_week = int(max_level - soh_total_units) if soh_total_units < min_level else 0
-        soh_requirement_kg = soh_requirement_units_week * avg_weight_per_unit * calculation_factor
-        
-        print(f"Calculated requirements - units: {soh_requirement_units_week}, kg: {soh_requirement_kg}")
-        
-        # Check if packing entry already exists
-        existing_packing = Packing.query.filter_by(
+    avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
+    min_level = item.min_level or 0.0
+    max_level = item.max_level or 0.0
+    calculation_factor = item.calculation_factor or 1.0
+    
+    soh_requirement_units_week = int(max_level - soh_total_units) if soh_total_units < min_level else 0
+    
+    soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+    total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
+    soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+    
+    requirement_kg = round(total_stock_kg - soh_kg, 0) if (total_stock_kg - soh_kg) > 0 else 0
+    requirement_unit = math.ceil(requirement_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+
+    existing_packing = Packing.query.filter_by(
+        item_id=item.id,
+        week_commencing=week_commencing,
+        packing_date=week_commencing
+    ).first()
+    
+    if existing_packing:
+        packing = existing_packing
+        packing.soh_requirement_units_week = soh_requirement_units_week
+        packing.soh_units = soh_total_units
+        packing.soh_kg = soh_kg
+        packing.avg_weight_per_unit = avg_weight_per_unit
+        packing.calculation_factor = calculation_factor
+        packing.requirement_kg = requirement_kg
+        packing.requirement_unit = requirement_unit
+        packing.department_id = item.department_id
+        packing.machinery_id = item.machinery_id
+        packing.total_stock_kg = total_stock_kg
+        packing.total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+    else:
+        packing = Packing(
+            packing_date=week_commencing,
             item_id=item.id,
             week_commencing=week_commencing,
-            packing_date=week_commencing  # Use week_commencing as packing_date for SOH-generated entries
-        ).first()
+            soh_requirement_kg_week=soh_requirement_kg_week,
+            soh_requirement_units_week=soh_requirement_units_week,
+            soh_units=soh_total_units,
+            soh_kg=soh_kg,
+            avg_weight_per_unit=avg_weight_per_unit,
+            calculation_factor=calculation_factor,
+            requirement_kg=requirement_kg,
+            requirement_unit=requirement_unit,
+            department_id=item.department_id,
+            machinery_id=item.machinery_id,
+            total_stock_kg=total_stock_kg,
+            total_stock_units=math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        )
+        db.session.add(packing)
         
-        if existing_packing:
-            packing = existing_packing
-            packing.soh_requirement_units_week = soh_requirement_units_week
-            packing.soh_units = soh_total_units
-            packing.avg_weight_per_unit = avg_weight_per_unit
-            packing.calculation_factor = calculation_factor
-            packing.requirement_kg = soh_requirement_kg
-            packing.requirement_unit = soh_requirement_units_week  # Use requirement_unit (singular) instead of total_units
-            packing.department_id = item.department_id
-            packing.machinery_id = item.machinery_id
-        else:
-            packing = Packing(
-                packing_date=week_commencing,
-                item_id=item.id,
-                week_commencing=week_commencing,
-                soh_requirement_units_week=soh_requirement_units_week,
-                soh_units=soh_total_units,
-                avg_weight_per_unit=avg_weight_per_unit,
-                calculation_factor=calculation_factor,
-                requirement_kg=soh_requirement_kg,
-                requirement_unit=soh_requirement_units_week,  # Use requirement_unit (singular) instead of total_units
-                department_id=item.department_id,
-                machinery_id=item.machinery_id
-            )
-            db.session.add(packing)
-        
-        # Create downstream entries if there's a requirement
-        if soh_requirement_units_week > 0:
-            print("Creating downstream entries...")
-        
-            # Create filling entry if WIPF exists
-            if item.wipf_item_id:
-                print(f"Creating filling entry for WIPF item {item.wipf_item_id}")
-                filling = BOMService.create_filling_entry(
-                    item_id=item.id,
-                    week_commencing=week_commencing,
-                    requirement_kg=soh_requirement_kg,
-                    requirement_unit=soh_requirement_units_week  # Changed from requirement_units to requirement_unit
-                )
-                if filling:
-                    print(f"Created filling entry: {filling.id}")
-                    db.session.flush()  # Ensure filling entry is saved
-                else:
-                    print("Failed to create filling entry - check department/machinery assignments")
-            else:
-                print("No WIPF item found - skipping filling entry")
-            
-            # Create production entry if WIP exists
-            if item.wip_item_id:
-                print(f"Creating production entry for WIP item {item.wip_item_id}")
-                production = BOMService.create_production_entry(
-                    item_id=item.id,
-                    week_commencing=week_commencing,
-                    requirement_kg=soh_requirement_kg,
-                    requirement_unit=soh_requirement_units_week  # Changed from requirement_units to requirement_unit
-                )
-                if production:
-                    print(f"Created production entry: {production.id}")
-                    db.session.flush()  # Ensure production entry is saved
-                else:
-                    print("Failed to create production entry - check department/machinery assignments")
-            else:
-                print("No WIP item found - skipping production entry")
-            
-            # Create usage report entries
-            print("Creating usage report entries")
-            usage_reports = BOMService.create_usage_report(
-                item_id=item.id,
-                week_commencing=week_commencing,
-                requirement_kg=soh_requirement_kg,
-                requirement_unit=soh_requirement_units_week  # Changed from requirement_units to requirement_unit
-            )
-            if usage_reports:
-                print(f"Created {len(usage_reports)} usage report entries")
-            else:
-                print("Failed to create usage report entries")
-        
-        db.session.commit()
-        return True, "Successfully created/updated entries"
-        
-    except Exception as e:
-        db.session.rollback()
-        error_msg = f"Error creating entries: {str(e)}"
-        print(error_msg)
-        return False, error_msg
+    return True, "Packing entry queued for creation."
 
 @soh_bp.route('/soh_upload', methods=['GET', 'POST'])
 def soh_upload():
@@ -191,9 +128,6 @@ def soh_upload():
                 flash('Invalid file type', 'danger')
                 return render_template('soh/upload.html', current_page="soh")
 
-            # Start transaction
-            db.session.begin_nested()
-            
             # Read Excel file
             df = pd.read_excel(file, sheet_name=sheet_name)
             
@@ -210,7 +144,8 @@ def soh_upload():
                 'FG Code': ['FG Code', 'FGCode', 'FG_Code', 'fg_code', 'Item Code'],
                 'Description': ['Description', 'Desc', 'Item Description', 'description'],
                 'Soh_total_Box': ['Soh_total_Box', 'SOH Total Boxes', 'Total Boxes', 'soh_total_boxes'],
-                'Soh_total_Unit': ['Soh_total_Unit', 'SOH Total Units', 'Total Units', 'soh_total_units']
+                'Soh_total_Unit': ['Soh_total_Unit', 'SOH Total Units', 'Total Units', 'soh_total_units'],
+                'Week Commencing': ['Week Commencing', 'week_commencing', 'Week_Commencing']
             }
             
             # Find actual column names in the Excel file
@@ -222,7 +157,8 @@ def soh_upload():
                         actual_columns[expected_col] = var
                         found = True
                         break
-                if not found:
+                # Week Commencing is optional in the file
+                if not found and expected_col != 'Week Commencing':
                     flash(f'Required column "{expected_col}" not found. Looked for variations: {variations}', 'danger')
                     return render_template('soh/upload.html', current_page="soh")
             
@@ -234,85 +170,80 @@ def soh_upload():
             df[actual_columns['Soh_total_Box']] = df[actual_columns['Soh_total_Box']].fillna(0)
             df[actual_columns['Soh_total_Unit']] = df[actual_columns['Soh_total_Unit']].fillna(0)
             
-            # Process week commencing date
-            if form_week_commencing:
-                try:
-                    week_commencing = datetime.strptime(form_week_commencing, '%Y-%m-%d').date()
-                except ValueError:
-                    flash('Invalid week commencing date format', 'danger')
-                    return render_template('soh/upload.html', current_page="soh")
-            else:
-                week_commencing = datetime.now().date()
-            
             # Track success/errors
             success_count = 0
             error_count = 0
             errors = []
             
-            # Process each row
+            # Track all week commencing dates that are affected by this upload
+            affected_weeks = set()
+
             for index, row in df.iterrows():
+                fg_code = str(row[actual_columns['FG Code']]).strip()
+                if not fg_code:
+                    continue  # Skip empty rows
+
+                # Determine the week_commencing for the current row
+                row_week_commencing_str = str(row.get(actual_columns.get('Week Commencing'), '')).strip()
+                
+                if form_week_commencing:
+                    week_commencing = datetime.strptime(form_week_commencing, '%Y-%m-%d').date()
+                elif row_week_commencing_str:
+                    try:
+                        # Handle different date formats from Excel
+                        week_commencing = pd.to_datetime(row_week_commencing_str).date()
+                    except Exception:
+                        error_msg = f"Invalid 'Week Commencing' date format in row {index + 2}: {row_week_commencing_str}"
+                        errors.append(error_msg)
+                        error_count += 1
+                        continue
+                else:
+                    # Fallback if no date is provided at all
+                    error_msg = f"Missing 'Week Commencing' date in row {index + 2} and no date provided in the form."
+                    errors.append(error_msg)
+                    error_count += 1
+                    continue
+                    
+                # Add the current week to our set of affected weeks
+                affected_weeks.add(week_commencing)
+
                 try:
-                    fg_code = str(row[actual_columns['FG Code']]).strip()
-                    if not fg_code:
-                        continue  # Skip empty rows
-                        
-                    print(f"\nProcessing row for FG Code {fg_code}")
-                    
-                    # Get item from ItemMaster
-                    item = ItemMaster.query.filter_by(item_code=fg_code).first()
-                    
-                    # Get values from row, using safe conversion
-                    soh_total_boxes = safe_float(row[actual_columns['Soh_total_Box']])
-                    soh_total_units = safe_float(row[actual_columns['Soh_total_Unit']])
                     description = str(row[actual_columns['Description']]).strip()
+                    soh_total_boxes = int(safe_float(row[actual_columns['Soh_total_Box']]))
+                    soh_total_units = int(safe_float(row[actual_columns['Soh_total_Unit']]))
                     
-                    # Create or update SOH record
-                    existing_soh = SOH.query.filter_by(
-                        fg_code=fg_code,  # Use fg_code instead of item_id for lookup
-                        week_commencing=week_commencing
-                    ).first()
-                    
-                    if existing_soh:
-                        # Update existing record
-                        existing_soh.soh_total_boxes = soh_total_boxes
-                        existing_soh.soh_total_units = soh_total_units
-                        existing_soh.department_id = item.department_id if item else None
-                        existing_soh.machinery_id = item.machinery_id if item else None
-                        existing_soh.item_id = item.id if item else None
-                        existing_soh.description = item.description if item else description
-                        soh = existing_soh
-                    else:
-                        # Create new record
-                        soh = SOH(
+                    # Find item master record
+                    item = ItemMaster.query.filter_by(item_code=fg_code).first()
+
+                    # Create or update SOH entry
+                    soh_entry = SOH.query.filter_by(item_id=item.id if item else None, week_commencing=week_commencing).first()
+                    if soh_entry:
+                        soh_entry.soh_total_boxes = soh_total_boxes
+                        soh_entry.soh_total_units = soh_total_units
+                        soh_entry.edit_date = datetime.now(pytz.timezone('Australia/Sydney'))
+                    elif item:
+                        soh_entry = SOH(
+                            item_id=item.id,
+                            fg_code=fg_code,
                             week_commencing=week_commencing,
-                            item_id=item.id if item else None,
-                            machinery_id=item.machinery_id if item else None,
-                            department_id=item.department_id if item else None,
-                            fg_code=fg_code,  # Use the fg_code from the Excel file
-                            description=item.description if item else description,  # Use description from ItemMaster if available
+                            description=description,
                             soh_total_boxes=soh_total_boxes,
-                            soh_total_units=soh_total_units
+                            soh_total_units=soh_total_units,
+                            edit_date=datetime.now(pytz.timezone('Australia/Sydney'))
                         )
-                        db.session.add(soh)
+                        db.session.add(soh_entry)
                     
-                    # Only create downstream entries if we have a valid item
+                    # Only create packing entries if we have a valid item
                     if item:
-                        # Create downstream entries
-                        success, message = create_packing_entry_from_soh(
+                        # Create packing entry - no longer creates downstream here
+                        create_packing_entry_from_soh(
                             fg_code=item.item_code,
                             description=item.description,
                             week_commencing=week_commencing,
                             soh_total_units=soh_total_units,
                             item=item
                         )
-                        
-                        if success:
-                            success_count += 1
-                        else:
-                            error_msg = f"Error processing row for FG Code {fg_code}: {message}"
-                            print(error_msg)
-                            errors.append(error_msg)
-                            error_count += 1
+                        success_count += 1
                     else:
                         # Still count as success if we can save the SOH record
                         success_count += 1
@@ -328,18 +259,35 @@ def soh_upload():
             # Commit transaction if no errors
             if error_count == 0:
                 db.session.commit()
-                flash(f'Successfully processed {success_count} records', 'success')
+                flash(f'Successfully processed {success_count} SOH records.', 'success')
+
+                # After successful commit, run aggregation for all affected weeks
+                aggregation_success_count = 0
+                aggregation_error_count = 0
+                for week in affected_weeks:
+                    print(f"Running aggregation for week: {week}")
+                    success, message = re_aggregate_filling_and_production_for_week(week)
+                    if success:
+                        aggregation_success_count += 1
+                    else:
+                        aggregation_error_count += 1
+                        print(f"Aggregation failed for week {week}: {message}")
+
+                if aggregation_error_count > 0:
+                    flash(f'⚠️ Downstream aggregation failed for {aggregation_error_count} out of {len(affected_weeks)} week(s). Please check logs.', 'warning')
+                else:
+                    flash(f'✅ Successfully re-aggregated downstream requirements for {len(affected_weeks)} week(s).', 'success')
             else:
                 db.session.rollback()
                 flash(f'Processed {success_count} records with {error_count} errors. First 5 errors: {"; ".join(errors[:5])}', 'danger')
-                
-            return render_template('soh/upload.html', current_page="soh")
-                
+
         except Exception as e:
             db.session.rollback()
-            flash(f'Error processing file: {str(e)}', 'danger')
-            return render_template('soh/upload.html', current_page="soh")
+            flash(f'An unexpected error occurred: {str(e)}', 'danger')
+            print(f"Error during SOH upload: {str(e)}")
 
+        return redirect(url_for('soh.soh_list'))
+    
     return render_template('soh/upload.html', current_page="soh")
 
 @soh_bp.route('/download_template')

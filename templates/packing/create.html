@@ -233,17 +233,20 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Flatpickr for date picker
+    // Initialize Flatpickr for date picker with onChange callback
     flatpickr("#packing_date", {
         dateFormat: "Y-m-d",
-        defaultDate: "today"
+        defaultDate: "today",
+        onChange: function(selectedDates, dateStr, instance) {
+            // Automatically update week commencing when packing date changes
+            updateWeekCommencing();
+            // Also check for duplicates when date changes
+            checkDuplicate();
+        }
     });
 
-    // Set week_commencing to Monday of current week
-    const today = new Date();
-    const monday = new Date(today);
-    monday.setDate(monday.getDate() - monday.getDay() + 1);
-    document.getElementById('week_commencing').value = monday.toISOString().split('T')[0];
+    // Set week_commencing to Monday of current week initially
+    updateWeekCommencing();
     });
 
     function updateDescription() {
@@ -296,13 +299,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateWeekCommencing() {
-        const packingDate = document.getElementById('packing_date').value;
+        const packingDateElement = document.getElementById('packing_date');
+        const weekCommencingElement = document.getElementById('week_commencing');
+        
+        let packingDate = packingDateElement.value;
+        
+        // If no packing date is set, use today's date
+        if (!packingDate) {
+            const today = new Date();
+            packingDate = today.toISOString().split('T')[0];
+            packingDateElement.value = packingDate;
+        }
+        
         if (packingDate) {
             const date = new Date(packingDate);
             const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
             const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
             const monday = new Date(date.setDate(diff));
-            document.getElementById('week_commencing').value = monday.toISOString().split('T')[0];
+            weekCommencingElement.value = monday.toISOString().split('T')[0];
         }
     }
 
@@ -325,8 +339,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     const submitButton = document.getElementById('submitButton');
                     if (data.exists) {
-                        submitButton.disabled = true;
-                        alert(`A packing entry already exists for ${product_code} on ${packing_date}. Please choose a different date or product.`);
+                        if (!machinery) {
+                            // If no machinery selected, suggest selecting one
+                            alert(`A packing entry already exists for ${product_code} on ${packing_date}. Please select a different machinery to create another entry.`);
+                            submitButton.disabled = true;
+                        } else {
+                            // If machinery selected and duplicate found, block creation
+                            alert(`A packing entry already exists for ${product_code} on ${packing_date} with this machinery. Please select a different machinery, date, or product.`);
+                            submitButton.disabled = true;
+                        }
                     } else {
                         submitButton.disabled = false;
                     }

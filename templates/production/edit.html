@@ -18,7 +18,7 @@
     <form method="post" action="{{ url_for('production.production_edit', id=production.id) }}">
         <div class="form-group">
             <label for="week_commencing">Week Commencing</label>
-            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ production.week_commencing.strftime('%Y-%m-%d') }}" required>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ production.week_commencing.strftime('%Y-%m-%d') }}" readonly required>
         </div>
         <div class="form-group">
             <label for="production_date" class="form-label">Production Date</label>
@@ -44,4 +44,37 @@
         <a href="{{ url_for('production.production_list') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
+
+<!-- Include Flatpickr CSS and JS from CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Flatpickr for production date picker with onChange callback
+    flatpickr("#production_date", {
+        dateFormat: "Y-m-d",
+        defaultDate: "{{ production.production_date.strftime('%Y-%m-%d') }}",
+        onChange: function(selectedDates, dateStr, instance) {
+            // Automatically update week commencing when production date changes
+            updateWeekCommencing();
+        }
+    });
+});
+
+function updateWeekCommencing() {
+    const productionDateElement = document.getElementById('production_date');
+    const weekCommencingElement = document.getElementById('week_commencing');
+    
+    const productionDate = productionDateElement.value;
+    
+    if (productionDate) {
+        const date = new Date(productionDate);
+        const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        const monday = new Date(date.setDate(diff));
+        weekCommencingElement.value = monday.toISOString().split('T')[0];
+    }
+}
+</script>
 {% endblock %}

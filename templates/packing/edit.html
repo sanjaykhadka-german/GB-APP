@@ -177,10 +177,16 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Flatpickr for date picker
+    // Initialize Flatpickr for date picker with onChange callback
     flatpickr("#packing_date", {
         dateFormat: "Y-m-d",
-        defaultDate: "{{ packing.packing_date }}"
+        defaultDate: "{{ packing.packing_date }}",
+        onChange: function(selectedDates, dateStr, instance) {
+            // Automatically update week commencing when packing date changes
+            updateWeekCommencing();
+            // Also check for duplicates when date changes
+            checkDuplicate();
+        }
     });
 
     // Show item master info on load if product is selected
@@ -189,6 +195,21 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDescription();
     }
 });
+
+function updateWeekCommencing() {
+    const packingDateElement = document.getElementById('packing_date');
+    const weekCommencingElement = document.getElementById('week_commencing');
+    
+    const packingDate = packingDateElement.value;
+    
+    if (packingDate) {
+        const date = new Date(packingDate);
+        const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        const monday = new Date(date.setDate(diff));
+        weekCommencingElement.value = monday.toISOString().split('T')[0];
+    }
+}
 
 function updateDescription() {
     const productSelect = document.getElementById('product_code');

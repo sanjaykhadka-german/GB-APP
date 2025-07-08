@@ -1,133 +1,137 @@
-from app import create_app, db
+import logging
+from datetime import date
+from app import app, db
+from models.item_master import ItemMaster
 from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
-from models.usage_report_table import UsageReportTable
-from models.raw_material_report_table import RawMaterialReportTable
-from models.item_master import ItemMaster
-from controllers.recipe_controller import usage, raw_material_report
-from sqlalchemy import func
+from models.soh import SOH
+from models.machinery import Machinery
+from controllers.bom_service import BOMService
 
-def check_aggregation_issues():
-    """Check if aggregation issues are fixed"""
-    print("Checking aggregation issues...\n")
-    
-    # 1. Check packing vs production totals
-    print("1. Checking packing vs production totals:")
-    packing_total = db.session.query(func.sum(Packing.requirement_kg)).scalar() or 0
-    production_total = db.session.query(func.sum(Production.total_kg)).scalar() or 0
-    
-    print(f"   Packing total: {packing_total:.2f} kg")
-    print(f"   Production total: {production_total:.2f} kg")
-    print(f"   Difference: {abs(packing_total - production_total):.2f} kg")
-    
-    if abs(packing_total - production_total) < 0.01:
-        print("   ✓ Totals match!")
-    else:
-        print("   ✗ Totals don't match")
-    
-    # 2. Check WIP aggregation (1004 and 2015)
-    print("\n2. Checking WIP aggregation:")
-    
-    # Check 1004 items
-    fg_1004_items = ItemMaster.query.filter(
-        ItemMaster.item_code.in_(['1004.090.1', '1004.200.1'])
-    ).all()
-    
-    if fg_1004_items:
-        total_1004_packing = 0
-        for fg in fg_1004_items:
-            fg_packing = db.session.query(func.sum(Packing.requirement_kg)).filter_by(item_id=fg.id).scalar() or 0
-            total_1004_packing += fg_packing
-            print(f"   FG {fg.item_code}: {fg_packing:.2f} kg")
-        
-        # Check production for WIP 1004
-        wip_1004 = ItemMaster.query.filter_by(item_code='1004').first()
-        if wip_1004:
-            wip_1004_production = db.session.query(func.sum(Production.total_kg)).filter_by(item_id=wip_1004.id).scalar() or 0
-            print(f"   WIP 1004 production: {wip_1004_production:.2f} kg")
-            
-            if abs(total_1004_packing - wip_1004_production) < 0.01:
-                print("   ✓ 1004 aggregation correct!")
-            else:
-                print("   ✗ 1004 aggregation incorrect")
-    
-    # Check 2015 items
-    fg_2015_items = ItemMaster.query.filter(
-        ItemMaster.item_code.in_(['2015.125.02', '2015.100.2'])
-    ).all()
-    
-    if fg_2015_items:
-        total_2015_packing = 0
-        for fg in fg_2015_items:
-            fg_packing = db.session.query(func.sum(Packing.requirement_kg)).filter_by(item_id=fg.id).scalar() or 0
-            total_2015_packing += fg_packing
-            print(f"   FG {fg.item_code}: {fg_packing:.2f} kg")
-        
-        # Check production for WIP 2015
-        wip_2015 = ItemMaster.query.filter_by(item_code='2015').first()
-        if wip_2015:
-            wip_2015_production = db.session.query(func.sum(Production.total_kg)).filter_by(item_id=wip_2015.id).scalar() or 0
-            print(f"   WIP 2015 production: {wip_2015_production:.2f} kg")
-            
-            if abs(total_2015_packing - wip_2015_production) < 0.01:
-                print("   ✓ 2015 aggregation correct!")
-            else:
-                print("   ✗ 2015 aggregation incorrect")
-    
-    # 3. Check WIPF aggregation (1004.6500)
-    print("\n3. Checking WIPF aggregation:")
-    
-    # Check if 1004.6500 exists in filling
-    wipf_1004 = ItemMaster.query.filter_by(item_code='1004.6500').first()
-    if wipf_1004:
-        wipf_1004_filling = db.session.query(func.sum(Filling.requirement_kg)).filter_by(item_id=wipf_1004.id).scalar() or 0
-        print(f"   WIPF 1004.6500 filling: {wipf_1004_filling:.2f} kg")
-        
-        if wipf_1004_filling > 0:
-            print("   ✓ WIPF 1004.6500 has filling entries")
-        else:
-            print("   ✗ WIPF 1004.6500 has no filling entries")
-    
-    # Check if missing WIPF items exist
-    missing_wipf = ['2015.100', '2015.125']
-    for wipf_code in missing_wipf:
-        wipf_item = ItemMaster.query.filter_by(item_code=wipf_code).first()
-        if wipf_item:
-            wipf_filling = db.session.query(func.sum(Filling.requirement_kg)).filter_by(item_id=wipf_item.id).scalar() or 0
-            print(f"   WIPF {wipf_code} filling: {wipf_filling:.2f} kg")
-        else:
-            print(f"   ✗ WIPF {wipf_code} does not exist")
-    
-    # 4. Check usage reports have proper data
-    print("\n4. Checking usage reports:")
-    usage_count = UsageReportTable.query.count()
-    unknown_recipes = UsageReportTable.query.filter_by(recipe_code='Unknown').count()
-    zero_usage = UsageReportTable.query.filter_by(usage_kg=0).count()
-    
-    print(f"   Total usage reports: {usage_count}")
-    print(f"   Unknown recipe codes: {unknown_recipes}")
-    print(f"   Zero usage entries: {zero_usage}")
-    
-    if usage_count > 0 and unknown_recipes == 0 and zero_usage == 0:
-        print("   ✓ Usage reports look good!")
-    else:
-        print("   ✗ Usage reports have issues")
-    
-    # 5. Check raw material reports
-    print("\n5. Checking raw material reports:")
-    raw_count = RawMaterialReportTable.query.count()
-    zero_meat = RawMaterialReportTable.query.filter_by(meat_required=0).count()
-    
-    print(f"   Total raw material reports: {raw_count}")
-    print(f"   Zero meat required entries: {zero_meat}")
-    
-    if raw_count > 0 and zero_meat == 0:
-        print("   ✓ Raw material reports look good!")
-    else:
-        print("   ✗ Raw material reports have issues")
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-if __name__ == "__main__":
-    app = create_app()
+def run_aggregation_test():
+    """
+    A dedicated test to validate the downstream aggregation logic of the BOMService.
+    This test operates within a single transaction and rolls back at the end
+    to ensure the database is not permanently altered.
+    """
     with app.app_context():
-        check_aggregation_issues() 
+        logging.info("--- Starting Aggregation Logic Test ---")
+        
+        # Define test parameters
+        test_week = date(2025, 7, 14)
+        product_codes = {
+            '1004.090.1': 25000,
+            '1004.200.1': 25000,
+            '2015.125.02': 20500,
+            '2015.100.2': 21900
+        }
+        
+        # --- Transaction Start ---
+        try:
+            # Ensure a clean slate for the test week
+            logging.info(f"Clearing any existing test data for week {test_week}...")
+            Packing.query.filter_by(week_commencing=test_week).delete()
+            Filling.query.filter_by(week_commencing=test_week).delete()
+            Production.query.filter_by(week_commencing=test_week).delete()
+            SOH.query.filter_by(week_commencing=test_week).delete()
+            
+            # Get or create a dummy machinery record
+            machinery = Machinery.query.first()
+            if not machinery:
+                machinery = Machinery(machineryName='Test Machine')
+                db.session.add(machinery)
+
+            # Create the necessary Packing and SOH entries
+            logging.info("Creating prerequisite Packing and SOH entries...")
+            for code, kg in product_codes.items():
+                item = ItemMaster.query.filter_by(item_code=code).first()
+                if not item:
+                    logging.error(f"Test setup failed: Item code {code} not found.")
+                    raise Exception(f"ItemNotFound: {code}")
+
+                # Create SOH entry
+                soh = SOH(item_id=item.id, week_commencing=test_week, soh_total_units=0)
+                db.session.add(soh)
+
+                # Create Packing entry
+                packing = Packing(
+                    item_id=item.id,
+                    week_commencing=test_week,
+                    packing_date=test_week, # Use week_commencing as packing_date for simplicity
+                    requirement_kg=kg,
+                    machinery_id=machinery.machineID
+                )
+                db.session.add(packing)
+            
+            db.session.flush() # Flush to assign IDs
+            logging.info("Test data created successfully.")
+
+            # --- Invoke the service ---
+            logging.info("Calling BOMService.update_downstream_requirements...")
+            success = BOMService.update_downstream_requirements(week_commencing=test_week)
+            if not success:
+                raise Exception("BOMService call failed.")
+            logging.info("BOMService call completed.")
+
+            # --- Verification ---
+            logging.info("--- Verifying Results ---")
+            all_tests_passed = True
+
+            # Scenario 1 Verification
+            wipf_1004 = ItemMaster.query.filter_by(item_code='1004.6500').first()
+            filling_1004 = Filling.query.filter_by(item_id=wipf_1004.id, week_commencing=test_week).all()
+            if len(filling_1004) == 1 and filling_1004[0].requirement_kg == 50000:
+                logging.info("[PASS] Scenario 1 (Filling): Correctly created 1 filling entry for 1004.6500 with 50,000 kg.")
+            else:
+                logging.error(f"[FAIL] Scenario 1 (Filling): Expected 1 entry for 50,000 kg. Found {len(filling_1004)} entries with kgs: {[f.requirement_kg for f in filling_1004]}")
+                all_tests_passed = False
+
+            wip_1004 = ItemMaster.query.filter_by(item_code='1004').first()
+            prod_1004 = Production.query.filter_by(item_id=wip_1004.id, week_commencing=test_week).all()
+            if len(prod_1004) == 1 and prod_1004[0].total_kg == 50000:
+                logging.info("[PASS] Scenario 1 (Production): Correctly created 1 production entry for 1004 with 50,000 kg.")
+            else:
+                logging.error(f"[FAIL] Scenario 1 (Production): Expected 1 entry for 50,000 kg. Found {len(prod_1004)} entries with kgs: {[p.total_kg for p in prod_1004]}")
+                all_tests_passed = False
+
+            # Scenario 2 Verification
+            wipf_2015_125 = ItemMaster.query.filter_by(item_code='2015.125').first()
+            wipf_2015_100 = ItemMaster.query.filter_by(item_code='2015.100').first()
+            filling_2015_125 = Filling.query.filter_by(item_id=wipf_2015_125.id, week_commencing=test_week).first()
+            filling_2015_100 = Filling.query.filter_by(item_id=wipf_2015_100.id, week_commencing=test_week).first()
+
+            if filling_2015_125 and filling_2015_100 and filling_2015_125.requirement_kg == 20500 and filling_2015_100.requirement_kg == 21900:
+                 logging.info("[PASS] Scenario 2 (Filling): Correctly created 2 separate filling entries with correct kgs.")
+            else:
+                logging.error(f"[FAIL] Scenario 2 (Filling): Check failed. 2015.125 kg: {filling_2015_125.requirement_kg if filling_2015_125 else 'Not found'}. 2015.100 kg: {filling_2015_100.requirement_kg if filling_2015_100 else 'Not found'}")
+                all_tests_passed = False
+
+            wip_2015 = ItemMaster.query.filter_by(item_code='2015').first()
+            prod_2015 = Production.query.filter_by(item_id=wip_2015.id, week_commencing=test_week).all()
+            if len(prod_2015) == 1 and prod_2015[0].total_kg == 42400:
+                logging.info("[PASS] Scenario 2 (Production): Correctly created 1 production entry for 2015 with 42,400 kg.")
+            else:
+                logging.error(f"[FAIL] Scenario 2 (Production): Expected 1 entry for 42,400 kg. Found {len(prod_2015)} entries with kgs: {[p.total_kg for p in prod_2015]}")
+                all_tests_passed = False
+            
+            if all_tests_passed:
+                logging.info("\n✅✅✅ All aggregation logic tests passed! ✅✅✅")
+            else:
+                logging.error("\n❌❌❌ One or more aggregation logic tests failed. ❌❌❌")
+
+
+        except Exception as e:
+            logging.error(f"An error occurred during the test: {e}", exc_info=True)
+        
+        finally:
+            # --- Transaction Rollback ---
+            logging.warning("Rolling back transaction. No changes were saved to the database.")
+            db.session.rollback()
+
+
+if __name__ == '__main__':
+    run_aggregation_test() 

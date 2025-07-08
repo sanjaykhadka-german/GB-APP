@@ -33,8 +33,11 @@ class Packing(db.Model):
     machinery = db.relationship('Machinery', backref='packing_records')
     department = db.relationship('Department', backref='packing_records')
     
-    # Allergen relationship through junction table
-    allergens = db.relationship("Allergen", secondary="packing_allergen", backref="packing_records")
+    # Allergens come from the item_master relationship - no need for separate packing_allergen table
+    @property
+    def allergens(self):
+        """Get allergens from the related item_master record"""
+        return self.item.allergens if self.item else []
 
     __table_args__ = (
         UniqueConstraint(
@@ -45,15 +48,3 @@ class Packing(db.Model):
 
     def __repr__(self):
         return f"<Packing {self.item.item_code} - {self.packing_date}>"
-
-
-class PackingAllergen(db.Model):
-    __tablename__ = 'packing_allergen'
-    
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    packing_id = db.Column(db.Integer, db.ForeignKey('packing.id'), nullable=False)
-    allergen_id = db.Column(db.Integer, db.ForeignKey('allergen.allergens_id'), nullable=False)
-
-    __table_args__ = (
-        db.UniqueConstraint('packing_id', 'allergen_id', name='uix_packing_allergen'),
-    )
