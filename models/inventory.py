@@ -12,18 +12,19 @@ class Inventory(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
     price_per_kg = db.Column(db.Float, nullable=False)
-    total_required = db.Column(db.Float, nullable=False)
-    soh = db.Column(db.Float, nullable=False)
-    monday = db.Column(db.Float, nullable=False)
-    tuesday = db.Column(db.Float, nullable=False)
-    wednesday = db.Column(db.Float, nullable=False)
-    thursday = db.Column(db.Float, nullable=False)
-    friday = db.Column(db.Float, nullable=False)
-    monday2 = db.Column(db.Float, nullable=False)
-    tuesday2 = db.Column(db.Float, nullable=False)
-    wednesday2 = db.Column(db.Float, nullable=False)
-    thursday2 = db.Column(db.Float, nullable=False)
-    friday2 = db.Column(db.Float, nullable=False)
+    
+    # New columns based on user requirements
+    required_total_production = db.Column(db.Float, default=0.0)  # C1/C2: Required in TOTAL for production
+    value_required_rm = db.Column(db.Float, default=0.0)  # F1/F2: $ Value for Required RM
+    current_stock = db.Column(db.Float, default=0.0)  # G1/G2: SOH from raw_material_stocktake
+    supplier_name = db.Column(db.String(255), nullable=True)  # H1/H2: Supplier Name
+    required_for_plan = db.Column(db.Float, default=0.0)  # I1/I2: Required for plan
+    variance_week = db.Column(db.Float, default=0.0)  # J1/J2: Variance for the week
+    kg_required = db.Column(db.Float, default=0.0)  # K1/K2: KG Required
+    variance = db.Column(db.Float, default=0.0)  # L1/L2: Variance
+    to_be_ordered = db.Column(db.Float, default=0.0)  # M1/M2: To Be Ordered
+    closing_stock = db.Column(db.Float, default=0.0)  # N1/N2: Closing Stock
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -32,16 +33,26 @@ class Inventory(db.Model):
 
     @property
     def value_soh(self):
-        return self.soh * self.price_per_kg
+        """Calculate SOH value: current_stock * price_per_kg"""
+        return self.current_stock * self.price_per_kg
 
     @property
-    def total_to_be_ordered(self):
-        return (self.monday + self.tuesday + self.wednesday + self.thursday + self.friday) - self.soh
+    def calculated_value_required_rm(self):
+        """Calculate $ Value for Required RM: required_total_production * price_per_kg"""
+        return self.required_total_production * self.price_per_kg
 
     @property
-    def variance(self):
-        return (self.monday2 + self.tuesday2 + self.wednesday2 + self.thursday2 + self.friday2) - self.total_to_be_ordered
+    def calculated_variance_week(self):
+        """Calculate Variance for the week: IFERROR(current_stock - required_for_plan, "")"""
+        try:
+            return self.current_stock - self.required_for_plan
+        except:
+            return 0.0
 
     @property
-    def value_to_be_ordered(self):
-        return (self.monday2 + self.tuesday2 + self.wednesday2 + self.thursday2 + self.friday2) * self.price_per_kg
+    def calculated_variance(self):
+        """Calculate Variance: IFERROR(current_stock - kg_required, "")"""
+        try:
+            return self.current_stock - self.kg_required
+        except:
+            return 0.0
