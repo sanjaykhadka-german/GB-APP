@@ -12,24 +12,6 @@
         {% endif %}
     {% endwith %}
 
-    <!-- Filter Controls -->
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    <label class="form-label">Filter by Product Family:</label>
-                    <select id="productFamilyFilter" class="form-select">
-                        <option value="">Show All Products</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <button type="button" class="btn btn-secondary" onclick="clearFilter()">Clear Filter</button>
-                    <span id="filterStatus" class="text-muted ms-3"></span>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Production List (Fixed/Read-only) -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -53,27 +35,23 @@
                     </thead>
                     <tbody>
                         {% for prod in production_entries %}
-                        <tr class="production-row" data-family="{{ prod.item.item_code.split('.')[0] if prod.item and prod.item.item_code else '' }}" data-kg="{{ prod.total_kg or 0 }}">
+                        <tr>
                             <td>{{ prod.id }}</td>
                             <td>{{ prod.week_commencing.strftime('%Y-%m-%d') }}</td>
                             <td>{{ prod.production_date.strftime('%Y-%m-%d') }}</td>
-                            <td>
-                                <span class="clickable-code" data-family="{{ prod.item.item_code.split('.')[0] if prod.item and prod.item.item_code else '' }}">
-                                    {{ prod.recipe_code }}
-                                </span>
-                            </td>
+                            <td>{{ prod.recipe_code }}</td>
                             <td>{{ prod.item.description if prod.item else 'N/A' }}</td>
                             <td>{{ "%.4f"|format(prod.batches|float) }}</td>
-                            <td class="kg-value">{{ "%.1f"|format(prod.total_kg|float) }}</td>
+                            <td>{{ "%.1f"|format(prod.total_kg|float) }}</td>
                             <td>
                                 <a href="{{ url_for('production.production_edit', id=prod.id) }}" class="btn btn-sm btn-warning">Edit</a>
                                 <button class="btn btn-sm btn-danger" onclick="deleteProduction('{{ prod.id }}')">Delete</button>
                             </td>
                         </tr>
                         {% endfor %}
-                        <tr class="table-info production-total-row">
+                        <tr class="table-info">
                             <td colspan="6"><strong>Total KG:</strong></td>
-                            <td id="productionTotalKg"><strong>{{ "%.1f"|format(total_production_kg|float) }}</strong></td>
+                            <td><strong>{{ "%.1f"|format(total_production_kg|float) }}</strong></td>
                             <td></td>
                         </tr>
                     </tbody>
@@ -118,26 +96,18 @@
                         </thead>
                         <tbody>
                             {% for pack in packing_entries %}
-                            <tr class="packing-row" data-family="{{ pack.item.item_code.split('.')[0] if pack.item and pack.item.item_code else '' }}" data-kg="{{ pack.requirement_kg or 0 }}" data-units="{{ pack.requirement_unit or 0 }}">
+                            <tr>
                                 <td>
                                     <input type="checkbox" class="row-checkbox" value="{{ pack.id }}">
                                 </td>
                                 <td>{{ pack.week_commencing.strftime('%Y-%m-%d') }}</td>
                                 <td>{{ pack.packing_date.strftime('%Y-%m-%d') if pack.packing_date else 'N/A' }}</td>
-                                <td>
-                                    {% if pack.item and pack.item.item_code %}
-                                        <span class="clickable-code" data-family="{{ pack.item.item_code.split('.')[0] }}">
-                                            {{ pack.item.item_code }}
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
+                                <td>{{ pack.item.item_code if pack.item else 'N/A' }}</td>
                                 <td>{{ pack.item.description if pack.item else 'N/A' }}</td>
                                 <td>{{ "%.1f"|format(pack.special_order_kg|float) if pack.special_order_kg else '0.0' }}</td>
                                 <td>{{ pack.special_order_unit|int if pack.special_order_unit else '0' }}</td>
-                                <td class="kg-value">{{ "%.1f"|format(pack.requirement_kg|float) if pack.requirement_kg else '0.0' }}</td>
-                                <td class="units-value">{{ pack.requirement_unit|int if pack.requirement_unit else '0' }}</td>
+                                <td>{{ "%.1f"|format(pack.requirement_kg|float) if pack.requirement_kg else '0.0' }}</td>
+                                <td>{{ pack.requirement_unit|int if pack.requirement_unit else '0' }}</td>
                                 <td>{{ "%.2f"|format(pack.avg_weight_per_unit|float) if pack.avg_weight_per_unit else '0.00' }}</td>
                                 <td>{{ pack.soh_requirement_units_week|int if pack.soh_requirement_units_week else '0' }}</td>
                                 <td>{{ "%.1f"|format(pack.calculation_factor|float) if pack.calculation_factor else '0.0' }}</td>
@@ -160,10 +130,10 @@
                                 </td>
                             </tr>
                             {% endfor %}
-                            <tr class="table-info packing-total-row">
+                            <tr class="table-info">
                                 <td colspan="7"><strong>Total:</strong></td>
-                                <td id="packingTotalKg"><strong>{{ "%.1f"|format(total_packing_kg|float) }}</strong></td>
-                                <td id="packingTotalUnits"><strong>{{ total_packing_units|int }}</strong></td>
+                                <td><strong>{{ "%.1f"|format(total_packing_kg|float) }}</strong></td>
+                                <td><strong>{{ total_packing_units|int }}</strong></td>
                                 <td colspan="6"></td>
                             </tr>
                         </tbody>
@@ -199,29 +169,21 @@
                     </thead>
                     <tbody>
                         {% for fill in filling_entries %}
-                        <tr class="filling-row" data-family="{{ fill.item.item_code.split('.')[0] if fill.item and fill.item.item_code else '' }}" data-kg="{{ fill.kilo_per_size or 0 }}">
+                        <tr>
                             <td>{{ fill.week_commencing.strftime('%Y-%m-%d') }}</td>
                             <td>{{ fill.filling_date.strftime('%Y-%m-%d') if fill.filling_date else 'N/A' }}</td>
-                            <td>
-                                {% if fill.item and fill.item.item_code %}
-                                    <span class="clickable-code" data-family="{{ fill.item.item_code.split('.')[0] }}">
-                                        {{ fill.item.item_code }}
-                                    </span>
-                                {% else %}
-                                    <span class="text-muted">N/A</span>
-                                {% endif %}
-                            </td>
+                            <td>{{ fill.item.item_code if fill.item else 'N/A' }}</td>
                             <td>{{ fill.item.description if fill.item else 'N/A' }}</td>
-                            <td class="kg-value">{{ "%.1f"|format(fill.kilo_per_size|float) if fill.kilo_per_size else '0.0' }}</td>
+                            <td>{{ "%.1f"|format(fill.kilo_per_size|float) if fill.kilo_per_size else '0.0' }}</td>
                             <td>
                                 <a href="{{ url_for('filling.filling_edit', id=fill.id) }}" class="btn btn-sm btn-warning">Edit</a>
                                 <button type="button" class="btn btn-sm btn-danger" onclick="deleteFilling('{{ fill.id }}')">Delete</button>
                             </td>
                         </tr>
                         {% endfor %}
-                        <tr class="table-info filling-total-row">
+                        <tr class="table-info">
                             <td colspan="4"><strong>Total Kilo per Size:</strong></td>
-                            <td id="fillingTotalKg"><strong>{{ "%.1f"|format(total_filling_kg|float) }}</strong></td>
+                            <td><strong>{{ "%.1f"|format(total_filling_kg|float) }}</strong></td>
                             <td></td>
                         </tr>
                     </tbody>
@@ -270,180 +232,15 @@
     background-color: #d1ecf1 !important;
     font-weight: bold;
 }
-
-.clickable-code {
-    cursor: pointer;
-    color: #0066cc;
-    text-decoration: underline;
-    font-weight: bold;
-}
-
-.clickable-code:hover {
-    color: #004499;
-    background-color: #f8f9fa;
-    padding: 2px 4px;
-    border-radius: 3px;
-}
-
-.filtered-row {
-    background-color: #fff3cd !important;
-}
-
-.hidden-row {
-    display: none !important;
-}
 </style>
 
 <script>
-// Global variables for filtering
-let currentFilter = '';
-let allProductFamilies = new Set();
-
-// Initialize product families on page load
-document.addEventListener('DOMContentLoaded', function() {
-    populateProductFamilies();
-    
-    // Add event delegation for clickable codes
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('clickable-code')) {
-            const family = e.target.getAttribute('data-family');
-            if (family) {
-                filterByFamily(family);
-            }
-        }
-    });
-});
-
-function populateProductFamilies() {
-    // Collect all unique product families from all tables
-    const allRows = document.querySelectorAll('.production-row, .packing-row, .filling-row');
-    allProductFamilies.clear();
-    
-    allRows.forEach(row => {
-        const family = row.getAttribute('data-family');
-        if (family && family.trim() !== '') {
-            allProductFamilies.add(family);
-        }
-    });
-    
-    // Populate the dropdown
-    const select = document.getElementById('productFamilyFilter');
-    select.innerHTML = '<option value="">Show All Products</option>';
-    
-    Array.from(allProductFamilies).sort().forEach(family => {
-        const option = document.createElement('option');
-        option.value = family;
-        option.textContent = `${family} - Products`;
-        select.appendChild(option);
-    });
-}
-
-function updateTotals() {
-    // Update Production totals
-    let productionTotal = 0;
-    document.querySelectorAll('.production-row:not(.hidden-row)').forEach(row => {
-        const kg = parseFloat(row.getAttribute('data-kg')) || 0;
-        productionTotal += kg;
-    });
-    document.getElementById('productionTotalKg').innerHTML = `<strong>${productionTotal.toFixed(1)}</strong>`;
-    
-    // Update Packing totals
-    let packingTotalKg = 0;
-    let packingTotalUnits = 0;
-    document.querySelectorAll('.packing-row:not(.hidden-row)').forEach(row => {
-        const kg = parseFloat(row.getAttribute('data-kg')) || 0;
-        const units = parseInt(row.getAttribute('data-units')) || 0;
-        packingTotalKg += kg;
-        packingTotalUnits += units;
-    });
-    document.getElementById('packingTotalKg').innerHTML = `<strong>${packingTotalKg.toFixed(1)}</strong>`;
-    document.getElementById('packingTotalUnits').innerHTML = `<strong>${packingTotalUnits}</strong>`;
-    
-    // Update Filling totals
-    let fillingTotal = 0;
-    document.querySelectorAll('.filling-row:not(.hidden-row)').forEach(row => {
-        const kg = parseFloat(row.getAttribute('data-kg')) || 0;
-        fillingTotal += kg;
-    });
-    document.getElementById('fillingTotalKg').innerHTML = `<strong>${fillingTotal.toFixed(1)}</strong>`;
-}
-
-function filterByFamily(family) {
-    if (!family || family.trim() === '') {
-        clearFilter();
-        return;
-    }
-    
-    currentFilter = family;
-    
-    // Update dropdown
-    document.getElementById('productFamilyFilter').value = family;
-    
-    // Filter all rows across all tables
-    const allRows = document.querySelectorAll('.production-row, .packing-row, .filling-row');
-    let visibleCount = 0;
-    
-    allRows.forEach(row => {
-        const rowFamily = row.getAttribute('data-family');
-        if (rowFamily === family) {
-            row.classList.remove('hidden-row');
-            row.classList.add('filtered-row');
-            visibleCount++;
-        } else {
-            row.classList.add('hidden-row');
-            row.classList.remove('filtered-row');
-        }
-    });
-    
-    // Update totals based on filtered rows
-    updateTotals();
-    
-    // Update filter status
-    document.getElementById('filterStatus').textContent = `Showing ${visibleCount} items for family "${family}"`;
-    
-    // Scroll to top for better visibility
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function clearFilter() {
-    currentFilter = '';
-    
-    // Clear dropdown
-    document.getElementById('productFamilyFilter').value = '';
-    
-    // Show all rows
-    const allRows = document.querySelectorAll('.production-row, .packing-row, .filling-row');
-    allRows.forEach(row => {
-        row.classList.remove('hidden-row', 'filtered-row');
-    });
-    
-    // Update totals to show all rows
-    updateTotals();
-    
-    // Clear filter status
-    document.getElementById('filterStatus').textContent = '';
-}
-
-// Handle dropdown change
-document.getElementById('productFamilyFilter').addEventListener('change', function() {
-    const selectedFamily = this.value;
-    if (selectedFamily) {
-        filterByFamily(selectedFamily);
-    } else {
-        clearFilter();
-    }
-});
-
 function toggleAllCheckboxes() {
     const selectAll = document.getElementById('selectAll');
     const checkboxes = document.querySelectorAll('.row-checkbox');
     
     checkboxes.forEach(checkbox => {
-        // Only toggle checkboxes in visible rows
-        const row = checkbox.closest('tr');
-        if (!row.classList.contains('hidden-row')) {
-            checkbox.checked = selectAll.checked;
-        }
+        checkbox.checked = selectAll.checked;
     });
 }
 
@@ -452,15 +249,11 @@ function bulkEditSelected() {
     const checkboxes = document.querySelectorAll('.row-checkbox:checked');
     
     checkboxes.forEach(checkbox => {
-        // Only include checkboxes from visible rows
-        const row = checkbox.closest('tr');
-        if (!row.classList.contains('hidden-row')) {
-            selectedIds.push(checkbox.value);
-        }
+        selectedIds.push(checkbox.value);
     });
     
     if (selectedIds.length === 0) {
-        alert('Please select at least one visible packing entry to edit.');
+        alert('Please select at least one packing entry to edit.');
         return;
     }
     

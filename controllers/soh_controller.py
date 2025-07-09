@@ -41,29 +41,39 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     """
     from app import db
     from models.packing import Packing
+    import math
 
     if not item:
         raise ValueError(f"Item not found for code {fg_code}")
         
+    # Allow packing creation even without department/machinery - can be set later
     if not item.department_id:
-        raise ValueError(f"No department assigned for item {fg_code}")
+        print(f"Warning: No department assigned for item {fg_code}")
         
     if not item.machinery_id:
-        raise ValueError(f"No machinery assigned for item {fg_code}")
+        print(f"Warning: No machinery assigned for item {fg_code}")
     
     avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
     min_level = item.min_level or 0.0
     max_level = item.max_level or 0.0
     calculation_factor = item.calculation_factor or 1.0
     
-    soh_requirement_units_week = int(max_level - soh_total_units) if soh_total_units < min_level else 0
+    # Calculate SOH requirement: how many units we need to reach max_level
+    soh_requirement_units_week = max(0, int(max_level - soh_total_units))
     
+    # Calculate the requirement in KG
     soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-    total_stock_kg = soh_requirement_kg_week * calculation_factor if calculation_factor is not None else 0
+    
+    # Current SOH in KG
     soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
     
-    requirement_kg = round(total_stock_kg - soh_kg, 0) if (total_stock_kg - soh_kg) > 0 else 0
-    requirement_unit = math.ceil(requirement_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+    # Requirement calculations for packing
+    requirement_kg = soh_requirement_kg_week  # This is what we need to pack
+    requirement_unit = soh_requirement_units_week  # This is how many units we need to pack
+    
+    # Total stock calculations (includes what we have + what we'll pack)
+    total_stock_kg = soh_kg + requirement_kg
+    total_stock_units = soh_total_units + requirement_unit
 
     existing_packing = Packing.query.filter_by(
         item_id=item.id,
@@ -83,7 +93,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         packing.department_id = item.department_id
         packing.machinery_id = item.machinery_id
         packing.total_stock_kg = total_stock_kg
-        packing.total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        packing.total_stock_units = total_stock_units
     else:
         packing = Packing(
             packing_date=week_commencing,
@@ -100,9 +110,12 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
             department_id=item.department_id,
             machinery_id=item.machinery_id,
             total_stock_kg=total_stock_kg,
-            total_stock_units=math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+            total_stock_units=total_stock_units
         )
         db.session.add(packing)
+        
+    # Commit the packing entry to database
+    db.session.commit()
         
     return True, "Packing entry queued for creation."
 
@@ -491,6 +504,33 @@ def soh_create():
                 )
                 if not success:
                     flash(f"Warning: Could not update Packing for FG Code {fg_code}", "warning")
+                
+                # Create downstream Filling and Production entries
+                try:
+                    from controllers.bom_service import BOMService
+                    
+                    # Create Filling entry for WIPF
+                    filling_entry = BOMService.create_filling_entry(
+                        item_id=item.id,
+                        week_commencing=packing_date_for_update,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if filling_entry:
+                        db.session.commit()
+                    
+                    # Create Production entry for WIP
+                    production_entry = BOMService.create_production_entry(
+                        item_id=item.id,
+                        week_commencing=packing_date_for_update,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if production_entry:
+                        db.session.commit()
+                        
+                except Exception as e:
+                    flash(f"Warning: Could not create downstream entries for {fg_code}: {str(e)}", "warning")
 
             flash("SOH entry created successfully!", "success")
             return redirect(url_for('soh.soh_list'))
@@ -585,6 +625,33 @@ def soh_edit(id):
                 )
                 if not success:
                     flash(f"Warning: Could not update Packing for FG Code {fg_code}", "warning")
+                
+                # Create downstream Filling and Production entries
+                try:
+                    from controllers.bom_service import BOMService
+                    
+                    # Create Filling entry for WIPF
+                    filling_entry = BOMService.create_filling_entry(
+                        item_id=item.id,
+                        week_commencing=packing_date,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if filling_entry:
+                        db.session.commit()
+                    
+                    # Create Production entry for WIP
+                    production_entry = BOMService.create_production_entry(
+                        item_id=item.id,
+                        week_commencing=packing_date,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if production_entry:
+                        db.session.commit()
+                        
+                except Exception as e:
+                    flash(f"Warning: Could not create downstream entries for {fg_code}: {str(e)}", "warning")
 
             flash("SOH entry updated successfully!", "success")
             return redirect(url_for('soh.soh_list'))

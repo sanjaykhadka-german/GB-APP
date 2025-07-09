@@ -83,7 +83,7 @@ def create_or_update_soh_entry(product_code, week_commencing, soh_units=0):
         return None
 
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-                         soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False):
+                         soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
     try:
         # Convert packing_date to date object if it's a string
         if isinstance(packing_date, str):
@@ -126,12 +126,33 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.avg_weight_per_unit = avg_weight_per_unit
         packing.soh_requirement_units_week = soh_requirement_units_week
         packing.calculation_factor = calculation_factor
+        
+        # Calculate requirement_kg and requirement_unit based on SOH requirements
+        if soh_requirement_units_week and avg_weight_per_unit:
+            # Calculate what we need to pack in KG
+            requirement_kg = soh_requirement_units_week * avg_weight_per_unit
+            requirement_unit = soh_requirement_units_week
+            
+            # Add special order to requirements
+            if special_order_kg and special_order_kg > 0:
+                requirement_kg += special_order_kg
+                special_order_units = special_order_kg / avg_weight_per_unit if avg_weight_per_unit > 0 else 0
+                requirement_unit += special_order_units
+                
+            packing.requirement_kg = round(requirement_kg, 1)
+            packing.requirement_unit = int(requirement_unit)
+        else:
+            # If no requirements, set to 0
+            packing.requirement_kg = 0.0
+            packing.requirement_unit = 0
 
         db.session.commit()
 
         # Create SOH entry if requested
         if create_soh:
-            create_or_update_soh_entry(fg_code, week_commencing, soh_requirement_units_week or 0)
+            # For new packing entries, create SOH with 0 units (current stock level)
+            # The requirement is what we need to pack to reach max_level
+            create_or_update_soh_entry(fg_code, week_commencing, current_soh_units)
 
         return True, "Packing entry updated successfully"
 
@@ -384,11 +405,42 @@ def packing_create():
                 calculation_factor=calculation_factor,
                 week_commencing=week_commencing,
                 machinery=machinery,
-                create_soh=create_soh
+                create_soh=create_soh,
+                current_soh_units=soh_units  # Pass the actual current SOH units for SOH creation
             )
 
             if success:
                 flash(f'✅ SUCCESS: Packing entry created for {product_code}! {message}', 'success')
+                
+                # Create downstream Filling and Production entries
+                try:
+                    from controllers.bom_service import BOMService
+                    
+                    # Create Filling entry for WIPF
+                    filling_entry = BOMService.create_filling_entry(
+                        item_id=item.id,
+                        week_commencing=week_commencing,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if filling_entry:
+                        db.session.commit()
+                        flash(f"✅ Created Filling entry for {product_code}", "success")
+                    
+                    # Create Production entry for WIP
+                    production_entry = BOMService.create_production_entry(
+                        item_id=item.id,
+                        week_commencing=week_commencing,
+                        requirement_kg=0,  # Will be calculated from all packing entries
+                        requirement_unit=0
+                    )
+                    if production_entry:
+                        db.session.commit()
+                        flash(f"✅ Created Production entry for {product_code}", "success")
+                        
+                except Exception as e:
+                    flash(f"Warning: Could not create downstream entries for {product_code}: {str(e)}", "warning")
+                    
             else:
                 flash(f'⚠️ ERROR: {message}', 'danger')
                 return redirect(url_for('packing.packing_create'))
@@ -540,13 +592,53 @@ def packing_edit(id):
             flash(f'Error updating packing entry: {str(e)}', 'danger')
             logger.error(f"Error updating packing entry: {str(e)}")
     
+    # GET request - show comprehensive form with production, packing, and filling data
+    week_commencing = packing.week_commencing
+    
+    # Get all production entries for this week
+    production_entries = Production.query.filter_by(week_commencing=week_commencing).order_by(Production.production_date).all()
+    total_production_kg = sum([prod.total_kg or 0 for prod in production_entries])
+    
+    # Get production data (recipe family if available)
+    production_data = {}
+    if production_entries:
+        # Try to get recipe family from the first production entry
+        first_prod = production_entries[0]
+        if first_prod.item and first_prod.item.item_code:
+            # Extract recipe family from item code (e.g., "6002" from "6002.1")
+            recipe_family = first_prod.item.item_code.split('.')[0] if '.' in first_prod.item.item_code else first_prod.item.item_code
+            production_data['recipe_family'] = recipe_family
+    
+    # Get all packing entries for this week
+    packing_entries = Packing.query.filter_by(week_commencing=week_commencing).order_by(Packing.packing_date).all()
+    total_packing_kg = sum([pack.requirement_kg or 0 for pack in packing_entries])
+    total_packing_units = sum([pack.requirement_unit or 0 for pack in packing_entries])
+    
+    # Get all filling entries for this week
+    filling_entries = Filling.query.filter_by(week_commencing=week_commencing).order_by(Filling.filling_date).all()
+    total_filling_kg = sum([fill.kilo_per_size or 0 for fill in filling_entries])
+    
     # Get data for form
     products = ItemMaster.query.join(ItemMaster.item_type).filter(
         ItemMaster.item_type.has(type_name='FG') | ItemMaster.item_type.has(type_name='WIPF')
     ).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     allergens = Allergen.query.all()
-    return render_template('packing/edit.html', packing=packing, products=products, machinery=machinery, allergens=allergens, current_page="packing")
+    
+    return render_template('packing/edit.html', 
+                         packing=packing,
+                         production_entries=production_entries,
+                         production_data=production_data,
+                         total_production_kg=total_production_kg,
+                         packing_entries=packing_entries,
+                         total_packing_kg=total_packing_kg,
+                         total_packing_units=total_packing_units,
+                         filling_entries=filling_entries,
+                         total_filling_kg=total_filling_kg,
+                         products=products,
+                         machinery=machinery,
+                         allergens=allergens,
+                         current_page="packing")
 
 @packing.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
@@ -1120,4 +1212,82 @@ def search_product_codes():
         return jsonify(results)
     except Exception as e:
         return jsonify([]), 500
+
+@packing.route('/bulk_edit_comprehensive', methods=['GET', 'POST'])
+def bulk_edit_comprehensive():
+    """Handle bulk editing of packing entries from the comprehensive edit page"""
+    if request.method == 'GET':
+        # Handle GET request with IDs parameter
+        ids = request.args.get('ids', '')
+        if not ids:
+            flash('No packing entries selected for bulk edit.', 'error')
+            return redirect(url_for('packing.packing_list'))
+        
+        packing_ids = [int(id.strip()) for id in ids.split(',') if id.strip().isdigit()]
+        packings = Packing.query.filter(Packing.id.in_(packing_ids)).all()
+        
+        if not packings:
+            flash('No valid packing entries found for bulk edit.', 'error')
+            return redirect(url_for('packing.packing_list'))
+        
+        machinery_list = Machinery.query.order_by(Machinery.machineryName).all()
+        
+        return render_template('packing/bulk_edit.html', 
+                             packings=packings, 
+                             machinery=machinery_list,
+                             current_page="packing")
+    
+    elif request.method == 'POST':
+        # Handle form submission from comprehensive edit page
+        try:
+            updated_count = 0
+            week_to_reaggregate = None
+            
+            # Process machinery updates
+            for key, value in request.form.items():
+                if key.startswith('machinery_') and value:
+                    packing_id = key.replace('machinery_', '')
+                    pack = Packing.query.get(packing_id)
+                    if pack:
+                        old_machinery_id = pack.machinery_id
+                        new_machinery_id = int(value)
+                        
+                        if old_machinery_id != new_machinery_id:
+                            pack.machinery_id = new_machinery_id
+                            updated_count += 1
+                            week_to_reaggregate = pack.week_commencing
+            
+            if updated_count > 0:
+                db.session.commit()
+                flash(f'Updated machinery for {updated_count} packing entries!', 'success')
+                
+                # Re-aggregate downstream after bulk update
+                if week_to_reaggregate:
+                    try:
+                        result, message = re_aggregate_filling_and_production_for_week(week_to_reaggregate)
+                        if result:
+                            flash('Downstream entries recalculated!', 'success')
+                        else:
+                            flash(f'Updated but re-aggregation failed: {message}', 'warning')
+                    except Exception as e:
+                        flash(f'Updated but re-aggregation failed: {str(e)}', 'warning')
+            else:
+                flash('No changes were made.', 'info')
+            
+            # Return JSON response for AJAX requests
+            if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                return jsonify({'success': True, 'message': f'Updated {updated_count} entries'})
+            
+            # For regular form submissions, redirect back to the edit page
+            return redirect(request.referrer or url_for('packing.packing_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            error_msg = f'Error during bulk update: {str(e)}'
+            flash(error_msg, 'error')
+            
+            if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                return jsonify({'success': False, 'message': error_msg})
+            
+            return redirect(request.referrer or url_for('packing.packing_list'))
 
