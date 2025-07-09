@@ -63,7 +63,7 @@ def create_app():
     app.register_blueprint(filling_bp)
     app.register_blueprint(production_bp)
     app.register_blueprint(recipe_bp)
-    app.register_blueprint(inventory_bp)
+    app.register_blueprint(inventory_bp, url_prefix='/inventory')
     app.register_blueprint(department_bp)
     app.register_blueprint(machinery_bp)    
     app.register_blueprint(category_bp)
@@ -76,6 +76,7 @@ def create_app():
     from models import soh, finished_goods, item_master, recipe_master
 
     from models import machinery, department, category, production, packing, filling, allergen
+    
 
     
 

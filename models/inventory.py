@@ -1,58 +1,73 @@
 # models/inventory.py
 from database import db
 from datetime import datetime
-from models.category import Category
-from models.item_master import ItemMaster
+from sqlalchemy.orm import relationship
 
 class Inventory(db.Model):
     __tablename__ = 'inventory'
 
     id = db.Column(db.Integer, primary_key=True)
     week_commencing = db.Column(db.Date, nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
-    raw_material_id = db.Column(db.Integer, db.ForeignKey('item_master.id'), nullable=False)
-    price_per_kg = db.Column(db.Float, nullable=False)
+    price_per_kg = db.Column(db.DECIMAL(10,2), default=0.00)
+    required_total_production = db.Column(db.DECIMAL(10,2), default=0.00)
+    value_required_rm = db.Column(db.DECIMAL(10,2), default=0.00)
+    current_stock = db.Column(db.DECIMAL(10,2), default=0.00)
+    required_for_plan = db.Column(db.DECIMAL(10,2), default=0.00)
+    variance_week = db.Column(db.DECIMAL(10,2), default=0.00)
+    kg_required = db.Column(db.DECIMAL(10,2), default=0.00)
+    variance = db.Column(db.DECIMAL(10,2), default=0.00)
+    to_be_ordered = db.Column(db.DECIMAL(10,2), default=0.00)
+    closing_stock = db.Column(db.DECIMAL(10,2), default=0.00)
     
-    # New columns based on user requirements
-    required_total_production = db.Column(db.Float, default=0.0)  # C1/C2: Required in TOTAL for production
-    value_required_rm = db.Column(db.Float, default=0.0)  # F1/F2: $ Value for Required RM
-    current_stock = db.Column(db.Float, default=0.0)  # G1/G2: SOH from raw_material_stocktake
-    supplier_name = db.Column(db.String(255), nullable=True)  # H1/H2: Supplier Name
-    required_for_plan = db.Column(db.Float, default=0.0)  # I1/I2: Required for plan
-    variance_week = db.Column(db.Float, default=0.0)  # J1/J2: Variance for the week
-    kg_required = db.Column(db.Float, default=0.0)  # K1/K2: KG Required
-    variance = db.Column(db.Float, default=0.0)  # L1/L2: Variance
-    to_be_ordered = db.Column(db.Float, default=0.0)  # M1/M2: To Be Ordered
-    closing_stock = db.Column(db.Float, default=0.0)  # N1/N2: Closing Stock
+    # Daily columns for requirements/usage
+    monday = db.Column(db.DECIMAL(10,2), default=0.00)
+    tuesday = db.Column(db.DECIMAL(10,2), default=0.00)
+    wednesday = db.Column(db.DECIMAL(10,2), default=0.00)
+    thursday = db.Column(db.DECIMAL(10,2), default=0.00)
+    friday = db.Column(db.DECIMAL(10,2), default=0.00)
+    saturday = db.Column(db.DECIMAL(10,2), default=0.00)
+    sunday = db.Column(db.DECIMAL(10,2), default=0.00)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
 
     # Relationships
+    item = db.relationship('ItemMaster', backref='inventories')
     category = db.relationship('Category', backref='inventories')
-    raw_material = db.relationship('ItemMaster', backref='inventories')
 
-    @property
-    def value_soh(self):
-        """Calculate SOH value: current_stock * price_per_kg"""
-        return self.current_stock * self.price_per_kg
+    def calculate_value_required_rm(self):
+        """Calculate $ Value for Required RM (F2 = C2 * E2)"""
+        return float(self.required_total_production or 0) * float(self.price_per_kg or 0)
 
-    @property
-    def calculated_value_required_rm(self):
-        """Calculate $ Value for Required RM: required_total_production * price_per_kg"""
-        return self.required_total_production * self.price_per_kg
-
-    @property
-    def calculated_variance_week(self):
-        """Calculate Variance for the week: IFERROR(current_stock - required_for_plan, "")"""
+    def calculate_variance_week(self):
+        """Calculate Variance for the week (J2 = G2 - I2)"""
         try:
-            return self.current_stock - self.required_for_plan
+            return float(self.current_stock or 0) - float(self.required_for_plan or 0)
         except:
-            return 0.0
+            return 0.00
 
-    @property
-    def calculated_variance(self):
-        """Calculate Variance: IFERROR(current_stock - kg_required, "")"""
+    def calculate_variance(self):
+        """Calculate Variance (L2 = G2 - K2)"""
         try:
-            return self.current_stock - self.kg_required
+            return float(self.current_stock or 0) - float(self.kg_required or 0)
         except:
-            return 0.0
+            return 0.00
+
+    def calculate_weekly_total(self):
+        """Calculate total from daily requirements"""
+        daily_values = [
+            float(self.monday or 0),
+            float(self.tuesday or 0),
+            float(self.wednesday or 0),
+            float(self.thursday or 0),
+            float(self.friday or 0),
+            float(self.saturday or 0),
+            float(self.sunday or 0)
+        ]
+        return sum(daily_values)
+
+    def __repr__(self):
+        return f'<Inventory {self.item.description} - {self.week_commencing}>'

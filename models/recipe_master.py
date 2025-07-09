@@ -46,8 +46,8 @@ class RecipeMaster(db.Model):
     @property
     def recipe_code(self):
         """Generate recipe_code from the finished good item code."""
-        if hasattr(self, '_recipe_wip_item') and self._recipe_wip_item:
-            return self._recipe_wip_item.item_code
+        if self.recipe_wip:
+            return self.recipe_wip.item_code
         return "Unknown"
     
     @recipe_code.setter
@@ -58,8 +58,8 @@ class RecipeMaster(db.Model):
     @property
     def description(self):
         """Generate description from the finished good item description."""
-        if hasattr(self, '_recipe_wip_item') and self._recipe_wip_item:
-            return self._recipe_wip_item.description
+        if self.recipe_wip:
+            return self.recipe_wip.description
         return "Unknown"
     
     @description.setter
@@ -87,14 +87,15 @@ class RecipeMaster(db.Model):
     # Links back to the ItemMaster object that represents the WIP recipe (finished good)
     recipe_wip = relationship(
         'ItemMaster', 
-        foreign_keys=[recipe_wip_id], 
+        foreign_keys=[recipe_wip_id],
         back_populates='components'
     )
     
     # Component item relationship
     component_item = relationship(
         'ItemMaster', 
-        foreign_keys=[component_item_id]
+        foreign_keys=[component_item_id],
+        back_populates='used_in_recipes'
     )
 
     # Ensure a component can only be added once to a specific recipe

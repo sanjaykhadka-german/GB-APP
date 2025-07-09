@@ -86,11 +86,10 @@ class ItemMaster(db.Model):
     )
 
     # If this item is used as a component (RM or WIP), this relationship shows all the recipes it is used in
-    # Added overlaps parameter to fix the warning
     used_in_recipes = relationship(
         'RecipeMaster', 
         foreign_keys='RecipeMaster.component_item_id',
-        overlaps="component_item"
+        back_populates='component_item'
     )
 
     def __repr__(self):

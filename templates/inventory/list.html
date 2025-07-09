@@ -1,350 +1,324 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventory Management</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-        }
-        .navbar {
-            background: linear-gradient(45deg, #2c3e50, #3498db);
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-        }
-        .navbar-brand {
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        .card {
-            border: none;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .card-header {
-            background: linear-gradient(45deg, #3498db, #2980b9);
-            color: white;
-            font-weight: bold;
-        }
-        .table-responsive {
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        .table th {
-            background-color: #f8f9fa;
-            border-top: none;
-            font-weight: 600;
-            text-align: center;
-            vertical-align: middle;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .table td {
-            text-align: center;
-            vertical-align: middle;
-            white-space: nowrap;
-        }
-        .btn-primary {
-            background: linear-gradient(45deg, #3498db, #2980b9);
-            border: none;
-        }
-        .btn-primary:hover {
-            background: linear-gradient(45deg, #2980b9, #3498db);
-        }
-        .filter-section {
-            background-color: #e9ecef;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .loading {
-            text-align: center;
-            padding: 2rem;
-        }
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(52, 152, 219, 0.05);
-        }
-        .numeric {
-            text-align: right !important;
-        }
-        .variance-positive {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .variance-negative {
-            color: #dc3545;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-warehouse"></i> Inventory Management
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/">Home</a>
-                <a class="nav-link" href="/item-master">Item Master</a>
-                <a class="nav-link" href="/soh_list">SOH</a>
-                <a class="nav-link" href="/packing">Packing</a>
-                <a class="nav-link active" href="/inventory">Inventory</a>
-            </div>
-        </div>
-    </nav>
+{% extends 'index.html' %}
 
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-boxes"></i> Inventory List
-                        </h5>
-                        <div>
-                            <button class="btn btn-success me-2" onclick="exportInventories()">
-                                <i class="fas fa-file-excel"></i> Export
-                            </button>
-                            <a href="/inventory/create" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Add New
-                            </a>
-                        </div>
+{% block nav %}
+    {% set current_page = 'inventory' %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>Inventory List</h2>
+
+    <!-- Search Section -->
+    <section id="search" class="mb-4">
+        <h3>Search Inventory</h3>
+        <form id="searchForm">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_item">Item:</label>
+                        <input type="text" class="form-control" id="search_item" placeholder="Search by item">
                     </div>
-                    <div class="card-body">
-                        <!-- Filter Section -->
-                        <div class="filter-section">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <label for="filterWeek" class="form-label">Week Commencing</label>
-                                    <input type="date" id="filterWeek" class="form-control" onchange="filterInventories()">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filterCategory" class="form-label">Category</label>
-                                    <select id="filterCategory" class="form-select" onchange="filterInventories()">
-                                        <option value="">All Categories</option>
-                                        {% for category in categories %}
-                                            <option value="{{ category.id }}">{{ category.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filterRawMaterial" class="form-label">Raw Material</label>
-                                    <select id="filterRawMaterial" class="form-select" onchange="filterInventories()">
-                                        <option value="">All Raw Materials</option>
-                                        {% for material in raw_materials %}
-                                            <option value="{{ material.id }}">{{ material.item_code }} - {{ material.description }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">&nbsp;</label>
-                                    <div class="d-grid">
-                                        <button class="btn btn-secondary" onclick="clearFilters()">
-                                            <i class="fas fa-times"></i> Clear Filters
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Table Section -->
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Week Commencing</th>
-                                        <th>Item Code</th>
-                                        <th>Item Description</th>
-                                        <th>Required in TOTAL<br>for production</th>
-                                        <th>Category</th>
-                                        <th>$/KG</th>
-                                        <th>$ Value for<br>Required RM</th>
-                                        <th>SOH</th>
-                                        <th>Supplier Name</th>
-                                        <th>Required for plan</th>
-                                        <th>Variance for<br>the week</th>
-                                        <th>KG Required</th>
-                                        <th>Variance</th>
-                                        <th>To Be Ordered</th>
-                                        <th>Closing Stock</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="inventoryTableBody">
-                                    <!-- Data will be loaded here dynamically -->
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Loading indicator -->
-                        <div id="loading" class="loading" style="display: none;">
-                            <i class="fas fa-spinner fa-spin"></i> Loading...
-                        </div>
-
-                        <!-- No data message -->
-                        <div id="noData" class="text-center p-4" style="display: none;">
-                            <i class="fas fa-inbox fa-2x text-muted mb-3"></i>
-                            <p class="text-muted">No inventory records found.</p>
-                        </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_category">Category:</label>
+                        <select class="form-control" id="search_category">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="search_week_commencing">Week Commencing:</label>
+                        <input type="date" class="form-control" id="search_week_commencing">
                     </div>
                 </div>
             </div>
+            <button type="button" class="btn btn-primary" onclick="searchInventory()">Search</button>
+            <button type="button" class="btn btn-secondary" onclick="resetSearch()">Reset</button>
+        </form>
+    </section>
+
+    <!-- Column Visibility Toggle Section -->
+    <section id="column-toggle" class="mb-4">
+        <h3>Column Visibility</h3>
+        <div class="column-toggle">
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="0" onchange="updateColumnVisibility(this)"> Week Commencing</label>
+                <label><input type="checkbox" checked data-col-index="1" onchange="updateColumnVisibility(this)"> Item</label>
+                <label><input type="checkbox" checked data-col-index="2" onchange="updateColumnVisibility(this)"> Required Total Production</label>
+                <label><input type="checkbox" checked data-col-index="3" onchange="updateColumnVisibility(this)"> Category</label>
+                <label><input type="checkbox" checked data-col-index="4" onchange="updateColumnVisibility(this)"> Price/KG</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="5" onchange="updateColumnVisibility(this)"> Value Required RM</label>
+                <label><input type="checkbox" checked data-col-index="6" onchange="updateColumnVisibility(this)"> SOH</label>
+                <label><input type="checkbox" checked data-col-index="7" onchange="updateColumnVisibility(this)"> Supplier Name</label>
+                <label><input type="checkbox" checked data-col-index="8" onchange="updateColumnVisibility(this)"> Required for Plan</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="9" onchange="updateColumnVisibility(this)"> Variance Week</label>
+                <label><input type="checkbox" checked data-col-index="10" onchange="updateColumnVisibility(this)"> KG Required</label>
+                <label><input type="checkbox" checked data-col-index="11" onchange="updateColumnVisibility(this)"> Variance</label>
+                <label><input type="checkbox" checked data-col-index="12" onchange="updateColumnVisibility(this)"> To Be Ordered</label>
+                <label><input type="checkbox" checked data-col-index="13" onchange="updateColumnVisibility(this)"> Closing Stock</label>
+            </div>
+            <div class="toggle-row">
+                <label><input type="checkbox" checked data-col-index="14" onchange="updateColumnVisibility(this)"> Monday</label>
+                <label><input type="checkbox" checked data-col-index="15" onchange="updateColumnVisibility(this)"> Tuesday</label>
+                <label><input type="checkbox" checked data-col-index="16" onchange="updateColumnVisibility(this)"> Wednesday</label>
+                <label><input type="checkbox" checked data-col-index="17" onchange="updateColumnVisibility(this)"> Thursday</label>
+                <label><input type="checkbox" checked data-col-index="18" onchange="updateColumnVisibility(this)"> Friday</label>
+                <label><input type="checkbox" checked data-col-index="19" onchange="updateColumnVisibility(this)"> Saturday</label>
+                <label><input type="checkbox" checked data-col-index="20" onchange="updateColumnVisibility(this)"> Sunday</label>
+            </div>
+            <div class="toggle-actions">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="showAllColumns()">Show All</button>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="resetToDefault()">Reset to Default</button>
+                <button type="button" class="btn btn-sm btn-info" onclick="showDailyView()">Show Daily View</button>
+                <button type="button" class="btn btn-sm btn-info" onclick="showSummaryView()">Show Summary View</button>
+            </div>
         </div>
+    </section>
+    
+    <div class="mb-3">
+        <a href="{{ url_for('inventory.create_inventory') }}" class="btn btn-primary">Add New Inventory</a>
+        <button type="button" class="btn btn-success" onclick="exportToExcel()">Export to Excel</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Load inventory data on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadInventoryData();
-        });
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-        function loadInventoryData() {
-            const loading = document.getElementById('loading');
-            const noData = document.getElementById('noData');
-            const tableBody = document.getElementById('inventoryTableBody');
-            
-            loading.style.display = 'block';
-            noData.style.display = 'none';
-            
-            // Get filter values
-            const weekCommencing = document.getElementById('filterWeek').value;
-            const category = document.getElementById('filterCategory').value;
-            const rawMaterial = document.getElementById('filterRawMaterial').value;
-            
-            // Build query string
-            const params = new URLSearchParams();
-            if (weekCommencing) params.append('week_commencing', weekCommencing);
-            if (category) params.append('category', category);
-            if (rawMaterial) params.append('raw_material', rawMaterial);
-            
-            fetch(`/inventory/get_data?${params.toString()}`)
-                .then(response => response.json())
-                .then(result => {
-                    loading.style.display = 'none';
-                    
-                    if (result.error) {
-                        alert('Error loading data: ' + result.error);
-                        return;
-                    }
-                    
-                    if (result.data && result.data.length > 0) {
-                        displayInventoryData(result.data);
-                    } else {
-                        noData.style.display = 'block';
-                    }
-                })
-                .catch(error => {
-                    loading.style.display = 'none';
-                    console.error('Error:', error);
-                    alert('Error loading inventory data');
-                });
-        }
-
-        function displayInventoryData(data) {
-            const tableBody = document.getElementById('inventoryTableBody');
-            tableBody.innerHTML = '';
-            
-            data.forEach(item => {
-                const row = document.createElement('tr');
-                
-                // Format variance values with colors
-                const varianceWeekClass = item.variance_week >= 0 ? 'variance-positive' : 'variance-negative';
-                const varianceClass = item.variance >= 0 ? 'variance-positive' : 'variance-negative';
-                
-                row.innerHTML = `
-                    <td>${formatDate(item.week_commencing)}</td>
-                    <td>${item.item_code || ''}</td>
-                    <td>${item.raw_material_name || ''}</td>
-                    <td class="numeric">${formatNumber(item.required_total_production)}</td>
-                    <td>${item.category_name || ''}</td>
-                    <td class="numeric">$${formatNumber(item.price_per_kg)}</td>
-                    <td class="numeric">$${formatNumber(item.value_required_rm)}</td>
-                    <td class="numeric">${formatNumber(item.current_stock)}</td>
-                    <td>${item.supplier_name || ''}</td>
-                    <td class="numeric">${formatNumber(item.required_for_plan)}</td>
-                    <td class="numeric ${varianceWeekClass}">${formatNumber(item.variance_week)}</td>
-                    <td class="numeric">${formatNumber(item.kg_required)}</td>
-                    <td class="numeric ${varianceClass}">${formatNumber(item.variance)}</td>
-                    <td class="numeric">${formatNumber(item.to_be_ordered)}</td>
-                    <td class="numeric">${formatNumber(item.closing_stock)}</td>
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered" id="inventoryTable">
+            <thead class="table-dark">
+                <tr>
+                    <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
+                    <th data-column="item">Item <span class="sort-arrow"></span></th>
+                    <th data-column="required_total_production">Required Total Production <span class="sort-arrow"></span></th>
+                    <th data-column="category">Category <span class="sort-arrow"></span></th>
+                    <th data-column="price_per_kg">Price/KG <span class="sort-arrow"></span></th>
+                    <th data-column="value_required_rm">Value Required RM <span class="sort-arrow"></span></th>
+                    <th data-column="current_stock">SOH <span class="sort-arrow"></span></th>
+                    <th data-column="supplier_name">Supplier Name <span class="sort-arrow"></span></th>
+                    <th data-column="required_for_plan">Required for Plan <span class="sort-arrow"></span></th>
+                    <th data-column="variance_week">Variance Week <span class="sort-arrow"></span></th>
+                    <th data-column="kg_required">KG Required <span class="sort-arrow"></span></th>
+                    <th data-column="variance">Variance <span class="sort-arrow"></span></th>
+                    <th data-column="to_be_ordered">To Be Ordered <span class="sort-arrow"></span></th>
+                    <th data-column="closing_stock">Closing Stock <span class="sort-arrow"></span></th>
+                    <th data-column="monday" class="daily-column">Monday <span class="sort-arrow"></span></th>
+                    <th data-column="tuesday" class="daily-column">Tuesday <span class="sort-arrow"></span></th>
+                    <th data-column="wednesday" class="daily-column">Wednesday <span class="sort-arrow"></span></th>
+                    <th data-column="thursday" class="daily-column">Thursday <span class="sort-arrow"></span></th>
+                    <th data-column="friday" class="daily-column">Friday <span class="sort-arrow"></span></th>
+                    <th data-column="saturday" class="daily-column">Saturday <span class="sort-arrow"></span></th>
+                    <th data-column="sunday" class="daily-column">Sunday <span class="sort-arrow"></span></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inventory in inventories %}
+                <tr>
+                    <td>{{ inventory.week_commencing.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ inventory.item.description }}</td>
+                    <td>{{ "%.2f"|format(inventory.required_total_production|float) }}</td>
+                    <td>{{ inventory.category.name }}</td>
+                    <td>{{ "%.2f"|format(inventory.price_per_kg|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.value_required_rm|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.current_stock|float) }}</td>
+                    <td>{{ inventory.item.supplier_name or 'N/A' }}</td>
+                    <td>{{ "%.2f"|format(inventory.required_for_plan|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.variance_week|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.kg_required|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.variance|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.to_be_ordered|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.closing_stock|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.monday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.tuesday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.wednesday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.thursday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.friday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.saturday|float) }}</td>
+                    <td class="daily-column">{{ "%.2f"|format(inventory.sunday|float) }}</td>
                     <td>
-                        <div class="btn-group" role="group">
-                            <a href="/inventory/edit/${item.id}" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteInventory(${item.id})">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+                        <a href="{{ url_for('inventory.edit_inventory', id=inventory.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                        <button class="btn btn-sm btn-danger" onclick="deleteInventory('{{ inventory.id }}')">Delete</button>
                     </td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 
-        function formatDate(dateString) {
-            if (!dateString) return '';
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-        }
+<style>
+.daily-column {
+    background-color: #e3f2fd !important;
+    font-weight: 500;
+}
+.table-bordered th, .table-bordered td {
+    border: 1px solid #dee2e6;
+}
+.table-responsive {
+    overflow-x: auto;
+}
+</style>
 
-        function formatNumber(value) {
-            if (value === null || value === undefined || value === '') return '0.00';
-            return parseFloat(value).toFixed(2);
-        }
-
-        function filterInventories() {
-            loadInventoryData();
-        }
-
-        function clearFilters() {
-            document.getElementById('filterWeek').value = '';
-            document.getElementById('filterCategory').value = '';
-            document.getElementById('filterRawMaterial').value = '';
-            loadInventoryData();
-        }
-
-        function exportInventories() {
-            const weekCommencing = document.getElementById('filterWeek').value;
-            const category = document.getElementById('filterCategory').value;
-            const rawMaterial = document.getElementById('filterRawMaterial').value;
-            
-            const params = new URLSearchParams();
-            if (weekCommencing) params.append('week_commencing', weekCommencing);
-            if (category) params.append('category', category);
-            if (rawMaterial) params.append('raw_material', rawMaterial);
-            
-            window.location.href = `/inventory/export_inventories?${params.toString()}`;
-        }
-
-        function deleteInventory(id) {
-            if (confirm('Are you sure you want to delete this inventory record?')) {
-                fetch(`/inventory/delete/${id}`, {
-                    method: 'POST'
-                })
-                .then(response => {
-                    if (response.ok) {
-                        loadInventoryData();
-                    } else {
-                        alert('Error deleting inventory record');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error deleting inventory record');
-                });
+<script>
+function deleteInventory(id) {
+    if (confirm('Are you sure you want to delete this inventory record?')) {
+        fetch(`/inventory/delete/${id}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
             }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+}
+
+// Column visibility functions
+function toggleColumn(colIndex, checked) {
+    const table = document.getElementById('inventoryTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    Array.from(rows).forEach(row => {
+        const cells = row.cells;
+        if (cells.length && colIndex < cells.length) {
+            cells[colIndex].style.display = checked ? '' : 'none';
         }
-    </script>
-</body>
-</html>
+    });
+}
+
+function updateColumnVisibility(checkbox) {
+    const colIndex = parseInt(checkbox.dataset.colIndex);
+    toggleColumn(colIndex, checkbox.checked);
+}
+
+function showEssentialColumns() {
+    const essentialColumns = [0, 1, 2, 3, 4]; // Week Commencing, Item, Required Total Production, Category, Price/KG
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    
+    checkboxes.forEach((checkbox, index) => {
+        const isEssential = essentialColumns.includes(index);
+        checkbox.checked = isEssential;
+        toggleColumn(index, isEssential);
+    });
+}
+
+function showAllColumns() {
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    checkboxes.forEach((checkbox, index) => {
+        checkbox.checked = true;
+        toggleColumn(index, true);
+    });
+}
+
+function resetToDefault() {
+    const defaultColumns = [0, 1, 2, 3, 4, 5, 6, 7, 8]; // First 9 columns
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    
+    checkboxes.forEach((checkbox, index) => {
+        const isDefault = defaultColumns.includes(index);
+        checkbox.checked = isDefault;
+        toggleColumn(index, isDefault);
+    });
+}
+
+// Additional view functions
+function showDailyView() {
+    // Show only essential columns + daily columns
+    const dailyViewColumns = [0, 1, 14, 15, 16, 17, 18, 19, 20]; // Week, Item, Mon-Sun
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    
+    checkboxes.forEach((checkbox, index) => {
+        const shouldShow = dailyViewColumns.includes(index);
+        checkbox.checked = shouldShow;
+        toggleColumn(index, shouldShow);
+    });
+}
+
+function showSummaryView() {
+    // Show summary columns only
+    const summaryColumns = [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13]; // All except daily
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    
+    checkboxes.forEach((checkbox, index) => {
+        const shouldShow = summaryColumns.includes(index);
+        checkbox.checked = shouldShow;
+        toggleColumn(index, shouldShow);
+    });
+}
+
+// Export to Excel function
+function exportToExcel() {
+    // Get visible data
+    const table = document.getElementById('inventoryTable');
+    const wb = XLSX.utils.table_to_book(table, {sheet: "Inventory"});
+    XLSX.writeFile(wb, `inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// Initialize column visibility controls
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up event listeners for column toggles
+    const checkboxes = document.querySelectorAll('.column-toggle input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateColumnVisibility(this);
+        });
+    });
+});
+
+// Search functions
+function searchInventory() {
+    const item = document.getElementById('search_item').value.toLowerCase();
+    const category = document.getElementById('search_category').value;
+    const weekCommencing = document.getElementById('search_week_commencing').value;
+    
+    const table = document.getElementById('inventoryTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.getElementsByTagName('td');
+        if (cells.length) {
+            const itemText = cells[1].textContent.toLowerCase();
+            const categoryText = cells[3].textContent;
+            const weekCommencingText = cells[0].textContent;
+            
+            const matchItem = item === '' || itemText.includes(item);
+            const matchCategory = category === '' || categoryText === category;
+            const matchWeek = weekCommencing === '' || weekCommencingText.includes(weekCommencing);
+            
+            row.style.display = (matchItem && matchCategory && matchWeek) ? '' : 'none';
+        }
+    }
+}
+
+function resetSearch() {
+    document.getElementById('search_item').value = '';
+    document.getElementById('search_category').value = '';
+    document.getElementById('search_week_commencing').value = '';
+    searchInventory();
+}
+</script>
+
+<!-- Add XLSX library for Excel export -->
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+{% endblock %}
