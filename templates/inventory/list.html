@@ -49,12 +49,12 @@
             <div class="toggle-row">
                 <label><input type="checkbox" checked data-col-index="0" onchange="updateColumnVisibility(this)"> Week Commencing</label>
                 <label><input type="checkbox" checked data-col-index="1" onchange="updateColumnVisibility(this)"> Item</label>
-                <label><input type="checkbox" checked data-col-index="2" onchange="updateColumnVisibility(this)"> Required Total Production</label>
+                <label><input type="checkbox" checked data-col-index="2" onchange="updateColumnVisibility(this)"> Required Total</label>
                 <label><input type="checkbox" checked data-col-index="3" onchange="updateColumnVisibility(this)"> Category</label>
                 <label><input type="checkbox" checked data-col-index="4" onchange="updateColumnVisibility(this)"> Price/KG</label>
             </div>
             <div class="toggle-row">
-                <label><input type="checkbox" checked data-col-index="5" onchange="updateColumnVisibility(this)"> Value Required RM</label>
+                <label><input type="checkbox" checked data-col-index="5" onchange="updateColumnVisibility(this)"> Value Required</label>
                 <label><input type="checkbox" checked data-col-index="6" onchange="updateColumnVisibility(this)"> SOH</label>
                 <label><input type="checkbox" checked data-col-index="7" onchange="updateColumnVisibility(this)"> Supplier Name</label>
                 <label><input type="checkbox" checked data-col-index="8" onchange="updateColumnVisibility(this)"> Required for Plan</label>
@@ -104,15 +104,15 @@
                 <tr>
                     <th data-column="week_commencing">Week Commencing <span class="sort-arrow"></span></th>
                     <th data-column="item">Item <span class="sort-arrow"></span></th>
-                    <th data-column="required_total_production">Required Total Production <span class="sort-arrow"></span></th>
+                    <th data-column="required_total">Required Total <span class="sort-arrow"></span></th>
                     <th data-column="category">Category <span class="sort-arrow"></span></th>
                     <th data-column="price_per_kg">Price/KG <span class="sort-arrow"></span></th>
-                    <th data-column="value_required_rm">Value Required RM <span class="sort-arrow"></span></th>
+                    <th data-column="value_required">Value Required <span class="sort-arrow"></span></th>
                     <th data-column="current_stock">SOH <span class="sort-arrow"></span></th>
                     <th data-column="supplier_name">Supplier Name <span class="sort-arrow"></span></th>
                     <th data-column="required_for_plan">Required for Plan <span class="sort-arrow"></span></th>
-                    <th data-column="variance_week">Variance Week <span class="sort-arrow"></span></th>
-                    <th data-column="kg_required">KG Required <span class="sort-arrow"></span></th>
+                    <th data-column="variance_for_week">Variance Week <span class="sort-arrow"></span></th>
+                    <th data-column="required_total">KG Required <span class="sort-arrow"></span></th>
                     <th data-column="variance">Variance <span class="sort-arrow"></span></th>
                     <th data-column="to_be_ordered">To Be Ordered <span class="sort-arrow"></span></th>
                     <th data-column="closing_stock">Closing Stock <span class="sort-arrow"></span></th>
@@ -131,15 +131,15 @@
                 <tr>
                     <td>{{ inventory.week_commencing.strftime('%Y-%m-%d') }}</td>
                     <td>{{ inventory.item.description }}</td>
-                    <td>{{ "%.2f"|format(inventory.required_total_production|float) }}</td>
-                    <td>{{ inventory.category.name }}</td>
+                    <td>{{ "%.2f"|format(inventory.required_total|float) }}</td>
+                    <td>{{ inventory.category }}</td>
                     <td>{{ "%.2f"|format(inventory.price_per_kg|float) }}</td>
-                    <td>{{ "%.2f"|format(inventory.value_required_rm|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.value_required|float) }}</td>
                     <td>{{ "%.2f"|format(inventory.current_stock|float) }}</td>
-                    <td>{{ inventory.item.supplier_name or 'N/A' }}</td>
+                    <td>{{ inventory.supplier_name or 'N/A' }}</td>
                     <td>{{ "%.2f"|format(inventory.required_for_plan|float) }}</td>
-                    <td>{{ "%.2f"|format(inventory.variance_week|float) }}</td>
-                    <td>{{ "%.2f"|format(inventory.kg_required|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.variance_for_week|float) }}</td>
+                    <td>{{ "%.2f"|format(inventory.required_total|float) }}</td>
                     <td>{{ "%.2f"|format(inventory.variance|float) }}</td>
                     <td>{{ "%.2f"|format(inventory.to_be_ordered|float) }}</td>
                     <td>{{ "%.2f"|format(inventory.closing_stock|float) }}</td>

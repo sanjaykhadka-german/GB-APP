@@ -35,28 +35,18 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="category_id" class="form-label">Category</label>
-                    <select class="form-control" id="category_id" name="category_id" required>
-                        <option value="">Select Category</option>
-                        {% for category in categories %}
-                        <option value="{{ category.id }}" {% if category.id == inventory.category_id %}selected{% endif %}>{{ category.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="mb-3">
                     <label for="price_per_kg" class="form-label">Price/KG</label>
                     <input type="number" step="0.01" class="form-control" id="price_per_kg" name="price_per_kg" value="{{ "%.2f"|format(inventory.price_per_kg|float) }}" required>
                 </div>
 
                 <div class="mb-3">
-                    <label for="required_total_production" class="form-label">Required Total Production</label>
-                    <input type="number" step="0.01" class="form-control" id="required_total_production" name="required_total_production" value="{{ "%.2f"|format(inventory.required_total_production|float) }}" required>
+                    <label for="required_total" class="form-label">Required Total</label>
+                    <input type="number" step="0.01" class="form-control" id="required_total" name="required_total" value="{{ "%.2f"|format(inventory.required_total|float) }}" required>
                 </div>
 
                 <div class="mb-3">
-                    <label for="value_required_rm" class="form-label">Value Required RM</label>
-                    <input type="number" step="0.01" class="form-control" id="value_required_rm" name="value_required_rm" value="{{ "%.2f"|format(inventory.value_required_rm|float) }}" required>
+                    <label for="value_required" class="form-label">Value Required</label>
+                    <input type="number" step="0.01" class="form-control" id="value_required" name="value_required" value="{{ "%.2f"|format(inventory.value_required|float) }}" required>
                 </div>
 
                 <div class="mb-3">
@@ -70,13 +60,8 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="variance_week" class="form-label">Variance Week</label>
-                    <input type="number" step="0.01" class="form-control" id="variance_week" name="variance_week" value="{{ "%.2f"|format(inventory.variance_week|float) }}" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="kg_required" class="form-label">KG Required</label>
-                    <input type="number" step="0.01" class="form-control" id="kg_required" name="kg_required" value="{{ "%.2f"|format(inventory.kg_required|float) }}" required>
+                    <label for="variance_for_week" class="form-label">Variance Week</label>
+                    <input type="number" step="0.01" class="form-control" id="variance_for_week" name="variance_for_week" value="{{ "%.2f"|format(inventory.variance_for_week|float) }}" required>
                 </div>
 
                 <div class="mb-3">
@@ -94,6 +79,41 @@
                     <input type="number" step="0.01" class="form-control" id="closing_stock" name="closing_stock" value="{{ "%.2f"|format(inventory.closing_stock|float) }}" required>
                 </div>
 
+                <div class="mb-3">
+                    <label for="monday" class="form-label">Monday</label>
+                    <input type="number" step="0.01" class="form-control" id="monday" name="monday" value="{{ "%.2f"|format(inventory.monday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="tuesday" class="form-label">Tuesday</label>
+                    <input type="number" step="0.01" class="form-control" id="tuesday" name="tuesday" value="{{ "%.2f"|format(inventory.tuesday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="wednesday" class="form-label">Wednesday</label>
+                    <input type="number" step="0.01" class="form-control" id="wednesday" name="wednesday" value="{{ "%.2f"|format(inventory.wednesday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="thursday" class="form-label">Thursday</label>
+                    <input type="number" step="0.01" class="form-control" id="thursday" name="thursday" value="{{ "%.2f"|format(inventory.thursday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="friday" class="form-label">Friday</label>
+                    <input type="number" step="0.01" class="form-control" id="friday" name="friday" value="{{ "%.2f"|format(inventory.friday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="saturday" class="form-label">Saturday</label>
+                    <input type="number" step="0.01" class="form-control" id="saturday" name="saturday" value="{{ "%.2f"|format(inventory.saturday|float) }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="sunday" class="form-label">Sunday</label>
+                    <input type="number" step="0.01" class="form-control" id="sunday" name="sunday" value="{{ "%.2f"|format(inventory.sunday|float) }}">
+                </div>
+
                 <button type="submit" class="btn btn-primary">Update Inventory</button>
                 <a href="{{ url_for('inventory.list_inventory') }}" class="btn btn-secondary">Cancel</a>
             </div>
@@ -109,16 +129,15 @@ document.getElementById('item_id').addEventListener('change', function() {
             .then(response => response.json())
             .then(data => {
                 document.getElementById('price_per_kg').value = data.price_per_kg || 0;
-                document.getElementById('category_id').value = data.category_id || '';
             })
             .catch(error => console.error('Error:', error));
     }
 });
 
-document.getElementById('required_total_production').addEventListener('input', function() {
+document.getElementById('required_total').addEventListener('input', function() {
     const requiredTotal = parseFloat(this.value) || 0;
     const pricePerKg = parseFloat(document.getElementById('price_per_kg').value) || 0;
-    document.getElementById('value_required_rm').value = (requiredTotal * pricePerKg).toFixed(2);
+    document.getElementById('value_required').value = (requiredTotal * pricePerKg).toFixed(2);
 });
 
 document.getElementById('current_stock').addEventListener('input', function() {
@@ -129,17 +148,13 @@ document.getElementById('required_for_plan').addEventListener('input', function(
     calculateVariances();
 });
 
-document.getElementById('kg_required').addEventListener('input', function() {
-    calculateVariances();
-});
-
 function calculateVariances() {
     const currentStock = parseFloat(document.getElementById('current_stock').value) || 0;
     const requiredForPlan = parseFloat(document.getElementById('required_for_plan').value) || 0;
-    const kgRequired = parseFloat(document.getElementById('kg_required').value) || 0;
+    const requiredTotal = parseFloat(document.getElementById('required_total').value) || 0;
     
-    document.getElementById('variance_week').value = (currentStock - requiredForPlan).toFixed(2);
-    document.getElementById('variance').value = (currentStock - kgRequired).toFixed(2);
+    document.getElementById('variance_for_week').value = (currentStock - requiredForPlan).toFixed(2);
+    document.getElementById('variance').value = (currentStock - requiredTotal).toFixed(2);
 }
 </script>
 {% endblock %}

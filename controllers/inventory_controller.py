@@ -23,20 +23,33 @@ def list_inventory():
 def create_inventory():
     if request.method == 'POST':
         try:
+            # Get the item to get its category and supplier name
+            item = ItemMaster.query.get(request.form['item_id'])
+            if not item:
+                flash('Error: Item not found', 'error')
+                return redirect(url_for('inventory.list_inventory'))
+                
             inventory = Inventory(
                 week_commencing=datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date(),
                 item_id=request.form['item_id'],
-                category_id=request.form['category_id'],
-                price_per_kg=request.form['price_per_kg'],
-                required_total_production=request.form['required_total_production'],
-                value_required_rm=request.form['value_required_rm'],
-                current_stock=request.form['current_stock'],
-                required_for_plan=request.form['required_for_plan'],
-                variance_week=request.form['variance_week'],
-                kg_required=request.form['kg_required'],
-                variance=request.form['variance'],
-                to_be_ordered=request.form['to_be_ordered'],
-                closing_stock=request.form['closing_stock']
+                required_total=float(request.form['required_total']),
+                category=item.category.name if item.category else None,
+                price_per_kg=float(request.form['price_per_kg']),
+                value_required=float(request.form['value_required']),
+                current_stock=float(request.form['current_stock']),
+                supplier_name=item.supplier_name,
+                required_for_plan=float(request.form['required_for_plan']),
+                variance_for_week=float(request.form['variance_for_week']),
+                variance=float(request.form['variance']),
+                to_be_ordered=float(request.form['to_be_ordered']),
+                closing_stock=float(request.form['closing_stock']),
+                monday=float(request.form.get('monday', 0)),
+                tuesday=float(request.form.get('tuesday', 0)),
+                wednesday=float(request.form.get('wednesday', 0)),
+                thursday=float(request.form.get('thursday', 0)),
+                friday=float(request.form.get('friday', 0)),
+                saturday=float(request.form.get('saturday', 0)),
+                sunday=float(request.form.get('sunday', 0))
             )
             db.session.add(inventory)
             db.session.commit()
@@ -64,19 +77,32 @@ def edit_inventory(id):
     
     if request.method == 'POST':
         try:
+            # Get the item to get its category and supplier name
+            item = ItemMaster.query.get(request.form['item_id'])
+            if not item:
+                flash('Error: Item not found', 'error')
+                return redirect(url_for('inventory.list_inventory'))
+                
             inventory.week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date()
             inventory.item_id = request.form['item_id']
-            inventory.category_id = request.form['category_id']
-            inventory.price_per_kg = request.form['price_per_kg']
-            inventory.required_total_production = request.form['required_total_production']
-            inventory.value_required_rm = request.form['value_required_rm']
-            inventory.current_stock = request.form['current_stock']
-            inventory.required_for_plan = request.form['required_for_plan']
-            inventory.variance_week = request.form['variance_week']
-            inventory.kg_required = request.form['kg_required']
-            inventory.variance = request.form['variance']
-            inventory.to_be_ordered = request.form['to_be_ordered']
-            inventory.closing_stock = request.form['closing_stock']
+            inventory.required_total = float(request.form['required_total'])
+            inventory.category = item.category.name if item.category else None
+            inventory.price_per_kg = float(request.form['price_per_kg'])
+            inventory.value_required = float(request.form['value_required'])
+            inventory.current_stock = float(request.form['current_stock'])
+            inventory.supplier_name = item.supplier_name
+            inventory.required_for_plan = float(request.form['required_for_plan'])
+            inventory.variance_for_week = float(request.form['variance_for_week'])
+            inventory.variance = float(request.form['variance'])
+            inventory.to_be_ordered = float(request.form['to_be_ordered'])
+            inventory.closing_stock = float(request.form['closing_stock'])
+            inventory.monday = float(request.form.get('monday', 0))
+            inventory.tuesday = float(request.form.get('tuesday', 0))
+            inventory.wednesday = float(request.form.get('wednesday', 0))
+            inventory.thursday = float(request.form.get('thursday', 0))
+            inventory.friday = float(request.form.get('friday', 0))
+            inventory.saturday = float(request.form.get('saturday', 0))
+            inventory.sunday = float(request.form.get('sunday', 0))
             
             db.session.commit()
             flash('Inventory updated successfully!', 'success')
@@ -115,7 +141,8 @@ def get_item(id):
         item = ItemMaster.query.get_or_404(id)
         return jsonify({
             'price_per_kg': float(item.price_per_kg) if item.price_per_kg else 0,
-            'category_id': item.category_id
+            'category_id': item.category_id,
+            'supplier_name': item.supplier_name
         })
     except Exception as e:
         print(f"Error in get_item: {str(e)}")
