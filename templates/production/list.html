@@ -97,18 +97,6 @@
                         <td><strong>{{ total_kg | round(2) }}</strong></td>
                         <td></td>
                     </tr>
-                    {% if recipe_family_totals %}
-                    <tr class="table-secondary">
-                        <td colspan="8"><strong>Totals by Recipe Family:</strong></td>
-                    </tr>
-                    {% for recipe_family, family_total in recipe_family_totals.items() %}
-                    <tr class="table-secondary">
-                        <td colspan="6" style="text-align: right;">{{ recipe_family }}:</td>
-                        <td>{{ family_total | round(2) }}</td>
-                        <td></td>
-                    </tr>
-                    {% endfor %}
-                    {% endif %}
                     {% endif %}
                 </tbody>
             </table>

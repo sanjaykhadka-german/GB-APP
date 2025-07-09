@@ -1035,6 +1035,17 @@ def update_cell():
                     packing.machinery_id = machinery_id
                 else:
                     packing.machinery_id = None
+                
+                db.session.commit()
+                
+                # Return success without re-aggregating since machinery change doesn't affect requirements
+                return jsonify({
+                    'success': True,
+                    'updates': {
+                        'machinery_id': packing.machinery_id
+                    }
+                })
+
             else:
                 return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
 
@@ -1290,4 +1301,122 @@ def bulk_edit_comprehensive():
                 return jsonify({'success': False, 'message': error_msg})
             
             return redirect(request.referrer or url_for('packing.packing_list'))
+
+@packing.route('/update_machinery/<int:id>', methods=['POST'])
+def update_machinery(id):
+    """Update machinery for a packing entry"""
+    try:
+        data = request.get_json()
+        if not data or 'machinery_id' not in data:
+            return jsonify({'success': False, 'error': 'Missing machinery_id in request'}), 400
+
+        packing = Packing.query.get(id)
+        if not packing:
+            return jsonify({'success': False, 'error': 'Packing entry not found'}), 404
+
+        machinery_id = data['machinery_id']
+        if machinery_id:
+            # Validate machinery exists
+            machinery = Machinery.query.get(machinery_id)
+            if not machinery:
+                return jsonify({'success': False, 'error': f'Invalid machinery ID {machinery_id}'}), 400
+            packing.machinery_id = machinery_id
+        else:
+            packing.machinery_id = None
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Machinery updated successfully'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating machinery: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing.route('/update_field/<int:id>', methods=['POST'])
+def update_field(id):
+    """Update a specific field for a packing entry"""
+    try:
+        data = request.get_json()
+        if not data or 'field' not in data or 'value' not in data:
+            return jsonify({'success': False, 'error': 'Missing field or value in request'}), 400
+
+        packing = Packing.query.get(id)
+        if not packing:
+            return jsonify({'success': False, 'error': 'Packing entry not found'}), 404
+
+        field = data['field']
+        value = data['value']
+
+        if field == 'special_order_kg':
+            try:
+                value = float(value)
+                packing.special_order_kg = value
+                
+                # Recalculate requirement_kg and requirement_unit
+                if packing.avg_weight_per_unit:
+                    # Calculate special order units
+                    special_order_units = value / packing.avg_weight_per_unit if value > 0 else 0
+                    
+                    # Base requirements from SOH
+                    base_kg = (packing.soh_requirement_units_week or 0) * packing.avg_weight_per_unit
+                    base_units = packing.soh_requirement_units_week or 0
+                    
+                    # Add special order to requirements
+                    packing.requirement_kg = round(base_kg + value, 1)
+                    packing.requirement_unit = int(base_units + special_order_units)
+                else:
+                    # If no avg_weight_per_unit, just add special order to requirement_kg
+                    packing.requirement_kg = value
+                    packing.requirement_unit = 0
+
+                db.session.commit()
+
+                # Update downstream entries (filling and production)
+                success, message = re_aggregate_filling_and_production_for_week(packing.week_commencing)
+                if not success:
+                    logger.warning(f"Warning while updating downstream entries: {message}")
+
+                # Get updated filling and production entries
+                filling_entries = Filling.query.filter_by(
+                    week_commencing=packing.week_commencing,
+                    item_id=packing.item_id
+                ).all()
+                
+                production_entries = Production.query.filter_by(
+                    week_commencing=packing.week_commencing,
+                    item_id=packing.item_id
+                ).all()
+
+                # Format the entries for response
+                filling_data = [{
+                    'id': fill.id,
+                    'kilo_per_size': fill.kilo_per_size
+                } for fill in filling_entries]
+
+                production_data = [{
+                    'id': prod.id,
+                    'total_kg': prod.total_kg,
+                    'batches': prod.batches
+                } for prod in production_entries]
+
+                return jsonify({
+                    'success': True,
+                    'message': 'Special order KG updated successfully',
+                    'requirement_kg': packing.requirement_kg,
+                    'requirement_unit': packing.requirement_unit,
+                    'filling_entries': filling_data,
+                    'production_entries': production_data
+                })
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400
+        else:
+            return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating field: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
