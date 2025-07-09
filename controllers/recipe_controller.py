@@ -56,13 +56,11 @@ def recipe_page():
             # Process all recipes
             for recipe_data in recipes_data:
                 recipe_id = recipe_data.get('recipe_id')
-                recipe_code = recipe_data.get('recipe_code')
-                description = recipe_data.get('description')
                 recipe_wip_id = recipe_data.get('recipe_wip_id')  # Changed from finished_good_id
                 component_item_id = recipe_data.get('component_item_id')  # Changed from raw_material_id
                 kg_per_batch = recipe_data.get('kg_per_batch')
 
-                if not all([recipe_code, description, recipe_wip_id, component_item_id, kg_per_batch]):
+                if not all([recipe_wip_id, component_item_id, kg_per_batch]):
                     return jsonify({'error': 'Required fields are missing.'}), 400
                 
                 # Validate that recipe_wip_id is a WIP item
