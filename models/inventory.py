@@ -1,7 +1,8 @@
 # models/inventory.py
-from sqlalchemy import Column, Integer, Float, ForeignKey, Date, String, func
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
 from sqlalchemy.orm import relationship
-from . import db
+from database import db
 
 class Inventory(db.Model):
     __tablename__ = 'inventory'
@@ -34,7 +35,7 @@ class Inventory(db.Model):
     tuesday_ordered_received = Column(Float, default=0.0)
     tuesday_consumed_kg = Column(Float, default=0.0)
     tuesday_closing_stock = Column(Float, default=0.0)
-
+    
     # Wednesday
     wednesday_opening_stock = Column(Float, default=0.0)
     wednesday_required_kg = Column(Float, default=0.0)
@@ -79,10 +80,10 @@ class Inventory(db.Model):
     sunday_ordered_received = Column(Float, default=0.0)
     sunday_consumed_kg = Column(Float, default=0.0)
     sunday_closing_stock = Column(Float, default=0.0)
-
+    
     # Relationships
     item = relationship('ItemMaster', backref='inventories')
-
+    
     def calculate_daily_values(self):
         """Calculate all derived values for each day"""
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']

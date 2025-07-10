@@ -20,11 +20,11 @@ def list_inventory():
             ItemMaster, Inventory.item_id == ItemMaster.id
         ).outerjoin(
             RawMaterialReport, 
-            (RawMaterialReport.item_id == ItemMaster.id) & 
-            (RawMaterialReport.week_commencing == Inventory.week_commencing)
+            (ItemMaster.id == RawMaterialReport.item_id) & 
+            (Inventory.week_commencing == RawMaterialReport.week_commencing)
         ).outerjoin(
             RawMaterialStocktake,
-            RawMaterialStocktake.item_id == ItemMaster.id
+            ItemMaster.id == RawMaterialStocktake.item_id
         )
 
         # Apply filters

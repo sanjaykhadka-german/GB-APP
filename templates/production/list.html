@@ -83,16 +83,16 @@
                 </thead>
                 <tbody>
                     {% if productions %}
-                        {% for production in productions %}
-                        <tr data-id="{{ production.id }}">
-                            <td>{{ production.id }}</td>
+                    {% for production in productions %}
+                    <tr data-id="{{ production.id }}">
+                        <td>{{ production.id }}</td>
                             <td class="date-column">{{ production.week_commencing | default('') }}</td>
                             <td class="date-column">{{ production.production_date | default('') }}</td>
                             <td>{{ production.production_code | default('') }}</td>
-                            <td>{{ production.description or (production.item.item_code + ' - ' + production.item.description if production.item else 'None') }}</td>
+                        <td>{{ production.description or (production.item.item_code + ' - ' + production.item.description if production.item else 'None') }}</td>
                             <td>{{ "%.2f"|format(production.batches|float) if production.batches else '0.00' }}</td>
                             <td class="total-kg">{{ "%.2f"|format(production.total_kg|float) if production.total_kg else '0.00' }}</td>
-                            <td class="total-planned">{{ "%.2f"|format(production.total_planned|float) if production.total_planned else '0.00' }}</td>
+                        <td class="total-planned">{{ "%.2f"|format(production.total_planned|float) if production.total_planned else '0.00' }}</td>
                             <td class="variance">{{ "%.2f"|format((production.total_planned - production.total_kg)|float) if production.total_planned and production.total_kg else '0.00' }}</td>
                             <td class="editable-cell" data-id="{{ production.id }}" data-field="monday_planned">{{ "%.2f"|format(production.monday_planned|float) if production.monday_planned else '0.00' }}</td>
                             <td class="editable-cell" data-id="{{ production.id }}" data-field="tuesday_planned">{{ "%.2f"|format(production.tuesday_planned|float) if production.tuesday_planned else '0.00' }}</td>
@@ -101,7 +101,7 @@
                             <td class="editable-cell" data-id="{{ production.id }}" data-field="friday_planned">{{ "%.2f"|format(production.friday_planned|float) if production.friday_planned else '0.00' }}</td>
                             <td class="editable-cell" data-id="{{ production.id }}" data-field="saturday_planned">{{ "%.2f"|format(production.saturday_planned|float) if production.saturday_planned else '0.00' }}</td>
                             <td class="editable-cell" data-id="{{ production.id }}" data-field="sunday_planned">{{ "%.2f"|format(production.sunday_planned|float) if production.sunday_planned else '0.00' }}</td>
-                            <td>
+                        <td>
                                 <div class="btn-group" role="group">
                                     <a href="{{ url_for('production.production_edit', id=production.id) }}" class="btn btn-sm btn-primary">
                                         <i class="fas fa-edit"></i> Edit
@@ -111,14 +111,14 @@
                                             <i class="fas fa-trash"></i> Delete
                                         </button>
                                     </form>
-                                </div>
-                            </td>
-                        </tr>
+                            </div>
+                        </td>
+                    </tr>
                         {% endfor %}
                     {% else %}
-                        <tr>
-                            <td colspan="17" class="no-results">No production entries found.</td>
-                        </tr>
+                    <tr>
+                        <td colspan="17" class="no-results">No production entries found.</td>
+                    </tr>
                     {% endif %}
                 </tbody>
             </table>
@@ -236,7 +236,7 @@
             }
         });
 
-        // Handle suggestion click
+    // Handle suggestion click
         $(document).on('click', '#production_code_suggestions li', function() {
             var productionCode = $(this).data('production-code');
             var description = $(this).data('description');
@@ -255,14 +255,14 @@
         export: "{{ url_for('production.export_productions_excel') }}"
     };
 
-    function fetchProductions() {
-        var searchData = {
-            production_code: $("#search_production_code").val(),
-            description: $("#search_description").val(),
-            week_commencing: $("#search_week_commencing").val(),
-            production_date_start: $("#search_production_date_start").val(),
-            production_date_end: $("#search_production_date_end").val()
-        };
+function fetchProductions() {
+    var searchData = {
+        production_code: $("#search_production_code").val(),
+        description: $("#search_description").val(),
+        week_commencing: $("#search_week_commencing").val(),
+        production_date_start: $("#search_production_date_start").val(),
+        production_date_end: $("#search_production_date_end").val()
+    };
 
         $.ajax({
             url: URLS.search,
@@ -325,16 +325,16 @@
         });
     }
 
-    function exportToExcel() {
+function exportToExcel() {
         var searchParams = new URLSearchParams({
-            production_code: $("#search_production_code").val(),
-            description: $("#search_description").val(),
-            week_commencing: $("#search_week_commencing").val(),
-            production_date_start: $("#search_production_date_start").val(),
-            production_date_end: $("#search_production_date_end").val()
+        production_code: $("#search_production_code").val(),
+        description: $("#search_description").val(),
+        week_commencing: $("#search_week_commencing").val(),
+        production_date_start: $("#search_production_date_start").val(),
+        production_date_end: $("#search_production_date_end").val()
         }).toString();
 
         window.location.href = "{{ url_for('production.export_productions_excel') }}?" + searchParams;
-    }
+}
 </script>
 {% endblock %}
