@@ -62,18 +62,35 @@ def populate_inventory():
                     inventory = Inventory(
                         week_commencing=week_commencing,
                         item_id=raw_material.id,
-                        category_id=raw_material.category_id or 1,  # Default to category 1 if none
+                        required_total=report.required_total_production,
+                        category=raw_material.category.name if raw_material.category else None,
                         price_per_kg=raw_material.price_per_kg or 0.00,
-                        required_total_production=report.required_total_production,
-                        value_required_rm=report.value_required_rm,
+                        value_required=report.value_required_rm,
                         current_stock=report.current_stock,
+                        supplier_name=raw_material.supplier_name,
                         required_for_plan=report.required_for_plan,
-                        variance_week=report.variance_week,
-                        kg_required=report.kg_required,
+                        variance_for_week=report.variance_week,
                         variance=report.variance,
                         to_be_ordered=0.00,  # Will be calculated later
                         closing_stock=0.00  # Will be calculated later
                     )
+                    db.session.add(inventory)
+                
+                db.session.commit()
+                print(f"Completed week: {week_commencing}")
+            
+            print("\nFinal count:")
+            print(f"Inventory Records: {Inventory.query.count()}")
+            
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            db.session.rollback()
+            raise
+
+if __name__ == '__main__':
+    populate_inventory() 
+                    inventory.calculate_daily_values()
+                    
                     db.session.add(inventory)
                 
                 db.session.commit()

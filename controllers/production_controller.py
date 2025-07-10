@@ -12,82 +12,103 @@ production_bp = Blueprint('production', __name__, template_folder='templates')
 
 @production_bp.route('/production_list', methods=['GET'])
 def production_list():
-    # Get search parameters from query string
-    search_production_code = request.args.get('production_code', '').strip()
-    search_description = request.args.get('description', '').strip()
-    search_week_commencing = request.args.get('week_commencing', '').strip()
-    search_production_date_start = request.args.get('production_date_start', '').strip()
-    search_production_date_end = request.args.get('production_date_end', '').strip()
+    try:
+        # Get search parameters from query string
+        search_production_code = request.args.get('production_code', '').strip()
+        search_description = request.args.get('description', '').strip()
+        search_week_commencing = request.args.get('week_commencing', '').strip()
+        search_production_date_start = request.args.get('production_date_start', '').strip()
+        search_production_date_end = request.args.get('production_date_end', '').strip()
 
-    # Query productions with optional filters
-    productions_query = Production.query
-    if search_week_commencing:
-        try:
-            week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-            productions_query = productions_query.filter(Production.week_commencing == week_commencing_date)
-        except ValueError:
-            flash("Invalid Week Commencing date format.", 'error')
-    
-    # Handle date range filter
-    if search_production_date_start or search_production_date_end:
-        try:
-            if search_production_date_start:
-                start_date = datetime.strptime(search_production_date_start, '%Y-%m-%d').date()
-                productions_query = productions_query.filter(Production.production_date >= start_date)
-            if search_production_date_end:
-                end_date = datetime.strptime(search_production_date_end, '%Y-%m-%d').date()
-                productions_query = productions_query.filter(Production.production_date <= end_date)
+        # Query productions with optional filters
+        productions_query = Production.query.join(
+            ItemMaster, Production.item_id == ItemMaster.id, isouter=True
+        )
+        
+        if search_week_commencing:
+            try:
+                week_commencing_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+                productions_query = productions_query.filter(Production.week_commencing == week_commencing_date)
+            except ValueError:
+                flash("Invalid Week Commencing date format.", 'error')
+        
+        # Handle date range filter
+        if search_production_date_start or search_production_date_end:
+            try:
+                if search_production_date_start:
+                    start_date = datetime.strptime(search_production_date_start, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date >= start_date)
+                if search_production_date_end:
+                    end_date = datetime.strptime(search_production_date_end, '%Y-%m-%d').date()
+                    productions_query = productions_query.filter(Production.production_date <= end_date)
+                    
+                # Validate date range if both dates are provided
+                if search_production_date_start and search_production_date_end:
+                    if start_date > end_date:
+                        flash("Start date must be before or equal to end date.", 'error')
+                        return render_template('production/list.html', 
+                                            productions=[],
+                                            search_production_code=search_production_code,
+                                            search_description=search_description,
+                                            search_week_commencing=search_week_commencing,
+                                            search_production_date_start=search_production_date_start,
+                                            search_production_date_end=search_production_date_end,
+                                            current_page="production")
+            except ValueError:
+                flash("Invalid date format.", 'error')
+
+        if search_production_code:
+            productions_query = productions_query.filter(Production.production_code == search_production_code)
+        
+        if search_description:
+            productions_query = productions_query.filter(Production.description.ilike(f"%{search_description}%"))
+
+        # Get all productions for the filtered criteria
+        productions = productions_query.all()
+
+        # Calculate total based on filtered productions
+        total_kg = 0.0
+        recipe_family_totals = {}
+        for production in productions:
+            if production.total_kg is not None:
+                # Get recipe family code (before the dot) with null checks
+                recipe_family = production.production_code or ''
+                if '.' in recipe_family:
+                    recipe_family = recipe_family.split('.')[0]
                 
-            # Validate date range if both dates are provided
-            if search_production_date_start and search_production_date_end:
-                if start_date > end_date:
-                    flash("Start date must be before or equal to end date.", 'error')
-                    return render_template('production/list.html', 
-                                        productions=[],
-                                        search_production_code=search_production_code,
-                                        search_description=search_description,
-                                        search_week_commencing=search_week_commencing,
-                                        search_production_date_start=search_production_date_start,
-                                        search_production_date_end=search_production_date_end,
-                                        current_page="production")
-        except ValueError:
-            flash("Invalid date format.", 'error')
+                # Initialize recipe family total if not exists
+                if recipe_family not in recipe_family_totals:
+                    recipe_family_totals[recipe_family] = 0.0
+                
+                # Add to recipe family total
+                recipe_family_totals[recipe_family] += production.total_kg
+                total_kg += production.total_kg
 
-    if search_production_code:
-        productions_query = productions_query.filter(Production.production_code == search_production_code)
-    
-    if search_description:
-        productions_query = productions_query.filter(Production.description.ilike(f"%{search_description}%"))
-
-    # Get all productions for the filtered criteria
-    productions = productions_query.all()
-
-    # Calculate total based on filtered productions
-    total_kg = 0.0
-    recipe_family_totals = {}
-    for production in productions:
-        if production.total_kg is not None:
-            # Get recipe family code (before the dot)
-            recipe_family = production.production_code.split('.')[0] if '.' in production.production_code else production.production_code
-            
-            # Initialize recipe family total if not exists
-            if recipe_family not in recipe_family_totals:
-                recipe_family_totals[recipe_family] = 0.0
-            
-            # Add to recipe family total
-            recipe_family_totals[recipe_family] += production.total_kg
-            total_kg += production.total_kg
-
-    return render_template('production/list.html',
-                         productions=productions,
-                         search_production_code=search_production_code,
-                         search_description=search_description,
-                         search_week_commencing=search_week_commencing,
-                         search_production_date_start=search_production_date_start,
-                         search_production_date_end=search_production_date_end,
-                         total_kg=total_kg,
-                         recipe_family_totals=recipe_family_totals,
-                         current_page="production")
+        return render_template('production/list.html',
+                             productions=productions,
+                             search_production_code=search_production_code,
+                             search_description=search_description,
+                             search_week_commencing=search_week_commencing,
+                             search_production_date_start=search_production_date_start,
+                             search_production_date_end=search_production_date_end,
+                             total_kg=total_kg,
+                             recipe_family_totals=recipe_family_totals,
+                             current_page="production")
+                             
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error in production_list: {str(e)}")
+        flash("An error occurred while loading the production list. Please try again.", "error")
+        return render_template('production/list.html',
+                             productions=[],
+                             search_production_code=search_production_code or '',
+                             search_description=search_description or '',
+                             search_week_commencing=search_week_commencing or '',
+                             search_production_date_start=search_production_date_start or '',
+                             search_production_date_end=search_production_date_end or '',
+                             total_kg=0.0,
+                             recipe_family_totals={},
+                             current_page="production")
 
 @production_bp.route('/production_create', methods=['GET', 'POST'])
 def production_create():
@@ -638,3 +659,57 @@ def update_production_totals():
     except Exception as e:
         db.session.rollback()
         return False, f"Error updating production totals: {str(e)}"
+
+@production_bp.route('/update_daily_plan', methods=['POST'])
+def update_daily_plan():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        id = data.get('id')
+        field = data.get('field')
+        value = float(data.get('value', 0))
+
+        if not all([id, field]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        production = Production.query.get_or_404(id)
+
+        # Validate field name
+        valid_fields = [
+            'monday_planned', 'tuesday_planned', 'wednesday_planned',
+            'thursday_planned', 'friday_planned', 'saturday_planned', 'sunday_planned'
+        ]
+        if field not in valid_fields:
+            return jsonify({'success': False, 'error': 'Invalid field name'}), 400
+
+        # Update the field
+        setattr(production, field, value)
+
+        # Recalculate total_planned
+        production.total_planned = sum([
+            production.monday_planned or 0,
+            production.tuesday_planned or 0,
+            production.wednesday_planned or 0,
+            production.thursday_planned or 0,
+            production.friday_planned or 0,
+            production.saturday_planned or 0,
+            production.sunday_planned or 0
+        ])
+
+        db.session.commit()
+
+        # Calculate variance
+        variance = production.total_planned - production.total_kg if production.total_kg else 0
+
+        return jsonify({
+            'success': True,
+            'total_planned': production.total_planned,
+            'variance': variance
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in update_daily_plan: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500

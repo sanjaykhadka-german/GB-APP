@@ -1,149 +1,179 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
-from database import db
-from models.inventory import Inventory
-from models.item_master import ItemMaster
-from models.category import Category
-from models.item_type import ItemType
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from models import db, Inventory, ItemMaster, RawMaterialReport, RawMaterialStocktake
+from sqlalchemy import func
 from datetime import datetime
 
 inventory_bp = Blueprint('inventory', __name__)
 
-@inventory_bp.route('/')
+@inventory_bp.route('/inventory/')
 def list_inventory():
     try:
-        inventories = Inventory.query.all()
-        categories = Category.query.all()
-        return render_template('inventory/list.html', inventories=inventories, categories=categories)
+        # Get search parameters
+        search_item = request.args.get('item', '').strip()
+        search_category = request.args.get('category', '').strip()
+        search_week_commencing = request.args.get('week_commencing', '').strip()
+
+        # Base query with joins
+        query = db.session.query(
+            Inventory, ItemMaster, RawMaterialReport, RawMaterialStocktake
+        ).join(
+            ItemMaster, Inventory.item_id == ItemMaster.id
+        ).outerjoin(
+            RawMaterialReport, 
+            (RawMaterialReport.item_id == ItemMaster.id) & 
+            (RawMaterialReport.week_commencing == Inventory.week_commencing)
+        ).outerjoin(
+            RawMaterialStocktake,
+            RawMaterialStocktake.item_id == ItemMaster.id
+        )
+
+        # Apply filters
+        if search_item:
+            query = query.filter(ItemMaster.description.ilike(f'%{search_item}%'))
+        if search_category:
+            query = query.filter(ItemMaster.category_id == search_category)
+        if search_week_commencing:
+            query = query.filter(Inventory.week_commencing == search_week_commencing)
+
+        # Get categories for filter dropdown
+        categories = db.session.query(ItemMaster.category_id, ItemMaster.category).distinct().all()
+
+        # Execute query
+        results = query.all()
+
+        # Process results
+        inventories = []
+        for inv, item, report, stocktake in results:
+            # Update inventory with latest data
+            inv.required_total = report.usage if report else 0
+            inv.price_per_kg = item.price_per_kg
+            inv.current_stock = stocktake.current_stock if stocktake else 0
+            inv.supplier_name = item.supplier_name
+            
+            # Calculate derived values
+            inv.calculate_daily_values()
+            
+            # Add to list
+            inventories.append(inv)
+
+        # Commit changes
+        db.session.commit()
+
+        return render_template('inventory/list.html', 
+                             inventories=inventories,
+                             categories=categories)
     except Exception as e:
         print(f"Error in list_inventory: {str(e)}")
-        flash('Error loading inventory list', 'error')
-        return render_template('inventory/list.html', inventories=[], categories=[])
+        db.session.rollback()
+        return render_template('inventory/list.html', 
+                             inventories=[],
+                             categories=[])
 
-@inventory_bp.route('/create', methods=['GET', 'POST'])
+@inventory_bp.route('/inventory/create', methods=['GET', 'POST'])
 def create_inventory():
     if request.method == 'POST':
         try:
-            # Get the item to get its category and supplier name
-            item = ItemMaster.query.get(request.form['item_id'])
-            if not item:
-                flash('Error: Item not found', 'error')
-                return redirect(url_for('inventory.list_inventory'))
-                
+            # Get form data
+            item_id = request.form.get('item_id')
+            week_commencing = datetime.strptime(request.form.get('week_commencing'), '%Y-%m-%d')
+
+            # Create new inventory
             inventory = Inventory(
-                week_commencing=datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date(),
-                item_id=request.form['item_id'],
-                required_total=float(request.form['required_total']),
-                category=item.category.name if item.category else None,
-                price_per_kg=float(request.form['price_per_kg']),
-                value_required=float(request.form['value_required']),
-                current_stock=float(request.form['current_stock']),
-                supplier_name=item.supplier_name,
-                required_for_plan=float(request.form['required_for_plan']),
-                variance_for_week=float(request.form['variance_for_week']),
-                variance=float(request.form['variance']),
-                to_be_ordered=float(request.form['to_be_ordered']),
-                closing_stock=float(request.form['closing_stock']),
-                monday=float(request.form.get('monday', 0)),
-                tuesday=float(request.form.get('tuesday', 0)),
-                wednesday=float(request.form.get('wednesday', 0)),
-                thursday=float(request.form.get('thursday', 0)),
-                friday=float(request.form.get('friday', 0)),
-                saturday=float(request.form.get('saturday', 0)),
-                sunday=float(request.form.get('sunday', 0))
+                item_id=item_id,
+                week_commencing=week_commencing
             )
+
+            # Add and commit
             db.session.add(inventory)
             db.session.commit()
-            flash('Inventory created successfully!', 'success')
+
+            flash('Inventory created successfully', 'success')
             return redirect(url_for('inventory.list_inventory'))
         except Exception as e:
-            print(f"Error in create_inventory: {str(e)}")
             db.session.rollback()
-            flash('Error creating inventory', 'error')
-    
-    # Get RM type ID
-    rm_type = ItemType.query.filter_by(type_name='RM').first()
-    if not rm_type:
-        flash('Error: RM item type not found', 'error')
-        return redirect(url_for('inventory.list_inventory'))
-    
-    # Get all raw materials
-    items = ItemMaster.query.filter_by(item_type_id=rm_type.id).all()
-    categories = Category.query.all()
-    return render_template('inventory/create.html', items=items, categories=categories)
+            flash(f'Error creating inventory: {str(e)}', 'error')
 
-@inventory_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
+    # Get items for dropdown
+    items = ItemMaster.query.all()
+    return render_template('inventory/create.html', items=items)
+
+@inventory_bp.route('/inventory/edit/<int:id>', methods=['GET', 'POST'])
 def edit_inventory(id):
     inventory = Inventory.query.get_or_404(id)
     
     if request.method == 'POST':
         try:
-            # Get the item to get its category and supplier name
-            item = ItemMaster.query.get(request.form['item_id'])
-            if not item:
-                flash('Error: Item not found', 'error')
-                return redirect(url_for('inventory.list_inventory'))
-                
-            inventory.week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date()
-            inventory.item_id = request.form['item_id']
-            inventory.required_total = float(request.form['required_total'])
-            inventory.category = item.category.name if item.category else None
-            inventory.price_per_kg = float(request.form['price_per_kg'])
-            inventory.value_required = float(request.form['value_required'])
-            inventory.current_stock = float(request.form['current_stock'])
-            inventory.supplier_name = item.supplier_name
-            inventory.required_for_plan = float(request.form['required_for_plan'])
-            inventory.variance_for_week = float(request.form['variance_for_week'])
-            inventory.variance = float(request.form['variance'])
-            inventory.to_be_ordered = float(request.form['to_be_ordered'])
-            inventory.closing_stock = float(request.form['closing_stock'])
-            inventory.monday = float(request.form.get('monday', 0))
-            inventory.tuesday = float(request.form.get('tuesday', 0))
-            inventory.wednesday = float(request.form.get('wednesday', 0))
-            inventory.thursday = float(request.form.get('thursday', 0))
-            inventory.friday = float(request.form.get('friday', 0))
-            inventory.saturday = float(request.form.get('saturday', 0))
-            inventory.sunday = float(request.form.get('sunday', 0))
+            # Update fields
+            inventory.item_id = request.form.get('item_id')
+            inventory.week_commencing = datetime.strptime(request.form.get('week_commencing'), '%Y-%m-%d')
             
+            # Update daily values
+            for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
+                for field in ['required_kg', 'to_be_ordered', 'ordered_received', 'consumed_kg']:
+                    field_name = f"{day}_{field}"
+                    value = request.form.get(field_name, 0)
+                    setattr(inventory, field_name, float(value) if value else 0)
+
+            # Recalculate all values
+            inventory.calculate_daily_values()
+            
+            # Save changes
             db.session.commit()
-            flash('Inventory updated successfully!', 'success')
+            flash('Inventory updated successfully', 'success')
             return redirect(url_for('inventory.list_inventory'))
         except Exception as e:
-            print(f"Error in edit_inventory: {str(e)}")
             db.session.rollback()
-            flash('Error updating inventory', 'error')
-    
-    # Get RM type ID
-    rm_type = ItemType.query.filter_by(type_name='RM').first()
-    if not rm_type:
-        flash('Error: RM item type not found', 'error')
-        return redirect(url_for('inventory.list_inventory'))
-    
-    # Get all raw materials
-    items = ItemMaster.query.filter_by(item_type_id=rm_type.id).all()
-    categories = Category.query.all()
-    return render_template('inventory/edit.html', inventory=inventory, items=items, categories=categories)
+            flash(f'Error updating inventory: {str(e)}', 'error')
 
-@inventory_bp.route('/delete/<int:id>', methods=['POST'])
+    items = ItemMaster.query.all()
+    return render_template('inventory/edit.html', inventory=inventory, items=items)
+
+@inventory_bp.route('/inventory/update_field', methods=['POST'])
+def update_inventory_field():
+    try:
+        data = request.get_json()
+        inventory_id = data.get('id')
+        field = data.get('field')
+        value = float(data.get('value', 0))
+
+        inventory = Inventory.query.get_or_404(inventory_id)
+        
+        # Update the specified field
+        setattr(inventory, field, value)
+        
+        # Recalculate all values
+        inventory.calculate_daily_values()
+        
+        # Save changes
+        db.session.commit()
+
+        # Get the day from the field name
+        day = field.split('_')[0]
+
+        # Return updated values
+        return jsonify({
+            'success': True,
+            'data': {
+                'required_for_plan': round(inventory.required_for_plan, 2),
+                'variance_for_week': round(inventory.variance_for_week, 2),
+                'value_required': round(inventory.value_required, 2),
+                'opening_stock': round(getattr(inventory, f"{day}_opening_stock"), 2),
+                'variance': round(getattr(inventory, f"{day}_variance"), 2),
+                'closing_stock': round(getattr(inventory, f"{day}_closing_stock"), 2)
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@inventory_bp.route('/inventory/delete/<int:id>', methods=['POST'])
 def delete_inventory(id):
     try:
         inventory = Inventory.query.get_or_404(id)
         db.session.delete(inventory)
         db.session.commit()
-        return jsonify({'message': 'Inventory deleted successfully!'})
+        flash('Inventory deleted successfully', 'success')
     except Exception as e:
-        print(f"Error in delete_inventory: {str(e)}")
         db.session.rollback()
-        return jsonify({'error': 'Error deleting inventory'}), 500
-
-@inventory_bp.route('/api/item/<int:id>')
-def get_item(id):
-    try:
-        item = ItemMaster.query.get_or_404(id)
-        return jsonify({
-            'price_per_kg': float(item.price_per_kg) if item.price_per_kg else 0,
-            'category_id': item.category_id,
-            'supplier_name': item.supplier_name
-        })
-    except Exception as e:
-        print(f"Error in get_item: {str(e)}")
-        return jsonify({'error': 'Error getting item details'}), 500
+        flash(f'Error deleting inventory: {str(e)}', 'error')
+    return redirect(url_for('inventory.list_inventory'))

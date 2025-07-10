@@ -19,6 +19,16 @@ class Production(db.Model):
     requirement_kg = db.Column(db.Float, default=0.0)  # Add this for compatibility
     priority = db.Column(db.Integer, default=0)  # Add priority field
 
+    # Daily planning columns
+    total_planned = db.Column(db.Float, default=0.0)
+    monday_planned = db.Column(db.Float, default=0.0)
+    tuesday_planned = db.Column(db.Float, default=0.0)
+    wednesday_planned = db.Column(db.Float, default=0.0)
+    thursday_planned = db.Column(db.Float, default=0.0)
+    friday_planned = db.Column(db.Float, default=0.0)
+    saturday_planned = db.Column(db.Float, default=0.0)
+    sunday_planned = db.Column(db.Float, default=0.0)
+
     # Relationships
     item = db.relationship('ItemMaster', backref='production_records')
     machinery = db.relationship('Machinery', backref='production_records')

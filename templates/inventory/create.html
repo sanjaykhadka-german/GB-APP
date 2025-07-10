@@ -5,156 +5,293 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container">
     <h2>Create New Inventory</h2>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
     <form method="POST">
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label for="week_commencing" class="form-label">Week Commencing</label>
-                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" required>
-                </div>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        
+        <div class="form-group">
+            <label for="week_commencing">Week Commencing:</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" required>
+        </div>
 
-                <div class="mb-3">
-                    <label for="item_id" class="form-label">Item</label>
-                    <select class="form-control" id="item_id" name="item_id" required>
-                        <option value="">Select Item</option>
-                        {% for item in items %}
-                        <option value="{{ item.id }}">{{ item.description }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+        <div class="form-group">
+            <label for="item_id">Raw Material:</label>
+            <select class="form-control" id="item_id" name="item_id" required>
+                <option value="">Select Raw Material</option>
+                {% for item in items %}
+                <option value="{{ item.id }}">{{ item.description }}</option>
+                {% endfor %}
+            </select>
+        </div>
 
-                <div class="mb-3">
-                    <label for="price_per_kg" class="form-label">Price/KG</label>
-                    <input type="number" step="0.01" class="form-control" id="price_per_kg" name="price_per_kg" required>
+        <h3>Daily Requirements</h3>
+        
+        <!-- Monday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Monday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="monday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="monday_required_kg" name="monday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="monday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="monday_to_be_ordered" name="monday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="monday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="monday_ordered_received" name="monday_ordered_received" value="0">
+                        </div>
+                    </div>
                 </div>
-
-                <div class="mb-3">
-                    <label for="required_total" class="form-label">Required Total</label>
-                    <input type="number" step="0.01" class="form-control" id="required_total" name="required_total" required>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="monday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="monday_consumed_kg" name="monday_consumed_kg" value="0">
+                        </div>
+                    </div>
                 </div>
-
-                <div class="mb-3">
-                    <label for="value_required" class="form-label">Value Required</label>
-                    <input type="number" step="0.01" class="form-control" id="value_required" name="value_required" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="current_stock" class="form-label">SOH</label>
-                    <input type="number" step="0.01" class="form-control" id="current_stock" name="current_stock" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="required_for_plan" class="form-label">Required for Plan</label>
-                    <input type="number" step="0.01" class="form-control" id="required_for_plan" name="required_for_plan" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="variance_for_week" class="form-label">Variance Week</label>
-                    <input type="number" step="0.01" class="form-control" id="variance_for_week" name="variance_for_week" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="variance" class="form-label">Variance</label>
-                    <input type="number" step="0.01" class="form-control" id="variance" name="variance" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="to_be_ordered" class="form-label">To Be Ordered</label>
-                    <input type="number" step="0.01" class="form-control" id="to_be_ordered" name="to_be_ordered" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="closing_stock" class="form-label">Closing Stock</label>
-                    <input type="number" step="0.01" class="form-control" id="closing_stock" name="closing_stock" required>
-                </div>
-
-                <div class="mb-3">
-                    <label for="monday" class="form-label">Monday</label>
-                    <input type="number" step="0.01" class="form-control" id="monday" name="monday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="tuesday" class="form-label">Tuesday</label>
-                    <input type="number" step="0.01" class="form-control" id="tuesday" name="tuesday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="wednesday" class="form-label">Wednesday</label>
-                    <input type="number" step="0.01" class="form-control" id="wednesday" name="wednesday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="thursday" class="form-label">Thursday</label>
-                    <input type="number" step="0.01" class="form-control" id="thursday" name="thursday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="friday" class="form-label">Friday</label>
-                    <input type="number" step="0.01" class="form-control" id="friday" name="friday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="saturday" class="form-label">Saturday</label>
-                    <input type="number" step="0.01" class="form-control" id="saturday" name="saturday" value="0">
-                </div>
-
-                <div class="mb-3">
-                    <label for="sunday" class="form-label">Sunday</label>
-                    <input type="number" step="0.01" class="form-control" id="sunday" name="sunday" value="0">
-                </div>
-
-                <button type="submit" class="btn btn-primary">Create Inventory</button>
-                <a href="{{ url_for('inventory.list_inventory') }}" class="btn btn-secondary">Cancel</a>
             </div>
+        </div>
+
+        <!-- Tuesday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Tuesday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="tuesday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="tuesday_required_kg" name="tuesday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="tuesday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="tuesday_to_be_ordered" name="tuesday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="tuesday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="tuesday_ordered_received" name="tuesday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="tuesday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="tuesday_consumed_kg" name="tuesday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wednesday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Wednesday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="wednesday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="wednesday_required_kg" name="wednesday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="wednesday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="wednesday_to_be_ordered" name="wednesday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="wednesday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="wednesday_ordered_received" name="wednesday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="wednesday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="wednesday_consumed_kg" name="wednesday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Thursday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Thursday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="thursday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="thursday_required_kg" name="thursday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="thursday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="thursday_to_be_ordered" name="thursday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="thursday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="thursday_ordered_received" name="thursday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="thursday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="thursday_consumed_kg" name="thursday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Friday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Friday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="friday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="friday_required_kg" name="friday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="friday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="friday_to_be_ordered" name="friday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="friday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="friday_ordered_received" name="friday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="friday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="friday_consumed_kg" name="friday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saturday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Saturday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="saturday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="saturday_required_kg" name="saturday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="saturday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="saturday_to_be_ordered" name="saturday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="saturday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="saturday_ordered_received" name="saturday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="saturday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="saturday_consumed_kg" name="saturday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sunday -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">Sunday</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="sunday_required_kg">Required (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="sunday_required_kg" name="sunday_required_kg" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="sunday_to_be_ordered">To be Ordered:</label>
+                            <input type="number" step="0.01" class="form-control" id="sunday_to_be_ordered" name="sunday_to_be_ordered" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="sunday_ordered_received">Ordered Received:</label>
+                            <input type="number" step="0.01" class="form-control" id="sunday_ordered_received" name="sunday_ordered_received" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="sunday_consumed_kg">Consumed (Kg):</label>
+                            <input type="number" step="0.01" class="form-control" id="sunday_consumed_kg" name="sunday_consumed_kg" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Create Inventory</button>
+            <a href="{{ url_for('inventory.list_inventory') }}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>
 
-<script>
-document.getElementById('item_id').addEventListener('change', function() {
-    const itemId = this.value;
-    if (itemId) {
-        fetch(`/inventory/api/item/${itemId}`)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('price_per_kg').value = data.price_per_kg || 0;
-            })
-            .catch(error => console.error('Error:', error));
-    }
-});
-
-document.getElementById('required_total').addEventListener('input', function() {
-    const requiredTotal = parseFloat(this.value) || 0;
-    const pricePerKg = parseFloat(document.getElementById('price_per_kg').value) || 0;
-    document.getElementById('value_required').value = (requiredTotal * pricePerKg).toFixed(2);
-});
-
-document.getElementById('current_stock').addEventListener('input', function() {
-    calculateVariances();
-});
-
-document.getElementById('required_for_plan').addEventListener('input', function() {
-    calculateVariances();
-});
-
-function calculateVariances() {
-    const currentStock = parseFloat(document.getElementById('current_stock').value) || 0;
-    const requiredForPlan = parseFloat(document.getElementById('required_for_plan').value) || 0;
-    const requiredTotal = parseFloat(document.getElementById('required_total').value) || 0;
-    
-    document.getElementById('variance_for_week').value = (currentStock - requiredForPlan).toFixed(2);
-    document.getElementById('variance').value = (currentStock - requiredTotal).toFixed(2);
+<style>
+.card-header {
+    background-color: #e3f2fd !important;
+    color: #000 !important;
 }
-</script>
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
 {% endblock %}
