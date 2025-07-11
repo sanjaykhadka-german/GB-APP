@@ -161,7 +161,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         logger.error(f"Error updating packing entry: {str(e)}", exc_info=True)
         return False, str(e)
 
-@packing_bp.route('/')
+@packing_bp.route('/packing/')
 def packing_list():
     # Get search parameters from query string
     search_fg_code = request.args.get('fg_code', '').strip()
@@ -287,14 +287,14 @@ def packing_create():
             for field in required_fields:
                 if not request.form.get(field):
                     flash(f'Missing required field: {field}', 'danger')
-                    return redirect(url_for('packing_bp.packing_create'))
+                    return redirect(url_for('packing.packing_create'))
             
             # Parse form data with error handling
             try:
                 packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
             except ValueError as e:
                 flash(f'Invalid packing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
                 
             product_code = request.form['product_code'].strip()
             
@@ -302,19 +302,19 @@ def packing_create():
                 special_order_kg = float(request.form['special_order_kg']) if request.form.get('special_order_kg') else 0.0
             except ValueError:
                 flash('Invalid special order kg value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
                 
             try:
                 calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
             except ValueError:
                 flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
                 
             try:
                 week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form.get('week_commencing') else None
             except ValueError as e:
                 flash(f'Invalid week commencing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
                 
             # Handle machinery (optional)
             machinery = None
@@ -323,13 +323,13 @@ def packing_create():
                     machinery = int(request.form['machinery'])
                 except ValueError:
                     flash('Invalid machinery ID. Please select a valid machinery.', 'danger')
-                    return redirect(url_for('packing_bp.packing_create'))
+                    return redirect(url_for('packing.packing_create'))
                     
             try:
                 priority = int(request.form['priority']) if request.form.get('priority') else 0
             except ValueError:
                 flash('Invalid priority value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
 
             # Calculate week_commencing if not provided
             if not week_commencing:
@@ -341,7 +341,7 @@ def packing_create():
             item = ItemMaster.query.filter_by(item_code=product_code).first()
             if not item:
                 flash(f"No item record found for product code {product_code}.", 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
 
             # Check for duplicate based on uq_packing_week_product_date_machinery
             existing_packing = Packing.query.filter_by(
@@ -354,14 +354,14 @@ def packing_create():
             if existing_packing:
                 machinery_name = existing_packing.machinery.machineryName if existing_packing.machinery else "No Machinery"
                 flash(f'🔄 DUPLICATE DETECTED: A packing entry already exists for product {product_code} on {packing_date} with {machinery_name}. You have been redirected to EDIT the existing entry (ID: {existing_packing.id}). Note: You can create another entry with a different machinery.', 'info')
-                return redirect(url_for('packing_bp.packing_edit', id=existing_packing.id, from_duplicate='true'))
+                return redirect(url_for('packing.packing_edit', id=existing_packing.id, from_duplicate='true'))
 
             # Validate machinery if provided
             if machinery is not None:
                 machinery_exists = Machinery.query.filter_by(machineID=machinery).first()
                 if not machinery_exists:
                     flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
-                    return redirect(url_for('packing_bp.packing_create'))
+                    return redirect(url_for('packing.packing_create'))
             
             # Get all ItemMaster parameters for calculation
             avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0  # Try avg_weight_per_unit first, then kg_per_unit as fallback
@@ -385,7 +385,7 @@ def packing_create():
             else:
                 if not create_soh:
                     flash(f"No SOH entry exists for {product_code} (week {week_commencing}). Please check 'Create SOH entry' to proceed.", 'warning')
-                    return redirect(url_for('packing_bp.packing_create'))
+                    return redirect(url_for('packing.packing_create'))
                 soh_units = 0
 
             # Calculate SOH requirement based on min/max levels from ItemMaster
@@ -443,9 +443,9 @@ def packing_create():
                     
             else:
                 flash(f'⚠️ ERROR: {message}', 'danger')
-                return redirect(url_for('packing_bp.packing_create'))
+                return redirect(url_for('packing.packing_create'))
 
-            return redirect(url_for('packing_bp.packing_list'))
+            return redirect(url_for('packing.packing_list', week_commencing=week_commencing.strftime('%Y-%m-%d')))
         except ValueError as e:
             db.session.rollback()
             flash(f'Invalid data format: {str(e)}', 'danger')
@@ -474,25 +474,25 @@ def packing_edit(id):
                 packing_date = datetime.strptime(request.form['packing_date'], '%Y-%m-%d').date()
             except ValueError as e:
                 flash(f'Invalid packing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
                 
             try:
                 special_order_kg = float(request.form['special_order_kg']) if request.form.get('special_order_kg') else 0.0
             except ValueError:
                 flash('Invalid special order kg value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
                 
             try:
                 calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
             except ValueError:
                 flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
                 
             try:
                 week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form.get('week_commencing') else None
             except ValueError as e:
                 flash(f'Invalid week commencing date format. Please use YYYY-MM-DD format. Error: {str(e)}', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
                 
             # Handle machinery (optional)
             machinery = None
@@ -501,13 +501,13 @@ def packing_edit(id):
                     machinery = int(request.form['machinery'])
                 except ValueError:
                     flash('Invalid machinery ID. Please select a valid machinery.', 'danger')
-                    return redirect(url_for('packing_bp.packing_edit', id=id))
+                    return redirect(url_for('packing.packing_edit', id=id))
                     
             try:
                 priority = int(request.form['priority']) if request.form.get('priority') else 0
             except ValueError:
                 flash('Invalid priority value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
 
             # Calculate week_commencing if not provided
             if not week_commencing:
@@ -527,14 +527,14 @@ def packing_edit(id):
             if existing_packing:
                 machinery_name = "No Machinery" if machinery is None else f"Machinery ID {machinery}"
                 flash(f'🔄 DUPLICATE DETECTED: A packing entry already exists for this product on {packing_date} with {machinery_name}.', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
 
             # Validate machinery if provided
             if machinery is not None:
                 machinery_exists = Machinery.query.filter_by(machineID=machinery).first()
                 if not machinery_exists:
                     flash(f'Invalid machinery ID {machinery}. Please select a valid machinery.', 'danger')
-                    return redirect(url_for('packing_bp.packing_edit', id=id))
+                    return redirect(url_for('packing.packing_edit', id=id))
 
             # Get all ItemMaster parameters for calculation
             item = packing.item
@@ -552,7 +552,7 @@ def packing_edit(id):
             soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
             if not soh:
                 flash(f"No SOH entry exists for {item.item_code} (week {week_commencing}). Please create one first.", 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
             
             soh_units = soh.soh_total_units or 0
             logger.info(f"Found SOH data for {item.item_code}: soh_units={soh_units}")
@@ -581,9 +581,9 @@ def packing_edit(id):
                 flash(f'✅ SUCCESS: Packing entry updated for {item.item_code}! {message}', 'success')
             else:
                 flash(f'⚠️ ERROR: {message}', 'danger')
-                return redirect(url_for('packing_bp.packing_edit', id=id))
+                return redirect(url_for('packing.packing_edit', id=id))
 
-            return redirect(url_for('packing_bp.packing_list'))
+            return redirect(url_for('packing.packing_list'))
         except ValueError as e:
             db.session.rollback()
             flash(f'Invalid data format: {str(e)}', 'danger')
@@ -662,7 +662,7 @@ def packing_delete(id):
         flash(f'Error deleting packing entry: {str(e)}', 'danger')
         logger.error(f"Error deleting packing entry {id}: {e}", exc_info=True)
 
-    return redirect(url_for('packing_bp.packing_list'))
+    return redirect(url_for('packing.packing_list'))
 
 # Autocomplete for Packing Product Code
 @packing_bp.route('/autocomplete_packing', methods=['GET'])
@@ -1195,7 +1195,7 @@ def export_packings():
     except Exception as e:
         logger.error(f"Error exporting packing data: {str(e)}")
         flash('Error exporting data', 'danger')
-        return redirect(url_for('packing_bp.packing_list'))
+        return redirect(url_for('packing.packing_list'))
 
 @packing_bp.route('/search_product_codes', methods=['GET'])
 def search_product_codes():
@@ -1232,14 +1232,14 @@ def bulk_edit_comprehensive():
         ids = request.args.get('ids', '')
         if not ids:
             flash('No packing entries selected for bulk edit.', 'error')
-            return redirect(url_for('packing_bp.packing_list'))
+            return redirect(url_for('packing.packing_list'))
         
         packing_ids = [int(id.strip()) for id in ids.split(',') if id.strip().isdigit()]
         packings = Packing.query.filter(Packing.id.in_(packing_ids)).all()
         
         if not packings:
             flash('No valid packing entries found for bulk edit.', 'error')
-            return redirect(url_for('packing_bp.packing_list'))
+            return redirect(url_for('packing.packing_list'))
         
         machinery_list = Machinery.query.order_by(Machinery.machineryName).all()
         
@@ -1290,7 +1290,7 @@ def bulk_edit_comprehensive():
                 return jsonify({'success': True, 'message': f'Updated {updated_count} entries'})
             
             # For regular form submissions, redirect back to the edit page
-            return redirect(request.referrer or url_for('packing_bp.packing_list'))
+            return redirect(request.referrer or url_for('packing.packing_list'))
             
         except Exception as e:
             db.session.rollback()
@@ -1300,7 +1300,7 @@ def bulk_edit_comprehensive():
             if request.is_json or request.headers.get('Content-Type') == 'application/json':
                 return jsonify({'success': False, 'message': error_msg})
             
-            return redirect(request.referrer or url_for('packing_bp.packing_list'))
+            return redirect(request.referrer or url_for('packing.packing_list'))
 
 @packing_bp.route('/update_machinery/<int:id>', methods=['POST'])
 def update_machinery(id):

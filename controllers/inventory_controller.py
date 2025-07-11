@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, jsonify, flash
+from flask import Blueprint, render_template, request, jsonify, flash, send_file, redirect, url_for
+import pandas as pd
+import io
 from database import db
 from models import Inventory, ItemMaster, Category, Production, RecipeMaster
 from sqlalchemy.orm import joinedload
@@ -127,3 +129,101 @@ def update_inventory_field():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@inventory_bp.route('/inventory/export')
+def export_inventory():
+    """Export inventory data to an Excel file."""
+    search_week_commencing = request.args.get('week_commencing', '').strip()
+
+    if not search_week_commencing:
+        flash("Please select a 'Week Commencing' date to export.", 'danger')
+        return redirect(url_for('inventory.list_inventory'))
+
+    try:
+        week_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
+        
+        inventory_records = db.session.query(Inventory).options(
+            joinedload(Inventory.item).joinedload(ItemMaster.category)
+        ).filter_by(week_commencing=week_date).all()
+
+        if not inventory_records:
+            flash("No inventory data found for the selected week.", 'info')
+            return redirect(url_for('inventory.list_inventory', week_commencing=search_week_commencing))
+
+        export_data = []
+        for inv in inventory_records:
+            data_row = {
+                'Item': inv.item.description,
+                'Category': inv.item.category.name if inv.item.category else '',
+                'Required Total': inv.required_in_total,
+                '$/KG': inv.price_per_kg,
+                '$ Value RM': inv.value_required_rm,
+                'SOH': inv.soh,
+                'Variance Week': inv.variance_week,
+                'Mon Opening': inv.monday_opening_stock,
+                'Mon Required': inv.monday_required_kg,
+                'Mon Variance': inv.monday_variance,
+                'Mon To Be Ordered': inv.monday_to_be_ordered,
+                'Mon Ordered/Received': inv.monday_ordered_received,
+                'Mon Consumed': inv.monday_consumed_kg,
+                'Mon Closing': inv.monday_closing_stock,
+                'Tue Opening': inv.tuesday_opening_stock,
+                'Tue Required': inv.tuesday_required_kg,
+                'Tue Variance': inv.tuesday_variance,
+                'Tue To Be Ordered': inv.tuesday_to_be_ordered,
+                'Tue Ordered/Received': inv.tuesday_ordered_received,
+                'Tue Consumed': inv.tuesday_consumed_kg,
+                'Tue Closing': inv.tuesday_closing_stock,
+                'Wed Opening': inv.wednesday_opening_stock,
+                'Wed Required': inv.wednesday_required_kg,
+                'Wed Variance': inv.wednesday_variance,
+                'Wed To Be Ordered': inv.wednesday_to_be_ordered,
+                'Wed Ordered/Received': inv.wednesday_ordered_received,
+                'Wed Consumed': inv.wednesday_consumed_kg,
+                'Wed Closing': inv.wednesday_closing_stock,
+                'Thu Opening': inv.thursday_opening_stock,
+                'Thu Required': inv.thursday_required_kg,
+                'Thu Variance': inv.thursday_variance,
+                'Thu To Be Ordered': inv.thursday_to_be_ordered,
+                'Thu Ordered/Received': inv.thursday_ordered_received,
+                'Thu Consumed': inv.thursday_consumed_kg,
+                'Thu Closing': inv.thursday_closing_stock,
+                'Fri Opening': inv.friday_opening_stock,
+                'Fri Required': inv.friday_required_kg,
+                'Fri Variance': inv.friday_variance,
+                'Fri To Be Ordered': inv.friday_to_be_ordered,
+                'Fri Ordered/Received': inv.friday_ordered_received,
+                'Fri Consumed': inv.friday_consumed_kg,
+                'Fri Closing': inv.friday_closing_stock,
+                'Sat Opening': inv.saturday_opening_stock,
+                'Sat Required': inv.saturday_required_kg,
+                'Sat Variance': inv.saturday_variance,
+                'Sat To Be Ordered': inv.saturday_to_be_ordered,
+                'Sat Ordered/Received': inv.saturday_ordered_received,
+                'Sat Consumed': inv.saturday_consumed_kg,
+                'Sat Closing': inv.saturday_closing_stock,
+                'Sun Opening': inv.sunday_opening_stock,
+                'Sun Required': inv.sunday_required_kg,
+                'Sun Variance': inv.sunday_variance,
+                'Sun To Be Ordered': inv.sunday_to_be_ordered,
+                'Sun Ordered/Received': inv.sunday_ordered_received,
+                'Sun Consumed': inv.sunday_consumed_kg,
+                'Sun Closing': inv.sunday_closing_stock,
+            }
+            export_data.append(data_row)
+
+        df = pd.DataFrame(export_data)
+        
+        output = io.BytesIO()
+        df.to_excel(output, index=False, sheet_name='Inventory')
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'inventory_{search_week_commencing}.xlsx'
+        )
+    except Exception as e:
+        flash(f"An error occurred while exporting: {str(e)}", 'danger')
+        return redirect(url_for('inventory.list_inventory', week_commencing=search_week_commencing))

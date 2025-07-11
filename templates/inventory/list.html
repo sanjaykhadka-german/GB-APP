@@ -11,7 +11,6 @@
     }
     table {
         width: 100%;
-        min-width: 3000px; /* Adjust as needed for all columns */
         border-collapse: collapse;
     }
     th, td {
@@ -40,6 +39,12 @@
         border-left: 2px solid #343a40;
         border-right: 2px solid #343a40;
     }
+    .column-toggle {
+        margin-bottom: 20px;
+    }
+    .column-toggle label {
+        margin-right: 15px;
+    }
 </style>
 
 <div class="container-fluid">
@@ -51,7 +56,19 @@
             <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ search_week_commencing }}">
         </div>
         <button type="submit" class="btn btn-primary">Search</button>
+        <button type="button" class="btn btn-success ml-2" onclick="exportToExcel()">Export to Excel</button>
     </form>
+
+    <div class="column-toggle">
+        <h4>Column Visibility</h4>
+        <label><input type="checkbox" class="col-toggle" data-day="monday" checked> Monday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="tuesday" checked> Tuesday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="wednesday" checked> Wednesday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="thursday" checked> Thursday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="friday" checked> Friday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="saturday" checked> Saturday</label>
+        <label><input type="checkbox" class="col-toggle" data-day="sunday" checked> Sunday</label>
+    </div>
 
     <div class="table-container">
         <table class="table table-bordered table-striped">
@@ -60,13 +77,13 @@
                     <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item</th>
                     <th rowspan="2">Category</th>
                     <th colspan="5">Weekly Summary</th>
-                    <th colspan="7" class="day-group">Monday</th>
-                    <th colspan="7" class="day-group">Tuesday</th>
-                    <th colspan="7" class="day-group">Wednesday</th>
-                    <th colspan="7" class="day-group">Thursday</th>
-                    <th colspan="7" class="day-group">Friday</th>
-                    <th colspan="7" class="day-group">Saturday</th>
-                    <th colspan="7" class="day-group">Sunday</th>
+                    <th colspan="7" class="day-group col-monday">Monday</th>
+                    <th colspan="7" class="day-group col-tuesday">Tuesday</th>
+                    <th colspan="7" class="day-group col-wednesday">Wednesday</th>
+                    <th colspan="7" class="day-group col-thursday">Thursday</th>
+                    <th colspan="7" class="day-group col-friday">Friday</th>
+                    <th colspan="7" class="day-group col-saturday">Saturday</th>
+                    <th colspan="7" class="day-group col-sunday">Sunday</th>
                 </tr>
                 <tr>
                     <!-- Summary Headers -->
@@ -77,13 +94,13 @@
                     <th>Variance Week</th>
                     <!-- Daily Headers -->
                     {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
-                        <th class="day-group">{{ day }} Opening</th>
-                        <th>{{ day }} Required</th>
-                        <th>{{ day }} Variance</th>
-                        <th>{{ day }} To Be Ordered</th>
-                        <th>{{ day }} Ordered/Received</th>
-                        <th>{{ day }} Consumed</th>
-                        <th class="day-group">{{ day }} Closing</th>
+                        <th class="day-group col-{{ day.lower() }}">{{ day }} Opening</th>
+                        <th class="col-{{ day.lower() }}">{{ day }} Required</th>
+                        <th class="col-{{ day.lower() }}">{{ day }} Variance</th>
+                        <th class="col-{{ day.lower() }}">{{ day }} To Be Ordered</th>
+                        <th class="col-{{ day.lower() }}">{{ day }} Ordered/Received</th>
+                        <th class="col-{{ day.lower() }}">{{ day }} Consumed</th>
+                        <th class="day-group col-{{ day.lower() }}">{{ day }} Closing</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -99,67 +116,67 @@
                     <td data-field="variance_week">{{ "%.2f"|format(inv.variance_week) }}</td>
                     
                     <!-- Monday -->
-                    <td data-field="monday_opening_stock">{{ "%.2f"|format(inv.monday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.monday_required_kg) }}</td>
-                    <td data-field="monday_variance">{{ "%.2f"|format(inv.monday_variance) }}</td>
-                    <td class="editable" data-field="monday_to_be_ordered">{{ "%.2f"|format(inv.monday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="monday_ordered_received">{{ "%.2f"|format(inv.monday_ordered_received) }}</td>
-                    <td class="editable" data-field="monday_consumed_kg">{{ "%.2f"|format(inv.monday_consumed_kg) }}</td>
-                    <td data-field="monday_closing_stock">{{ "%.2f"|format(inv.monday_closing_stock) }}</td>
+                    <td data-field="monday_opening_stock" class="col-monday">{{ "%.2f"|format(inv.monday_opening_stock) }}</td>
+                    <td class="col-monday">{{ "%.2f"|format(inv.monday_required_kg) }}</td>
+                    <td data-field="monday_variance" class="col-monday">{{ "%.2f"|format(inv.monday_variance) }}</td>
+                    <td class="editable col-monday" data-field="monday_to_be_ordered">{{ "%.2f"|format(inv.monday_to_be_ordered) }}</td>
+                    <td class="editable col-monday" data-field="monday_ordered_received">{{ "%.2f"|format(inv.monday_ordered_received) }}</td>
+                    <td class="editable col-monday" data-field="monday_consumed_kg">{{ "%.2f"|format(inv.monday_consumed_kg) }}</td>
+                    <td data-field="monday_closing_stock" class="col-monday">{{ "%.2f"|format(inv.monday_closing_stock) }}</td>
 
                     <!-- Tuesday -->
-                    <td data-field="tuesday_opening_stock">{{ "%.2f"|format(inv.tuesday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.tuesday_required_kg) }}</td>
-                    <td data-field="tuesday_variance">{{ "%.2f"|format(inv.tuesday_variance) }}</td>
-                    <td class="editable" data-field="tuesday_to_be_ordered">{{ "%.2f"|format(inv.tuesday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="tuesday_ordered_received">{{ "%.2f"|format(inv.tuesday_ordered_received) }}</td>
-                    <td class="editable" data-field="tuesday_consumed_kg">{{ "%.2f"|format(inv.tuesday_consumed_kg) }}</td>
-                    <td data-field="tuesday_closing_stock">{{ "%.2f"|format(inv.tuesday_closing_stock) }}</td>
+                    <td data-field="tuesday_opening_stock" class="col-tuesday">{{ "%.2f"|format(inv.tuesday_opening_stock) }}</td>
+                    <td class="col-tuesday">{{ "%.2f"|format(inv.tuesday_required_kg) }}</td>
+                    <td data-field="tuesday_variance" class="col-tuesday">{{ "%.2f"|format(inv.tuesday_variance) }}</td>
+                    <td class="editable col-tuesday" data-field="tuesday_to_be_ordered">{{ "%.2f"|format(inv.tuesday_to_be_ordered) }}</td>
+                    <td class="editable col-tuesday" data-field="tuesday_ordered_received">{{ "%.2f"|format(inv.tuesday_ordered_received) }}</td>
+                    <td class="editable col-tuesday" data-field="tuesday_consumed_kg">{{ "%.2f"|format(inv.tuesday_consumed_kg) }}</td>
+                    <td data-field="tuesday_closing_stock" class="col-tuesday">{{ "%.2f"|format(inv.tuesday_closing_stock) }}</td>
 
                     <!-- Wednesday -->
-                    <td data-field="wednesday_opening_stock">{{ "%.2f"|format(inv.wednesday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.wednesday_required_kg) }}</td>
-                    <td data-field="wednesday_variance">{{ "%.2f"|format(inv.wednesday_variance) }}</td>
-                    <td class="editable" data-field="wednesday_to_be_ordered">{{ "%.2f"|format(inv.wednesday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="wednesday_ordered_received">{{ "%.2f"|format(inv.wednesday_ordered_received) }}</td>
-                    <td class="editable" data-field="wednesday_consumed_kg">{{ "%.2f"|format(inv.wednesday_consumed_kg) }}</td>
-                    <td data-field="wednesday_closing_stock">{{ "%.2f"|format(inv.wednesday_closing_stock) }}</td>
+                    <td data-field="wednesday_opening_stock" class="col-wednesday">{{ "%.2f"|format(inv.wednesday_opening_stock) }}</td>
+                    <td class="col-wednesday">{{ "%.2f"|format(inv.wednesday_required_kg) }}</td>
+                    <td data-field="wednesday_variance" class="col-wednesday">{{ "%.2f"|format(inv.wednesday_variance) }}</td>
+                    <td class="editable col-wednesday" data-field="wednesday_to_be_ordered">{{ "%.2f"|format(inv.wednesday_to_be_ordered) }}</td>
+                    <td class="editable col-wednesday" data-field="wednesday_ordered_received">{{ "%.2f"|format(inv.wednesday_ordered_received) }}</td>
+                    <td class="editable col-wednesday" data-field="wednesday_consumed_kg">{{ "%.2f"|format(inv.wednesday_consumed_kg) }}</td>
+                    <td data-field="wednesday_closing_stock" class="col-wednesday">{{ "%.2f"|format(inv.wednesday_closing_stock) }}</td>
 
                     <!-- Thursday -->
-                    <td data-field="thursday_opening_stock">{{ "%.2f"|format(inv.thursday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.thursday_required_kg) }}</td>
-                    <td data-field="thursday_variance">{{ "%.2f"|format(inv.thursday_variance) }}</td>
-                    <td class="editable" data-field="thursday_to_be_ordered">{{ "%.2f"|format(inv.thursday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="thursday_ordered_received">{{ "%.2f"|format(inv.thursday_ordered_received) }}</td>
-                    <td class="editable" data-field="thursday_consumed_kg">{{ "%.2f"|format(inv.thursday_consumed_kg) }}</td>
-                    <td data-field="thursday_closing_stock">{{ "%.2f"|format(inv.thursday_closing_stock) }}</td>
+                    <td data-field="thursday_opening_stock" class="col-thursday">{{ "%.2f"|format(inv.thursday_opening_stock) }}</td>
+                    <td class="col-thursday">{{ "%.2f"|format(inv.thursday_required_kg) }}</td>
+                    <td data-field="thursday_variance" class="col-thursday">{{ "%.2f"|format(inv.thursday_variance) }}</td>
+                    <td class="editable col-thursday" data-field="thursday_to_be_ordered">{{ "%.2f"|format(inv.thursday_to_be_ordered) }}</td>
+                    <td class="editable col-thursday" data-field="thursday_ordered_received">{{ "%.2f"|format(inv.thursday_ordered_received) }}</td>
+                    <td class="editable col-thursday" data-field="thursday_consumed_kg">{{ "%.2f"|format(inv.thursday_consumed_kg) }}</td>
+                    <td data-field="thursday_closing_stock" class="col-thursday">{{ "%.2f"|format(inv.thursday_closing_stock) }}</td>
 
                     <!-- Friday -->
-                    <td data-field="friday_opening_stock">{{ "%.2f"|format(inv.friday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.friday_required_kg) }}</td>
-                    <td data-field="friday_variance">{{ "%.2f"|format(inv.friday_variance) }}</td>
-                    <td class="editable" data-field="friday_to_be_ordered">{{ "%.2f"|format(inv.friday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="friday_ordered_received">{{ "%.2f"|format(inv.friday_ordered_received) }}</td>
-                    <td class="editable" data-field="friday_consumed_kg">{{ "%.2f"|format(inv.friday_consumed_kg) }}</td>
-                    <td data-field="friday_closing_stock">{{ "%.2f"|format(inv.friday_closing_stock) }}</td>
+                    <td data-field="friday_opening_stock" class="col-friday">{{ "%.2f"|format(inv.friday_opening_stock) }}</td>
+                    <td class="col-friday">{{ "%.2f"|format(inv.friday_required_kg) }}</td>
+                    <td data-field="friday_variance" class="col-friday">{{ "%.2f"|format(inv.friday_variance) }}</td>
+                    <td class="editable col-friday" data-field="friday_to_be_ordered">{{ "%.2f"|format(inv.friday_to_be_ordered) }}</td>
+                    <td class="editable col-friday" data-field="friday_ordered_received">{{ "%.2f"|format(inv.friday_ordered_received) }}</td>
+                    <td class="editable col-friday" data-field="friday_consumed_kg">{{ "%.2f"|format(inv.friday_consumed_kg) }}</td>
+                    <td data-field="friday_closing_stock" class="col-friday">{{ "%.2f"|format(inv.friday_closing_stock) }}</td>
                     
                     <!-- Saturday -->
-                    <td data-field="saturday_opening_stock">{{ "%.2f"|format(inv.saturday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.saturday_required_kg) }}</td>
-                    <td data-field="saturday_variance">{{ "%.2f"|format(inv.saturday_variance) }}</td>
-                    <td class="editable" data-field="saturday_to_be_ordered">{{ "%.2f"|format(inv.saturday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="saturday_ordered_received">{{ "%.2f"|format(inv.saturday_ordered_received) }}</td>
-                    <td class="editable" data-field="saturday_consumed_kg">{{ "%.2f"|format(inv.saturday_consumed_kg) }}</td>
-                    <td data-field="saturday_closing_stock">{{ "%.2f"|format(inv.saturday_closing_stock) }}</td>
+                    <td data-field="saturday_opening_stock" class="col-saturday">{{ "%.2f"|format(inv.saturday_opening_stock) }}</td>
+                    <td class="col-saturday">{{ "%.2f"|format(inv.saturday_required_kg) }}</td>
+                    <td data-field="saturday_variance" class="col-saturday">{{ "%.2f"|format(inv.saturday_variance) }}</td>
+                    <td class="editable col-saturday" data-field="saturday_to_be_ordered">{{ "%.2f"|format(inv.saturday_to_be_ordered) }}</td>
+                    <td class="editable col-saturday" data-field="saturday_ordered_received">{{ "%.2f"|format(inv.saturday_ordered_received) }}</td>
+                    <td class="editable col-saturday" data-field="saturday_consumed_kg">{{ "%.2f"|format(inv.saturday_consumed_kg) }}</td>
+                    <td data-field="saturday_closing_stock" class="col-saturday">{{ "%.2f"|format(inv.saturday_closing_stock) }}</td>
                     
                     <!-- Sunday -->
-                    <td data-field="sunday_opening_stock">{{ "%.2f"|format(inv.sunday_opening_stock) }}</td>
-                    <td>{{ "%.2f"|format(inv.sunday_required_kg) }}</td>
-                    <td data-field="sunday_variance">{{ "%.2f"|format(inv.sunday_variance) }}</td>
-                    <td class="editable" data-field="sunday_to_be_ordered">{{ "%.2f"|format(inv.sunday_to_be_ordered) }}</td>
-                    <td class="editable" data-field="sunday_ordered_received">{{ "%.2f"|format(inv.sunday_ordered_received) }}</td>
-                    <td class="editable" data-field="sunday_consumed_kg">{{ "%.2f"|format(inv.sunday_consumed_kg) }}</td>
-                    <td data-field="sunday_closing_stock">{{ "%.2f"|format(inv.sunday_closing_stock) }}</td>
+                    <td data-field="sunday_opening_stock" class="col-sunday">{{ "%.2f"|format(inv.sunday_opening_stock) }}</td>
+                    <td class="col-sunday">{{ "%.2f"|format(inv.sunday_required_kg) }}</td>
+                    <td data-field="sunday_variance" class="col-sunday">{{ "%.2f"|format(inv.sunday_variance) }}</td>
+                    <td class="editable col-sunday" data-field="sunday_to_be_ordered">{{ "%.2f"|format(inv.sunday_to_be_ordered) }}</td>
+                    <td class="editable col-sunday" data-field="sunday_ordered_received">{{ "%.2f"|format(inv.sunday_ordered_received) }}</td>
+                    <td class="editable col-sunday" data-field="sunday_consumed_kg">{{ "%.2f"|format(inv.sunday_consumed_kg) }}</td>
+                    <td data-field="sunday_closing_stock" class="col-sunday">{{ "%.2f"|format(inv.sunday_closing_stock) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -170,6 +187,18 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.querySelector('table');
+    const toggles = document.querySelectorAll('.col-toggle');
+
+    toggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const day = this.dataset.day;
+            const isChecked = this.checked;
+            const columns = document.querySelectorAll(`.col-${day}`);
+            columns.forEach(col => {
+                col.style.display = isChecked ? '' : 'none';
+            });
+        });
+    });
 
     table.addEventListener('dblclick', function(e) {
         const cell = e.target.closest('td.editable');
@@ -239,5 +268,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+function exportToExcel() {
+    const weekCommencing = document.getElementById('week_commencing').value;
+    if (!weekCommencing) {
+        alert('Please select a week to export.');
+        return;
+    }
+    const url = `/inventory/export?week_commencing=${weekCommencing}`;
+    window.location.href = url;
+}
 </script>
 {% endblock %}
