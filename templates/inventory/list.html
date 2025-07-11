@@ -1,496 +1,96 @@
-{% extends 'index.html' %}
-
-{% block nav %}
-    {% set current_page = 'inventory' %}
-{% endblock %}
+{% extends "index.html" %}
 
 {% block content %}
 <div class="container-fluid">
-    <h2>Inventory List</h2>
+    <h1>Inventory List</h1>
 
     <!-- Search Section -->
-    <section id="search" class="mb-4">
-        <h3>Search Inventory</h3>
-        <form id="searchForm">
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label for="search_item">Item:</label>
-                        <input type="text" class="form-control" id="search_item" name="item" placeholder="Search by item">
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label for="search_category">Category:</label>
-                        <select class="form-control" id="search_category" name="category">
-                            <option value="">All Categories</option>
-                            {% for category in categories %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label for="search_week_commencing">Week Commencing:</label>
-                        <input type="date" class="form-control" id="search_week_commencing" name="week_commencing">
-                    </div>
-                </div>
+    <div class="search-section mb-4">
+        <form method="GET" class="form-inline">
+            <div class="form-group mx-2">
+                <input type="text" class="form-control" name="item" placeholder="Search by item" value="{{ search_item }}">
+            </div>
+            <div class="form-group mx-2">
+                <input type="text" class="form-control" name="category" placeholder="Search by category" value="{{ search_category }}">
+            </div>
+            <div class="form-group mx-2">
+                <input type="date" class="form-control" name="week_commencing" value="{{ search_week_commencing }}">
             </div>
             <button type="submit" class="btn btn-primary">Search</button>
-            <button type="button" class="btn btn-secondary" onclick="resetSearch()">Reset</button>
+            <button type="button" class="btn btn-success ml-2" onclick="initializeSelectedWeek()">Initialize Selected Week</button>
         </form>
-    </section>
-
-    <div class="mb-3">
-        <a href="{{ url_for('inventory.create_inventory') }}" class="btn btn-primary">Add New Inventory</a>
-        <button type="button" class="btn btn-success" onclick="exportToExcel()">Export to Excel</button>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-    {% endwith %}
-
+    <!-- Inventory Table -->
     <div class="table-responsive">
-        <table class="table table-striped table-bordered" id="inventoryTable">
+        <table class="table table-striped">
             <thead>
                 <tr>
-                    <th rowspan="2">Week Commencing</th>
-                    <th rowspan="2">Item</th>
-                    <th rowspan="2">Required in TOTAL for Production</th>
-                    <th rowspan="2">Category</th>
-                    <th rowspan="2">$/KG</th>
-                    <th rowspan="2">$ Value for Required RM</th>
-                    <th rowspan="2">SOH</th>
-                    <th rowspan="2">Supplier Name</th>
-                    <th rowspan="2">Required for Plan</th>
-                    <th rowspan="2">Variance for the Week</th>
-                    
-                    <!-- Monday -->
-                    <th colspan="7" class="text-center bg-info">Monday</th>
-                    
-                    <!-- Tuesday -->
-                    <th colspan="7" class="text-center bg-info">Tuesday</th>
-                    
-                    <!-- Wednesday -->
-                    <th colspan="7" class="text-center bg-info">Wednesday</th>
-                    
-                    <!-- Thursday -->
-                    <th colspan="7" class="text-center bg-info">Thursday</th>
-                    
-                    <!-- Friday -->
-                    <th colspan="7" class="text-center bg-info">Friday</th>
-                    
-                    <!-- Saturday -->
-                    <th colspan="7" class="text-center bg-info">Saturday</th>
-                    
-                    <!-- Sunday -->
-                    <th colspan="7" class="text-center bg-info">Sunday</th>
-                    
-                    <th rowspan="2">Actions</th>
-                </tr>
-                <tr>
-                    <!-- Monday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Tuesday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Wednesday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Thursday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Friday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Saturday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
-                    
-                    <!-- Sunday -->
-                    <th>Opening Stock</th>
-                    <th>Required (Kg)</th>
-                    <th>Variance</th>
-                    <th>To be Ordered</th>
-                    <th>Ordered Received</th>
-                    <th>Consumed (Kg)</th>
-                    <th>Closing Stock</th>
+                    <th>Item Code</th>
+                    <th>Description</th>
+                    <th>Required Total</th>
+                    <th>Price per KG</th>
+                    <th>Value Required</th>
+                    <th>Current Stock</th>
+                    <th>Supplier Name</th>
+                    <th>Monday</th>
+                    <th>Tuesday</th>
+                    <th>Wednesday</th>
+                    <th>Thursday</th>
+                    <th>Friday</th>
                 </tr>
             </thead>
             <tbody>
-            {% for inventory in inventories %}
-            <tr data-id="{{ inventory.id }}">
-                <td>{{ inventory.week_commencing.strftime('%Y-%m-%d') }}</td>
-                <td>{{ inventory.item.description }}</td>
-                <td>{{ "%.2f"|format(inventory.required_total|float) }}</td>
-                <td>{{ inventory.item.category }}</td>
-                <td>{{ "%.2f"|format(inventory.price_per_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.value_required|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.current_stock|float) }}</td>
-                <td>{{ inventory.supplier_name }}</td>
-                <td>{{ "%.2f"|format(inventory.required_for_plan|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.variance_for_week|float) }}</td>
-                
-                <!-- Monday -->
-                <td>{{ "%.2f"|format(inventory.monday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="monday_required_kg">{{ "%.2f"|format(inventory.monday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.monday_variance|float) }}</td>
-                <td class="editable-cell" data-field="monday_to_be_ordered">{{ "%.2f"|format(inventory.monday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="monday_ordered_received">{{ "%.2f"|format(inventory.monday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="monday_consumed_kg">{{ "%.2f"|format(inventory.monday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.monday_closing_stock|float) }}</td>
-                
-                <!-- Tuesday -->
-                <td>{{ "%.2f"|format(inventory.tuesday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="tuesday_required_kg">{{ "%.2f"|format(inventory.tuesday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.tuesday_variance|float) }}</td>
-                <td class="editable-cell" data-field="tuesday_to_be_ordered">{{ "%.2f"|format(inventory.tuesday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="tuesday_ordered_received">{{ "%.2f"|format(inventory.tuesday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="tuesday_consumed_kg">{{ "%.2f"|format(inventory.tuesday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.tuesday_closing_stock|float) }}</td>
-                
-                <!-- Wednesday -->
-                <td>{{ "%.2f"|format(inventory.wednesday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="wednesday_required_kg">{{ "%.2f"|format(inventory.wednesday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.wednesday_variance|float) }}</td>
-                <td class="editable-cell" data-field="wednesday_to_be_ordered">{{ "%.2f"|format(inventory.wednesday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="wednesday_ordered_received">{{ "%.2f"|format(inventory.wednesday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="wednesday_consumed_kg">{{ "%.2f"|format(inventory.wednesday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.wednesday_closing_stock|float) }}</td>
-                
-                <!-- Thursday -->
-                <td>{{ "%.2f"|format(inventory.thursday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="thursday_required_kg">{{ "%.2f"|format(inventory.thursday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.thursday_variance|float) }}</td>
-                <td class="editable-cell" data-field="thursday_to_be_ordered">{{ "%.2f"|format(inventory.thursday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="thursday_ordered_received">{{ "%.2f"|format(inventory.thursday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="thursday_consumed_kg">{{ "%.2f"|format(inventory.thursday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.thursday_closing_stock|float) }}</td>
-                
-                <!-- Friday -->
-                <td>{{ "%.2f"|format(inventory.friday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="friday_required_kg">{{ "%.2f"|format(inventory.friday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.friday_variance|float) }}</td>
-                <td class="editable-cell" data-field="friday_to_be_ordered">{{ "%.2f"|format(inventory.friday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="friday_ordered_received">{{ "%.2f"|format(inventory.friday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="friday_consumed_kg">{{ "%.2f"|format(inventory.friday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.friday_closing_stock|float) }}</td>
-                
-                <!-- Saturday -->
-                <td>{{ "%.2f"|format(inventory.saturday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="saturday_required_kg">{{ "%.2f"|format(inventory.saturday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.saturday_variance|float) }}</td>
-                <td class="editable-cell" data-field="saturday_to_be_ordered">{{ "%.2f"|format(inventory.saturday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="saturday_ordered_received">{{ "%.2f"|format(inventory.saturday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="saturday_consumed_kg">{{ "%.2f"|format(inventory.saturday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.saturday_closing_stock|float) }}</td>
-                
-                <!-- Sunday -->
-                <td>{{ "%.2f"|format(inventory.sunday_opening_stock|float) }}</td>
-                <td class="editable-cell" data-field="sunday_required_kg">{{ "%.2f"|format(inventory.sunday_required_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.sunday_variance|float) }}</td>
-                <td class="editable-cell" data-field="sunday_to_be_ordered">{{ "%.2f"|format(inventory.sunday_to_be_ordered|float) }}</td>
-                <td class="editable-cell" data-field="sunday_ordered_received">{{ "%.2f"|format(inventory.sunday_ordered_received|float) }}</td>
-                <td class="editable-cell" data-field="sunday_consumed_kg">{{ "%.2f"|format(inventory.sunday_consumed_kg|float) }}</td>
-                <td>{{ "%.2f"|format(inventory.sunday_closing_stock|float) }}</td>
-                
-                <td>
-                    <a href="{{ url_for('inventory.edit_inventory', id=inventory.id) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <button class="btn btn-sm btn-danger" onclick="deleteInventory('{{ inventory.id }}')">Delete</button>
-                </td>
-            </tr>
-            {% endfor %}
+                {% for item in inventory %}
+                <tr>
+                    <td>{{ item.item_code }}</td>
+                    <td>{{ item.description }}</td>
+                    <td class="editable-cell" data-field="required_total">{{ "%.2f"|format(item.required_total|float) }}</td>
+                    <td class="editable-cell" data-field="price_per_kg">{{ "%.2f"|format(item.price_per_kg|float) }}</td>
+                    <td>{{ "%.2f"|format(item.value_required|float) }}</td>
+                    <td class="editable-cell" data-field="current_stock">{{ "%.2f"|format(item.current_stock|float) }}</td>
+                    <td>{{ item.supplier_name }}</td>
+                    <td>{{ "%.2f"|format(item.daily_required.get(search_week_commencing|default(''), 0)|float) }}</td>
+                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(1)), 0)|float) }}</td>
+                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(2)), 0)|float) }}</td>
+                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(3)), 0)|float) }}</td>
+                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(4)), 0)|float) }}</td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
-<style>
-.table th {
-    text-align: center;
-    vertical-align: middle;
-    font-size: 0.9em;
-}
-
-.bg-info {
-    background-color: #e3f2fd !important;
-}
-
-/* Add borders between day groups */
-.table td:nth-child(11),
-.table td:nth-child(18),
-.table td:nth-child(25),
-.table td:nth-child(32),
-.table td:nth-child(39),
-.table td:nth-child(46),
-.table td:nth-child(53) {
-    border-left: 2px solid #dee2e6;
-}
-
-.table th:nth-child(11),
-.table th:nth-child(18),
-.table th:nth-child(25),
-.table th:nth-child(32),
-.table th:nth-child(39),
-.table th:nth-child(46),
-.table th:nth-child(53) {
-    border-left: 2px solid #dee2e6;
-}
-
-/* Highlight numeric columns */
-.table td:not(:nth-child(2)):not(:nth-child(4)):not(:nth-child(8)):not(:last-child) {
-    text-align: right;
-}
-
-/* Add hover effect */
-.table tbody tr:hover {
-    background-color: #f5f5f5;
-}
-
-.editable-cell {
-    cursor: pointer;
-    position: relative;
-    background-color: #f8f9fa;
-    transition: background-color 0.2s;
-}
-
-.editable-cell:hover {
-    background-color: #e9ecef;
-}
-
-.editable-cell.editing {
-    padding: 0 !important;
-}
-
-.editable-cell input {
-    width: 100%;
-    height: 100%;
-    padding: 4px 8px;
-    border: 2px solid #007bff;
-    border-radius: 4px;
-    outline: none;
-    text-align: right;
-}
-
-.editable-cell::after {
-    content: '✎';
-    position: absolute;
-    top: 50%;
-    right: 5px;
-    transform: translateY(-50%);
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.editable-cell:hover::after {
-    opacity: 0.5;
-}
-
-.variance-negative {
-    color: red;
-}
-
-.variance-positive {
-    color: green;
-}
-</style>
+<!-- Add this at the end of your template -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
 
 <script>
-$(document).ready(function() {
-    // Initialize editable cells
-    initializeEditableCells();
-
-    // Handle search form submission
-    $('#searchForm').on('submit', function(e) {
-        e.preventDefault();
-        const params = new URLSearchParams($(this).serialize());
-        window.location.href = "{{ url_for('inventory.list_inventory') }}?" + params.toString();
-    });
-
-    function initializeEditableCells() {
-        // Double click to edit
-        $('.editable-cell').off('dblclick').on('dblclick', function(e) {
-            e.stopPropagation();
-            const cell = $(this);
-            if (!cell.hasClass('editing')) {
-                const currentValue = cell.text().trim();
-                cell.data('original-value', currentValue);
-                const input = $('<input>', {
-                    type: 'number',
-                    step: '0.01',
-                    class: 'form-control',
-                    value: currentValue
-                });
-                cell.html(input).addClass('editing');
-                input.focus().select();
-            }
-        });
-
-        // Handle input changes
-        $(document).off('blur keyup', '.editable-cell input').on('blur keyup', '.editable-cell input', function(e) {
-            if (e.type === 'keyup' && e.keyCode !== 13) return; // Only proceed on blur or enter key
-            
-            const input = $(this);
-            const cell = input.closest('.editable-cell');
-            const newValue = input.val() || '0.00';
-            const id = cell.closest('tr').data('id');
-            const field = cell.data('field');
-
-            // Validate input
-            if (isNaN(newValue) || parseFloat(newValue) < 0) {
-                alert('Please enter a valid number');
-                input.val(cell.data('original-value'));
-                return;
-            }
-
-            // Save the new value
-            $.ajax({
-                url: "{{ url_for('inventory.update_inventory_field') }}",
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': "{{ csrf_token() if csrf_token }}"
-                },
-                data: JSON.stringify({
-                    id: id,
-                    field: field,
-                    value: parseFloat(newValue)
-                }),
-                contentType: 'application/json',
-                success: function(response) {
-                    if (response.success) {
-                        // Update the edited cell
-                        cell.removeClass('editing').html(parseFloat(newValue).toFixed(2));
-                        
-                        // Update related cells
-                        const row = cell.closest('tr');
-                        const day = field.split('_')[0];
-                        
-                        // Update opening stock, variance, and closing stock
-                        row.find(`td:contains("${day}_opening_stock")`).text(response.data.opening_stock.toFixed(2));
-                        row.find(`td:contains("${day}_variance")`).text(response.data.variance.toFixed(2));
-                        row.find(`td:contains("${day}_closing_stock")`).text(response.data.closing_stock.toFixed(2));
-                        
-                        // Update totals
-                        row.find('td:nth-child(9)').text(response.data.required_for_plan.toFixed(2));
-                        row.find('td:nth-child(10)').text(response.data.variance_for_week.toFixed(2));
-                        row.find('td:nth-child(6)').text(response.data.value_required.toFixed(2));
-                        
-                        // Update variance styling
-                        updateVarianceStyling(row);
-                    } else {
-                        alert('Error updating value. Please try again.');
-                        cell.removeClass('editing').html(cell.data('original-value'));
-                    }
-                },
-                error: function() {
-                    alert('Error updating value. Please try again.');
-                    cell.removeClass('editing').html(cell.data('original-value'));
-                }
-            });
-        });
-
-        // Cancel editing on escape
-        $(document).off('keyup', '.editable-cell input').on('keyup', '.editable-cell input', function(e) {
-            if (e.keyCode === 27) { // escape key
-                const cell = $(this).closest('.editable-cell');
-                cell.removeClass('editing').html(cell.data('original-value'));
-            }
-        });
-
-        // Prevent clicks from propagating when editing
-        $(document).off('click', '.editable-cell input').on('click', '.editable-cell input', function(e) {
-            e.stopPropagation();
-        });
+function initializeSelectedWeek() {
+    var weekCommencing = document.querySelector('input[name="week_commencing"]').value;
+    if (!weekCommencing) {
+        alert('Please select a week first');
+        return;
     }
-
-    function updateVarianceStyling(row) {
-        // Add color styling to variance cells
-        row.find('td:contains("variance")').each(function() {
-            const value = parseFloat($(this).text());
-            $(this).removeClass('variance-negative variance-positive');
-            if (value < 0) {
-                $(this).addClass('variance-negative');
-            } else if (value > 0) {
-                $(this).addClass('variance-positive');
-            }
-        });
-    }
-
-    function deleteInventory(id) {
-        if (confirm('Are you sure you want to delete this inventory?')) {
-            $.ajax({
-                url: `/inventory/delete/${id}`,
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': "{{ csrf_token() if csrf_token }}"
-                },
-                success: function() {
-                    window.location.reload();
-                },
-                error: function() {
-                    alert('Error deleting inventory. Please try again.');
-                }
-            });
+    
+    fetch(`/inventory/initialize/${weekCommencing}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            alert('Inventory initialized successfully');
+            location.reload();
         }
-    }
-
-    function resetSearch() {
-        window.location.href = "{{ url_for('inventory.list_inventory') }}";
-    }
-
-    function exportToExcel() {
-        const wb = XLSX.utils.table_to_book(document.getElementById('inventoryTable'), {sheet: "Inventory"});
-        XLSX.writeFile(wb, 'inventory_' + new Date().toISOString().split('T')[0] + '.xlsx');
-    }
-
-    // Initialize variance styling
-    $('tr[data-id]').each(function() {
-        updateVarianceStyling($(this));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error initializing inventory');
     });
-});
+}
 </script>
-
-<!-- Add XLSX library for Excel export -->
-<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 {% endblock %}

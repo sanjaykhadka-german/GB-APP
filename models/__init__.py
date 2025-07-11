@@ -1,6 +1,5 @@
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+# Import db instance from database.py
+from database import db
 
 # Import all models that actually exist and make them available at package level
 from .item_master import ItemMaster

@@ -300,8 +300,6 @@ function calculateOrderAndStockValue() {
     const minLevel = parseFloat(document.getElementById('min_level').value) || 0;
     const maxLevel = parseFloat(document.getElementById('max_level').value) || 0;
     const priceUom = parseFloat(document.getElementById('price_uom').value) || 0;
-    const priceKg = parseFloat(document.getElementById('price_kg').value) || 0;
-    const uomName = document.getElementById('uom_name').value || '';
     
     // Calculate order quantity using formula: if(SOH < MIN, MAX - SOH, 0)
     let orderQuantity = 0;
@@ -310,13 +308,8 @@ function calculateOrderAndStockValue() {
     }
     document.getElementById('order_quantity').value = orderQuantity.toFixed(2);
     
-    // Calculate stock value using the complex formula
-    let stockValue = 0;
-    if (uomName.toLowerCase() === 'kg' || uomName.toLowerCase() === 'liter') {
-        stockValue = currentStock * priceKg;
-    } else {
-        stockValue = currentStock * priceUom;
-    }
+    // Calculate stock value using price_per_uom only
+    const stockValue = currentStock * priceUom;
     document.getElementById('stock_value').value = stockValue.toFixed(2);
 }
 

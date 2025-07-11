@@ -18,6 +18,7 @@ from models.packing import Packing
 from models.filling import Filling
 from models.production import Production
 from models.soh import SOH
+# from save_report_data import save_report_data # This line is removed from the top
 
 soh_bp = Blueprint('soh', __name__, template_folder='templates')
 
@@ -298,6 +299,21 @@ def soh_upload():
             db.session.rollback()
             flash(f'An unexpected error occurred: {str(e)}', 'danger')
             print(f"Error during SOH upload: {str(e)}")
+
+        # After SOH is saved, populate the report tables for the affected weeks
+        try:
+            from save_report_data import save_report_data # Import is moved here
+            if affected_weeks:
+                print(f"Calling save_report_data from SOH upload for weeks: {affected_weeks}")
+                save_report_data(affected_weeks)
+                print("Finished calling save_report_data.")
+                flash('Reports generated successfully for the uploaded week(s)!', 'success')
+            else:
+                print("No affected weeks to generate reports for.")
+                flash('SOH data processed, but no weeks were identified for report generation.', 'info')
+        except Exception as e:
+            print(f"Error calling save_report_data: {str(e)}")
+            flash(f"SOH data uploaded, but failed to generate reports: {str(e)}", 'warning')
 
         return redirect(url_for('soh.soh_list'))
     

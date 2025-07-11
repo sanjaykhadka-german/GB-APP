@@ -1,25 +1,22 @@
 """
 Enhanced inventory population script with daily data
 """
-from app import app
-from database import db
-from models.inventory import Inventory
-from models.raw_material_report_table import RawMaterialReportTable
-from models.usage_report_table import UsageReportTable
+from app import app, db
 from models.item_master import ItemMaster
 from models.item_type import ItemType
+from models.raw_material_report_table import RawMaterialReportTable
+from models.usage_report_table import UsageReportTable
+from models.inventory import Inventory
 
 def populate_inventory_with_daily():
     with app.app_context():
         try:
-            # Clear existing data
-            db.session.query(Inventory).delete()
-            db.session.commit()
+            print("Starting inventory population...")
             
-            # Get RM type ID
-            rm_type = ItemType.query.filter_by(type_name='RM').first()
+            # Get raw material type
+            rm_type = ItemType.query.filter_by(type_name='Raw Material').first()
             if not rm_type:
-                print("Error: RM item type not found")
+                print("Error: Raw Material type not found")
                 return
             
             # Get all raw materials
@@ -49,77 +46,48 @@ def populate_inventory_with_daily():
                         print("No report found, skipping...")
                         continue
                     
-                    # Get usage report for daily breakdown
+                    # Get usage report
                     usage = UsageReportTable.query.filter_by(
                         week_commencing=week_commencing,
                         item_id=raw_material.id
                     ).first()
                     
                     if not usage:
-                        print("No usage found, using zeros for daily data...")
-                        # Create default usage values
-                        daily_values = {
-                            'monday': 0.00,
-                            'tuesday': 0.00,
-                            'wednesday': 0.00,
-                            'thursday': 0.00,
-                            'friday': 0.00,
-                            'saturday': 0.00,
-                            'sunday': 0.00
-                        }
-                    else:
-                        # Use actual daily values from usage report
-                        daily_values = {
-                            'monday': float(usage.monday or 0),
-                            'tuesday': float(usage.tuesday or 0),
-                            'wednesday': float(usage.wednesday or 0),
-                            'thursday': float(usage.thursday or 0),
-                            'friday': float(usage.friday or 0),
-                            'saturday': 0.00,  # Assuming no weekend work
-                            'sunday': 0.00     # Assuming no weekend work
-                        }
+                        print("No usage found, skipping...")
+                        continue
                     
-                    print(f"Daily usage: {daily_values}")
-                    print("Creating inventory record...")
-                    
-                    # Create inventory record with daily data
-                    inventory = Inventory(
+                    # Create or update inventory entry
+                    inventory = Inventory.query.filter_by(
                         week_commencing=week_commencing,
-                        item_id=raw_material.id,
-                        category_id=raw_material.category_id or 1,  # Default to category 1 if none
-                        price_per_kg=raw_material.price_per_kg or 0.00,
-                        required_total_production=report.required_total_production,
-                        value_required_rm=report.value_required_rm,
-                        current_stock=report.current_stock,
-                        required_for_plan=report.required_for_plan,
-                        variance_week=report.variance_week,
-                        kg_required=report.kg_required,
-                        variance=report.variance,
-                        to_be_ordered=0.00,  # Will be calculated later
-                        closing_stock=0.00,  # Will be calculated later
-                        # Daily data
-                        monday=daily_values['monday'],
-                        tuesday=daily_values['tuesday'],
-                        wednesday=daily_values['wednesday'],
-                        thursday=daily_values['thursday'],
-                        friday=daily_values['friday'],
-                        saturday=daily_values['saturday'],
-                        sunday=daily_values['sunday']
-                    )
-                    db.session.add(inventory)
-                
-                db.session.commit()
-                print(f"Completed week: {week_commencing}")
+                        item_id=raw_material.id
+                    ).first()
+                    
+                    if inventory:
+                        inventory.required_total_production = usage.total_usage
+                        inventory.value_required_rm = usage.total_usage * (raw_material.price_per_kg or 0)
+                        inventory.required_for_plan = usage.total_usage
+                        inventory.kg_required = usage.total_usage
+                        if inventory.current_stock is not None:
+                            inventory.variance_week = inventory.current_stock - usage.total_usage
+                            inventory.variance = inventory.current_stock - usage.total_usage
+                    else:
+                        inventory = Inventory(
+                            week_commencing=week_commencing,
+                            item_id=raw_material.id,
+                            required_total_production=usage.total_usage,
+                            value_required_rm=usage.total_usage * (raw_material.price_per_kg or 0),
+                            current_stock=0.00,
+                            required_for_plan=usage.total_usage,
+                            variance_week=0.00 - usage.total_usage,
+                            kg_required=usage.total_usage,
+                            variance=0.00 - usage.total_usage
+                        )
+                        db.session.add(inventory)
+                    
+                    db.session.commit()
+                    print(f"Added/updated inventory for {raw_material.description}: {usage.total_usage:.2f} kg")
             
-            print("\nFinal count:")
-            print(f"Inventory Records: {Inventory.query.count()}")
-            
-            # Verify daily totals match requirements
-            print("\nVerifying daily totals...")
-            inventories = Inventory.query.all()
-            for inv in inventories[:5]:  # Check first 5 records
-                calculated_total = inv.calculate_weekly_total()
-                print(f"{inv.item.description}: Daily total = {calculated_total:.2f}, Required = {float(inv.required_total_production):.2f}")
+            print("\nInventory population completed successfully!")
             
         except Exception as e:
             print(f"Error: {str(e)}")

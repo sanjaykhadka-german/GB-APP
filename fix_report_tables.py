@@ -18,11 +18,6 @@ def fix_report_tables():
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 week_commencing DATE NOT NULL,
                 item_id INT NOT NULL,
-                monday DECIMAL(10,2) DEFAULT 0.00,
-                tuesday DECIMAL(10,2) DEFAULT 0.00,
-                wednesday DECIMAL(10,2) DEFAULT 0.00,
-                thursday DECIMAL(10,2) DEFAULT 0.00,
-                friday DECIMAL(10,2) DEFAULT 0.00,
                 total_usage DECIMAL(10,2) DEFAULT 0.00,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -53,15 +48,10 @@ def fix_report_tables():
             
             # Populate usage_report_table from production data
             populate_usage_sql = """
-            INSERT INTO usage_report_table (week_commencing, item_id, monday, tuesday, wednesday, thursday, friday, total_usage)
+            INSERT INTO usage_report_table (week_commencing, item_id, total_usage)
             SELECT 
                 p.week_commencing,
                 r.component_item_id as item_id,
-                SUM(CASE WHEN DAYOFWEEK(p.production_date) = 2 THEN r.quantity_kg * p.batches ELSE 0 END) as monday,
-                SUM(CASE WHEN DAYOFWEEK(p.production_date) = 3 THEN r.quantity_kg * p.batches ELSE 0 END) as tuesday,
-                SUM(CASE WHEN DAYOFWEEK(p.production_date) = 4 THEN r.quantity_kg * p.batches ELSE 0 END) as wednesday,
-                SUM(CASE WHEN DAYOFWEEK(p.production_date) = 5 THEN r.quantity_kg * p.batches ELSE 0 END) as thursday,
-                SUM(CASE WHEN DAYOFWEEK(p.production_date) = 6 THEN r.quantity_kg * p.batches ELSE 0 END) as friday,
                 SUM(r.quantity_kg * p.batches) as total_usage
             FROM production p
             JOIN recipe_master r ON p.item_id = r.recipe_wip_id
@@ -83,8 +73,8 @@ def fix_report_tables():
                 COALESCE(s.current_stock, 0) as current_stock,
                 u.total_usage as required_for_plan,
                 COALESCE(s.current_stock, 0) - u.total_usage as variance_week,
-                u.monday as kg_required,
-                COALESCE(s.current_stock, 0) - u.monday as variance
+                u.total_usage as kg_required,
+                COALESCE(s.current_stock, 0) - u.total_usage as variance
             FROM usage_report_table u
             LEFT JOIN item_master i ON u.item_id = i.id
             LEFT JOIN raw_material_stocktake s ON i.item_code = s.item_code AND u.week_commencing = s.week_commencing

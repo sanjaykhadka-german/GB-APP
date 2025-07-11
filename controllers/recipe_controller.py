@@ -271,89 +271,31 @@ def usage():
     to_date = request.args.get('to_date')
     
     try:
+        query = UsageReportTable.query
+        
+        if from_date:
+            query = query.filter(UsageReportTable.production_date >= from_date)
+        if to_date:
+            query = query.filter(UsageReportTable.production_date <= to_date)
+            
+        usage_data = query.order_by(UsageReportTable.production_date.desc()).all()
+        
+        # Group data by production date for display
         grouped_usage_data = {}
-        
-        # Always generate data dynamically from production and recipe data
-        # Create aliases for ItemMaster to avoid conflicts
-        ProductionItem = ItemMaster.__table__.alias('production_item')
-        ComponentItem = ItemMaster.__table__.alias('component_item')
-        
-        # Query to get production and recipe usage data using new schema
-        query = db.session.query(
-            Production,
-            RecipeMaster,
-            ComponentItem.c.description.label('component_name')
-        ).join(
-            ProductionItem, Production.item_id == ProductionItem.c.id  # Join Production to ItemMaster (WIP item)
-        ).join(
-            RecipeMaster, ProductionItem.c.id == RecipeMaster.recipe_wip_id  # Join to RecipeMaster via recipe_wip_id
-        ).join(
-            ComponentItem, RecipeMaster.component_item_id == ComponentItem.c.id  # Join to component ItemMaster
-        )
-        
-        # Apply date filters if provided
-        if from_date and to_date:
-            query = query.filter(
-                Production.production_date >= from_date,
-                Production.production_date <= to_date
-            )
+        for report in usage_data:
+            prod_date = report.production_date
+            if prod_date not in grouped_usage_data:
+                grouped_usage_data[prod_date] = []
             
-        # Get the results
-        usage_data = query.all()
-        
-        # Calculate recipe totals for percentage calculation by WIP item
-        recipe_totals = {}
-        production_data = []
-        
-        for production, recipe, component_name in usage_data:
-            date = production.production_date
-            week_commencing = get_monday_date(date.strftime('%Y-%m-%d'))
-            recipe_code = production.item.item_code if production.item else 'Unknown'
-            
-            # Calculate total recipe quantity for this WIP item
-            wip_item_id = production.item_id
-            if wip_item_id not in recipe_totals:
-                total_recipe_qty = db.session.query(func.sum(RecipeMaster.quantity_kg)).filter_by(
-                    recipe_wip_id=wip_item_id
-                ).scalar() or 0
-                recipe_totals[wip_item_id] = float(total_recipe_qty)
-            
-            # Calculate usage based on recipe proportion and production quantity
-            total_recipe_kg = recipe_totals[wip_item_id]
-            if total_recipe_kg > 0:
-                usage_kg = (float(recipe.quantity_kg) / total_recipe_kg) * production.total_kg
-                percentage = (float(recipe.quantity_kg) / total_recipe_kg) * 100
-            else:
-                usage_kg = 0.0
-                percentage = 0.0
-            
-            production_data.append({
-                'production': production,
-                'recipe': recipe,
-                'component_name': component_name,
-                'date': date,
-                'week_commencing': week_commencing,
-                'usage_kg': usage_kg,
-                'recipe_code': recipe_code,
-                'percentage': percentage
+            grouped_usage_data[prod_date].append({
+                'week_commencing': report.week_commencing.strftime('%Y-%m-%d'),
+                'production_date': report.production_date.strftime('%Y-%m-%d'),
+                'recipe_code': report.recipe_code,
+                'component_material': report.raw_material,
+                'usage_kg': report.usage_kg,
+                'percentage': report.percentage
             })
-        
-        # Group data for display
-        for data in production_data:
-            if data['date'] not in grouped_usage_data:
-                grouped_usage_data[data['date']] = []
-                
-            grouped_usage_data[data['date']].append({
-                'week_commencing': data['week_commencing'].strftime('%Y-%m-%d'),
-                'production_date': data['date'].strftime('%Y-%m-%d'),
-                'production_code': data['production'].production_code,
-                'recipe_code': data['recipe_code'],
-                'component_material': data['component_name'],
-                'usage_kg': data['usage_kg'],
-                'kg_per_batch': float(data['recipe'].quantity_kg),
-                'percentage': data['percentage']
-            })
-        
+            
         return render_template('recipe/usage.html',
                              grouped_usage_data=grouped_usage_data,
                              from_date=from_date,
@@ -966,108 +908,46 @@ def recipe_upload():
 @recipe_bp.route('/raw_material_report', methods=['GET'])
 def raw_material_report():
     try:
-        # Get week commencing filter from request
-        week_commencing = request.args.get('week_commencing')
+        week_commencing_str = request.args.get('week_commencing')
         
-        # Always generate data dynamically from production and recipe data
-        # Base query using proper joins
         query = db.session.query(
-            Production.production_date,
-            RecipeMaster.component_item_id,
-            ItemMaster.description.label('component_material'),
-            Production.total_kg,
-            RecipeMaster.quantity_kg
-        ).join(
-            ItemMaster, Production.item_id == ItemMaster.id  # Join to WIP item
-        ).join(
-            RecipeMaster, ItemMaster.id == RecipeMaster.recipe_wip_id  # Join to recipe
-        ).join(
-            ItemMaster.query.filter(ItemMaster.id == RecipeMaster.component_item_id).subquery(),
-            RecipeMaster.component_item_id == ItemMaster.id  # Join to component item
+            RawMaterialReportTable.week_commencing,
+            RawMaterialReportTable.raw_material,
+            func.sum(RawMaterialReportTable.meat_required).label('total_usage')
         )
         
-        # Apply week filter if provided
-        if week_commencing:
-            # Calculate the start and end of the week
-            week_start = datetime.strptime(week_commencing, '%Y-%m-%d').date()
-            week_end = week_start + timedelta(days=6)
-            query = query.filter(
-                Production.production_date >= week_start,
-                Production.production_date <= week_end
-            )
+        if week_commencing_str:
+            week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
+            query = query.filter(RawMaterialReportTable.week_commencing == week_commencing)
         
-        results = query.all()
-        
-        # Group by component and calculate totals
-        component_totals = {}
-        recipe_totals_cache = {}
-        
-        for result in results:
-            # Calculate week commencing for this production date
-            prod_date = result.production_date
-            week_start = prod_date - timedelta(days=prod_date.weekday())
-            
-            # Get total recipe quantity for the WIP item to calculate proportion
-            wip_item_id = result.component_item_id  # This needs to be corrected
-            # We need to get the WIP item ID from the production, not component
-            
-        # Let me rewrite this with a better approach using raw SQL for accuracy
-        raw_material_query = """
-        SELECT 
-            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) as week_commencing,
-            component_im.description as component_material,
-            component_im.id as component_item_id,
-            SUM(p.total_kg * (r.quantity_kg / recipe_totals.total_recipe_kg)) as total_usage
-        FROM production p
-        JOIN item_master production_im ON p.item_id = production_im.id
-        JOIN recipe_master r ON production_im.id = r.recipe_wip_id
-        JOIN item_master component_im ON r.component_item_id = component_im.id
-        JOIN (
-            SELECT 
-                r2.recipe_wip_id,
-                SUM(r2.quantity_kg) as total_recipe_kg
-            FROM recipe_master r2
-            GROUP BY r2.recipe_wip_id
-        ) recipe_totals ON r.recipe_wip_id = recipe_totals.recipe_wip_id
-        """
-        
-        params = {}
-        if week_commencing:
-            raw_material_query += """ 
-            WHERE DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY) = :week_commencing
-            """
-            params['week_commencing'] = datetime.strptime(week_commencing, '%Y-%m-%d').date()
-        
-        raw_material_query += """
-        GROUP BY 
-            DATE(p.production_date - INTERVAL (WEEKDAY(p.production_date)) DAY),
-            component_im.description,
-            component_im.id
-        ORDER BY week_commencing DESC, component_im.description
-        """
-        
-        results = db.session.execute(text(raw_material_query), params).fetchall()
+        raw_material_data = query.group_by(
+            RawMaterialReportTable.week_commencing,
+            RawMaterialReportTable.raw_material
+        ).order_by(
+            RawMaterialReportTable.week_commencing.desc(),
+            RawMaterialReportTable.raw_material
+        ).all()
         
         # Convert to list of dictionaries for template
-        raw_material_data = [
+        report_data = [
             {
-                'week_commencing': result.week_commencing.strftime('%d/%m/%Y'),
-                'raw_material': result.component_material,
-                'usage': round(float(result.total_usage), 2)
+                'week_commencing': row.week_commencing.strftime('%d/%m/%Y'),
+                'raw_material': row.raw_material,
+                'usage': round(float(row.total_usage), 2)
             }
-            for result in results
+            for row in raw_material_data
         ]
         
         return render_template('recipe/raw_material_report.html', 
-                             raw_material_data=raw_material_data,
-                             week_commencing=week_commencing,
+                             raw_material_data=report_data,
+                             week_commencing=week_commencing_str,
                              current_page='raw_material_report')
         
     except Exception as e:
         flash(f"An error occurred: {str(e)}", 'error')
         return render_template('recipe/raw_material_report.html', 
                              raw_material_data=[],
-                             week_commencing=week_commencing,
+                             week_commencing=request.args.get('week_commencing'),
                              current_page='raw_material_report')
 
 @recipe_bp.route('/raw_material_download', methods=['GET'])

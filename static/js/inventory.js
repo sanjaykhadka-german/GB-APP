@@ -112,4 +112,89 @@ $(document).ready(function() {
 
     // Initialize calculations
     calculateDailyValues();
+
+    // Handle double-click on editable cells
+    $('.editable-cell').dblclick(function() {
+        const cell = $(this);
+        const currentValue = cell.text().trim();
+        const field = cell.data('field');
+        const inventoryId = cell.closest('tr').data('id');
+        
+        // Create input field
+        const input = $('<input>')
+            .attr('type', 'number')
+            .attr('step', '0.01')
+            .val(currentValue)
+            .css('width', '100%');
+            
+        // Replace cell content with input
+        cell.html(input);
+        input.focus();
+        
+        // Handle input blur (when focus is lost)
+        input.blur(function() {
+            const newValue = $(this).val();
+            
+            // Send update to server
+            $.ajax({
+                url: '/inventory/update_field',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    id: inventoryId,
+                    field: field,
+                    value: newValue
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        // Update the edited cell
+                        cell.html(parseFloat(newValue).toFixed(2));
+                        
+                        // Update related cells in the same row
+                        const row = cell.closest('tr');
+                        const day = field.split('_')[0];
+                        
+                        // Update calculated fields
+                        row.find(`td[data-field="${day}_opening_stock"]`).text(parseFloat(response.data.opening_stock).toFixed(2));
+                        row.find(`td[data-field="${day}_variance"]`).text(parseFloat(response.data.variance).toFixed(2));
+                        row.find(`td[data-field="${day}_closing_stock"]`).text(parseFloat(response.data.closing_stock).toFixed(2));
+                        
+                        // Update totals
+                        row.find('td[data-field="required_for_plan"]').text(parseFloat(response.data.required_for_plan).toFixed(2));
+                        row.find('td[data-field="variance_for_week"]').text(parseFloat(response.data.variance_for_week).toFixed(2));
+                        row.find('td[data-field="value_required"]').text(parseFloat(response.data.value_required).toFixed(2));
+                    } else {
+                        alert('Error updating value');
+                        cell.html(currentValue);
+                    }
+                },
+                error: function() {
+                    alert('Error communicating with server');
+                    cell.html(currentValue);
+                }
+            });
+        });
+        
+        // Handle Enter key
+        input.keypress(function(e) {
+            if (e.which == 13) {
+                input.blur();
+            }
+        });
+    });
+    
+    // Handle search form submission
+    $('#searchForm').submit(function(e) {
+        e.preventDefault();
+        const params = new URLSearchParams($(this).serialize());
+        window.location.href = '/inventory/?' + params.toString();
+    });
+    
+    // Reset search form
+    window.resetSearch = function() {
+        $('#search_item').val('');
+        $('#search_category').val('');
+        $('#search_week_commencing').val('');
+        $('#searchForm').submit();
+    };
 }); 

@@ -4,6 +4,15 @@ import pandas as pd
 from sqlalchemy import asc, desc
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
+from database import db
+from decimal import Decimal
+from models import (
+    ItemMaster, Recipe, RecipeDetail, Production, ProductionDetail, 
+    Packing, PackingDetail, Category, ItemType, Department, UOM, 
+    Allergen, RawMaterialStocktake, ItemAllergen
+)
+from sqlalchemy import func, and_, or_
+from datetime import datetime, timedelta
 
 ingredients_bp = Blueprint('ingredients', __name__, template_folder='templates')
 
@@ -14,20 +23,11 @@ def allowed_file(filename):
 
 def get_rm_type_id():
     """Helper function to get RM item type ID"""
-    from models.item_type import ItemType
     rm_type = ItemType.query.filter_by(type_name='RM').first()
     return rm_type.id if rm_type else None
 
 @ingredients_bp.route('/ingredients_list', methods=['GET'])
 def ingredients_list():
-    from app import db
-    from models.item_master import ItemMaster
-    from models.raw_material_stocktake import RawMaterialStocktake
-    from models.category import Category
-    from models.department import Department
-    from models.uom import UOM
-    from models.item_type import ItemType
-
     # Get search parameters
     search_item_code = request.args.get('item_code', '').strip()
     search_description = request.args.get('description', '').strip()
@@ -75,8 +75,6 @@ def ingredients_list():
 
 @ingredients_bp.route('/ingredients_create', methods=['GET', 'POST'])
 def ingredients_create():
-    from app import db
-    from models.item_master import ItemMaster
     from models.category import Category
     from models.department import Department
     from models.uom import UOM
@@ -197,7 +195,6 @@ def ingredients_create():
 
 @ingredients_bp.route('/ingredients_edit/<int:id>', methods=['GET', 'POST'])
 def ingredients_edit(id):
-    from app import db
     from models.item_master import ItemMaster, ItemAllergen
     from models.category import Category
     from models.department import Department
@@ -286,7 +283,6 @@ def ingredients_edit(id):
 
 @ingredients_bp.route('/stocktake_edit/<int:id>', methods=['GET', 'POST'])
 def stocktake_edit(id):
-    from app import db
     from models.raw_material_stocktake import RawMaterialStocktake
     from models.item_master import ItemMaster
     from models.department import Department
@@ -357,7 +353,6 @@ def stocktake_edit(id):
 
 @ingredients_bp.route('/stocktake_delete/<int:id>', methods=['POST'])
 def stocktake_delete(id):
-    from app import db
     from models.raw_material_stocktake import RawMaterialStocktake
 
     try:
@@ -375,7 +370,6 @@ def stocktake_delete(id):
 
 @ingredients_bp.route('/ingredients_delete/<int:id>', methods=['POST'])
 def ingredients_delete(id):
-    from app import db
     from models.item_master import ItemMaster
 
     try:
@@ -397,9 +391,8 @@ def ingredients_delete(id):
 
 @ingredients_bp.route('/ingredients_upload', methods=['GET', 'POST'])
 def ingredients_upload():
-    from app import db
-    from models.item_master import ItemMaster
     from models.raw_material_stocktake import RawMaterialStocktake
+    from models.item_master import ItemMaster
     from models.category import Category
     from models.department import Department
     from models.uom import UOM
@@ -486,17 +479,12 @@ def ingredients_upload():
                     max_level = item.max_level or 0
                     order_quantity = max(0, max_level - soh) if soh < min_level else 0
 
-                    # Calculate stock value based on UOM
-                    price_per_kg = item.price_per_kg or 0
-                    uom_name = item.uom.UOMName if item.uom else ''
-                    
-                    if uom_name.lower() in ['kg', 'liter']:
-                        stock_value = soh * price_per_kg
-                        price_uom = price_per_kg
-                    else:
-                        # For other UOMs, use price_per_kg as price_per_uom (could be enhanced)
-                        price_uom = price_per_kg
-                        stock_value = soh * price_uom
+                    # Calculate stock value using price_per_uom if available, otherwise use price_per_kg
+                    price_uom = item.price_per_uom if item.price_per_uom is not None else item.price_per_kg or 0
+                    # Convert both values to Decimal for consistent calculation
+                    soh_decimal = Decimal(str(soh))
+                    price_decimal = Decimal(str(price_uom))
+                    stock_value = float(soh_decimal * price_decimal)
 
                     # Check if stocktake record already exists for this item and week
                     existing_stocktake = RawMaterialStocktake.query.filter_by(
@@ -553,8 +541,6 @@ def ingredients_upload():
 
 @ingredients_bp.route('/ingredients_download_excel', methods=['GET'])
 def ingredients_download_excel():
-    from app import db
-    from models.item_master import ItemMaster
     from flask import make_response
     import io
     from openpyxl import Workbook
@@ -751,7 +737,6 @@ def ingredients_download_template():
 
 @ingredients_bp.route('/autocomplete_ingredients', methods=['GET'])
 def autocomplete_ingredients():
-    from app import db
     from models.item_master import ItemMaster
 
     search = request.args.get('query', '').strip()
@@ -773,7 +758,6 @@ def autocomplete_ingredients():
 
 @ingredients_bp.route('/get_item_details/<item_code>', methods=['GET'])
 def get_item_details(item_code):
-    from app import db
     from models.item_master import ItemMaster
     from models.category import Category
     from models.department import Department
@@ -806,7 +790,6 @@ def get_item_details(item_code):
 
 @ingredients_bp.route('/get_search_stocktakes', methods=['GET'])
 def get_search_stocktakes():
-    from app import db
     from models.raw_material_stocktake import RawMaterialStocktake
     from models.item_master import ItemMaster
     from models.category import Category
