@@ -302,18 +302,26 @@ def soh_upload():
 
         # After SOH is saved, populate the report tables for the affected weeks
         try:
-            from save_report_data import save_report_data # Import is moved here
+            from save_report_data import save_report_data
+            from populate_inventory import populate_inventory
+            
             if affected_weeks:
-                print(f"Calling save_report_data from SOH upload for weeks: {affected_weeks}")
+                print(f"Calling save_report_data for weeks: {affected_weeks}")
                 save_report_data(affected_weeks)
                 print("Finished calling save_report_data.")
-                flash('Reports generated successfully for the uploaded week(s)!', 'success')
+                flash('Report tables generated successfully for the uploaded week(s)!', 'success')
+                
+                # Now, populate the inventory based on the new reports
+                print(f"Calling populate_inventory for weeks: {affected_weeks}")
+                populate_inventory(affected_weeks)
+                print("Finished calling populate_inventory.")
+                flash('Inventory generated successfully for the uploaded week(s)!', 'success')
             else:
-                print("No affected weeks to generate reports for.")
-                flash('SOH data processed, but no weeks were identified for report generation.', 'info')
+                print("No affected weeks to process.")
+                flash('SOH data processed, but no weeks were identified for report/inventory generation.', 'info')
         except Exception as e:
-            print(f"Error calling save_report_data: {str(e)}")
-            flash(f"SOH data uploaded, but failed to generate reports: {str(e)}", 'warning')
+            print(f"Error during post-upload processing: {str(e)}")
+            flash(f"SOH data uploaded, but failed during post-processing: {str(e)}", 'warning')
 
         return redirect(url_for('soh.soh_list'))
     

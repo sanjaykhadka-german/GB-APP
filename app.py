@@ -10,7 +10,7 @@ from controllers.machinery_controller import machinery_bp
 from controllers.item_master_controller import item_master_bp
 from controllers.recipe_controller import recipe_bp
 from controllers.production_controller import production_bp
-from controllers.packing_controller import packing
+from controllers.packing_controller import packing_bp
 from controllers.filling_controller import filling_bp
 from controllers.inventory_controller import inventory_bp
 from controllers.item_type_controller import item_type_bp
@@ -18,6 +18,7 @@ from controllers.soh_controller import soh_bp
 from controllers.login_controller import login_bp
 from controllers.ingredients_controller import ingredients_bp
 from controllers.uom_controller import uom_bp
+from models import SOH, Packing, Filling, Production, ItemMaster, RecipeMaster, Joining
 
 # Create a global app instance
 app = Flask(__name__)
@@ -37,7 +38,7 @@ app.register_blueprint(machinery_bp)
 app.register_blueprint(item_master_bp)
 app.register_blueprint(recipe_bp)
 app.register_blueprint(production_bp)
-app.register_blueprint(packing)
+app.register_blueprint(packing_bp)
 app.register_blueprint(filling_bp)
 app.register_blueprint(inventory_bp)
 app.register_blueprint(item_type_bp)

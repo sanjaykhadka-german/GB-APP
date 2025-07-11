@@ -1,60 +1,165 @@
-{% extends "index.html" %}
+{% extends 'index.html' %}
+
+{% block title %}Inventory Management{% endblock %}
 
 {% block content %}
+<style>
+    .table-container {
+        width: 100%;
+        overflow-x: auto;
+        border: 1px solid #dee2e6;
+    }
+    table {
+        width: 100%;
+        min-width: 3000px; /* Adjust as needed for all columns */
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid #dee2e6;
+        padding: 8px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    thead th {
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+    .editable {
+        background-color: #e9f5ff;
+        cursor: pointer;
+    }
+    .editable input {
+        width: 100%;
+        border: none;
+        background-color: transparent;
+        text-align: center;
+    }
+    .day-group {
+        border-left: 2px solid #343a40;
+        border-right: 2px solid #343a40;
+    }
+</style>
+
 <div class="container-fluid">
-    <h1>Inventory List</h1>
+    <h1 class="my-4">Inventory Management</h1>
 
-    <!-- Search Section -->
-    <div class="search-section mb-4">
-        <form method="GET" class="form-inline">
-            <div class="form-group mx-2">
-                <input type="text" class="form-control" name="item" placeholder="Search by item" value="{{ search_item }}">
-            </div>
-            <div class="form-group mx-2">
-                <input type="text" class="form-control" name="category" placeholder="Search by category" value="{{ search_category }}">
-            </div>
-            <div class="form-group mx-2">
-                <input type="date" class="form-control" name="week_commencing" value="{{ search_week_commencing }}">
-            </div>
-            <button type="submit" class="btn btn-primary">Search</button>
-            <button type="button" class="btn btn-success ml-2" onclick="initializeSelectedWeek()">Initialize Selected Week</button>
-        </form>
-    </div>
+    <form method="GET" action="{{ url_for('inventory.list_inventory') }}" class="form-inline mb-4">
+        <div class="form-group mr-2">
+            <label for="week_commencing" class="mr-2">Week Commencing:</label>
+            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ search_week_commencing }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
 
-    <!-- Inventory Table -->
-    <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
+    <div class="table-container">
+        <table class="table table-bordered table-striped">
+            <thead class="thead-dark">
                 <tr>
-                    <th>Item Code</th>
-                    <th>Description</th>
+                    <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item</th>
+                    <th rowspan="2">Category</th>
+                    <th colspan="5">Weekly Summary</th>
+                    <th colspan="7" class="day-group">Monday</th>
+                    <th colspan="7" class="day-group">Tuesday</th>
+                    <th colspan="7" class="day-group">Wednesday</th>
+                    <th colspan="7" class="day-group">Thursday</th>
+                    <th colspan="7" class="day-group">Friday</th>
+                    <th colspan="7" class="day-group">Saturday</th>
+                    <th colspan="7" class="day-group">Sunday</th>
+                </tr>
+                <tr>
+                    <!-- Summary Headers -->
                     <th>Required Total</th>
-                    <th>Price per KG</th>
-                    <th>Value Required</th>
-                    <th>Current Stock</th>
-                    <th>Supplier Name</th>
-                    <th>Monday</th>
-                    <th>Tuesday</th>
-                    <th>Wednesday</th>
-                    <th>Thursday</th>
-                    <th>Friday</th>
+                    <th>$/KG</th>
+                    <th>$ Value RM</th>
+                    <th>SOH</th>
+                    <th>Variance Week</th>
+                    <!-- Daily Headers -->
+                    {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+                        <th class="day-group">{{ day }} Opening</th>
+                        <th>{{ day }} Required</th>
+                        <th>{{ day }} Variance</th>
+                        <th>{{ day }} To Be Ordered</th>
+                        <th>{{ day }} Ordered/Received</th>
+                        <th>{{ day }} Consumed</th>
+                        <th class="day-group">{{ day }} Closing</th>
+                    {% endfor %}
                 </tr>
             </thead>
             <tbody>
-                {% for item in inventory %}
-                <tr>
-                    <td>{{ item.item_code }}</td>
-                    <td>{{ item.description }}</td>
-                    <td class="editable-cell" data-field="required_total">{{ "%.2f"|format(item.required_total|float) }}</td>
-                    <td class="editable-cell" data-field="price_per_kg">{{ "%.2f"|format(item.price_per_kg|float) }}</td>
-                    <td>{{ "%.2f"|format(item.value_required|float) }}</td>
-                    <td class="editable-cell" data-field="current_stock">{{ "%.2f"|format(item.current_stock|float) }}</td>
-                    <td>{{ item.supplier_name }}</td>
-                    <td>{{ "%.2f"|format(item.daily_required.get(search_week_commencing|default(''), 0)|float) }}</td>
-                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(1)), 0)|float) }}</td>
-                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(2)), 0)|float) }}</td>
-                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(3)), 0)|float) }}</td>
-                    <td>{{ "%.2f"|format(item.daily_required.get((search_week_commencing|default('')|datetime_add_days(4)), 0)|float) }}</td>
+                {% for inv in inventory_records %}
+                <tr data-id="{{ inv.id }}">
+                    <td style="position: sticky; left: 0; z-index: 1; background-color: white;">{{ inv.item.description }}</td>
+                    <td>{{ inv.item.category.name if inv.item.category else '' }}</td>
+                    <td>{{ "%.2f"|format(inv.required_in_total) }}</td>
+                    <td>{{ "%.2f"|format(inv.price_per_kg) }}</td>
+                    <td>{{ "%.2f"|format(inv.value_required_rm) }}</td>
+                    <td>{{ "%.2f"|format(inv.soh) }}</td>
+                    <td data-field="variance_week">{{ "%.2f"|format(inv.variance_week) }}</td>
+                    
+                    <!-- Monday -->
+                    <td data-field="monday_opening_stock">{{ "%.2f"|format(inv.monday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.monday_required_kg) }}</td>
+                    <td data-field="monday_variance">{{ "%.2f"|format(inv.monday_variance) }}</td>
+                    <td class="editable" data-field="monday_to_be_ordered">{{ "%.2f"|format(inv.monday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="monday_ordered_received">{{ "%.2f"|format(inv.monday_ordered_received) }}</td>
+                    <td class="editable" data-field="monday_consumed_kg">{{ "%.2f"|format(inv.monday_consumed_kg) }}</td>
+                    <td data-field="monday_closing_stock">{{ "%.2f"|format(inv.monday_closing_stock) }}</td>
+
+                    <!-- Tuesday -->
+                    <td data-field="tuesday_opening_stock">{{ "%.2f"|format(inv.tuesday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.tuesday_required_kg) }}</td>
+                    <td data-field="tuesday_variance">{{ "%.2f"|format(inv.tuesday_variance) }}</td>
+                    <td class="editable" data-field="tuesday_to_be_ordered">{{ "%.2f"|format(inv.tuesday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="tuesday_ordered_received">{{ "%.2f"|format(inv.tuesday_ordered_received) }}</td>
+                    <td class="editable" data-field="tuesday_consumed_kg">{{ "%.2f"|format(inv.tuesday_consumed_kg) }}</td>
+                    <td data-field="tuesday_closing_stock">{{ "%.2f"|format(inv.tuesday_closing_stock) }}</td>
+
+                    <!-- Wednesday -->
+                    <td data-field="wednesday_opening_stock">{{ "%.2f"|format(inv.wednesday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.wednesday_required_kg) }}</td>
+                    <td data-field="wednesday_variance">{{ "%.2f"|format(inv.wednesday_variance) }}</td>
+                    <td class="editable" data-field="wednesday_to_be_ordered">{{ "%.2f"|format(inv.wednesday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="wednesday_ordered_received">{{ "%.2f"|format(inv.wednesday_ordered_received) }}</td>
+                    <td class="editable" data-field="wednesday_consumed_kg">{{ "%.2f"|format(inv.wednesday_consumed_kg) }}</td>
+                    <td data-field="wednesday_closing_stock">{{ "%.2f"|format(inv.wednesday_closing_stock) }}</td>
+
+                    <!-- Thursday -->
+                    <td data-field="thursday_opening_stock">{{ "%.2f"|format(inv.thursday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.thursday_required_kg) }}</td>
+                    <td data-field="thursday_variance">{{ "%.2f"|format(inv.thursday_variance) }}</td>
+                    <td class="editable" data-field="thursday_to_be_ordered">{{ "%.2f"|format(inv.thursday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="thursday_ordered_received">{{ "%.2f"|format(inv.thursday_ordered_received) }}</td>
+                    <td class="editable" data-field="thursday_consumed_kg">{{ "%.2f"|format(inv.thursday_consumed_kg) }}</td>
+                    <td data-field="thursday_closing_stock">{{ "%.2f"|format(inv.thursday_closing_stock) }}</td>
+
+                    <!-- Friday -->
+                    <td data-field="friday_opening_stock">{{ "%.2f"|format(inv.friday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.friday_required_kg) }}</td>
+                    <td data-field="friday_variance">{{ "%.2f"|format(inv.friday_variance) }}</td>
+                    <td class="editable" data-field="friday_to_be_ordered">{{ "%.2f"|format(inv.friday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="friday_ordered_received">{{ "%.2f"|format(inv.friday_ordered_received) }}</td>
+                    <td class="editable" data-field="friday_consumed_kg">{{ "%.2f"|format(inv.friday_consumed_kg) }}</td>
+                    <td data-field="friday_closing_stock">{{ "%.2f"|format(inv.friday_closing_stock) }}</td>
+                    
+                    <!-- Saturday -->
+                    <td data-field="saturday_opening_stock">{{ "%.2f"|format(inv.saturday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.saturday_required_kg) }}</td>
+                    <td data-field="saturday_variance">{{ "%.2f"|format(inv.saturday_variance) }}</td>
+                    <td class="editable" data-field="saturday_to_be_ordered">{{ "%.2f"|format(inv.saturday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="saturday_ordered_received">{{ "%.2f"|format(inv.saturday_ordered_received) }}</td>
+                    <td class="editable" data-field="saturday_consumed_kg">{{ "%.2f"|format(inv.saturday_consumed_kg) }}</td>
+                    <td data-field="saturday_closing_stock">{{ "%.2f"|format(inv.saturday_closing_stock) }}</td>
+                    
+                    <!-- Sunday -->
+                    <td data-field="sunday_opening_stock">{{ "%.2f"|format(inv.sunday_opening_stock) }}</td>
+                    <td>{{ "%.2f"|format(inv.sunday_required_kg) }}</td>
+                    <td data-field="sunday_variance">{{ "%.2f"|format(inv.sunday_variance) }}</td>
+                    <td class="editable" data-field="sunday_to_be_ordered">{{ "%.2f"|format(inv.sunday_to_be_ordered) }}</td>
+                    <td class="editable" data-field="sunday_ordered_received">{{ "%.2f"|format(inv.sunday_ordered_received) }}</td>
+                    <td class="editable" data-field="sunday_consumed_kg">{{ "%.2f"|format(inv.sunday_consumed_kg) }}</td>
+                    <td data-field="sunday_closing_stock">{{ "%.2f"|format(inv.sunday_closing_stock) }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -62,35 +167,77 @@
     </div>
 </div>
 
-<!-- Add this at the end of your template -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
-<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
-
 <script>
-function initializeSelectedWeek() {
-    var weekCommencing = document.querySelector('input[name="week_commencing"]').value;
-    if (!weekCommencing) {
-        alert('Please select a week first');
-        return;
-    }
-    
-    fetch(`/inventory/initialize/${weekCommencing}`, {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            alert('Inventory initialized successfully');
-            location.reload();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error initializing inventory');
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.querySelector('table');
+
+    table.addEventListener('dblclick', function(e) {
+        const cell = e.target.closest('td.editable');
+        if (!cell) return;
+
+        const currentValue = cell.textContent.trim();
+        cell.innerHTML = `<input type="number" class="form-control" value="${currentValue}" step="0.01">`;
+        const input = cell.querySelector('input');
+        input.focus();
+        input.select();
+
+        input.addEventListener('blur', () => handleUpdate(cell, input.value));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleUpdate(cell, input.value);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                revertCell(cell, currentValue);
+            }
+        });
     });
-}
+
+    function revertCell(cell, originalValue) {
+        cell.textContent = parseFloat(originalValue).toFixed(2);
+    }
+
+    async function handleUpdate(cell, newValue) {
+        const row = cell.closest('tr');
+        const id = row.dataset.id;
+        const field = cell.dataset.field;
+        
+        // Revert cell text immediately for better UX
+        cell.textContent = parseFloat(newValue).toFixed(2);
+
+        try {
+            const response = await fetch('/inventory/update_field', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id, field, value: newValue }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Network response was not ok');
+            }
+
+            const result = await response.json();
+            if (result.success) {
+                // Update all recalculated fields in the row
+                for (const [key, value] of Object.entries(result.data)) {
+                    const fieldCell = row.querySelector(`td[data-field="${key}"]`);
+                    if (fieldCell) {
+                        fieldCell.textContent = parseFloat(value).toFixed(2);
+                    }
+                }
+            } else {
+                alert('Error updating value: ' + result.error);
+                // Revert to original value on failure
+                // Note: For simplicity, we are not storing original value here, but for production you might want to.
+            }
+        } catch (error) {
+            console.error('Update failed:', error);
+            alert('Failed to update value: ' + error.message);
+        }
+    }
+});
 </script>
 {% endblock %}
