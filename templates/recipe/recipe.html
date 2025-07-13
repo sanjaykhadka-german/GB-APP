@@ -36,11 +36,13 @@
                 <a href="{{ url_for('recipe.recipe_upload') }}" class="btn btn-primary">
                     <i class="fas fa-upload"></i> Upload Recipes
                 </a>
-                <a href="{{ url_for('recipe.download_recipe_excel') }}" class="btn btn-secondary">
-                    <i class="fas fa-download"></i> Export Excel
-                </a>
             </div>
         </form>
+        <div class="nav-buttons" style="margin-top: 10px;">
+            <a href="{{ url_for('recipe.download_recipe_excel') }}" class="btn btn-secondary">
+                <i class="fas fa-download"></i> Export Excel
+            </a>
+        </div>
         <div id="search-results-container" class="table-container">
             <table id="search-results-table">
                 <thead>

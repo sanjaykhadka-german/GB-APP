@@ -476,11 +476,10 @@ def upload_recipe_excel():
                 
                 # Create new recipe
                 recipe = RecipeMaster()
-                recipe.recipe_code = recipe_code
-                recipe.description = description
-                recipe.finished_good_id = finished_good.id
-                recipe.raw_material_id = raw_material.id
-                recipe.kg_per_batch = kg_per_batch
+                # Set the actual database columns instead of properties
+                recipe.recipe_wip_id = finished_good.id  # finished_good_id maps to recipe_wip_id
+                recipe.component_item_id = raw_material.id  # raw_material_id maps to component_item_id
+                recipe.quantity_kg = kg_per_batch  # kg_per_batch maps to quantity_kg
                 recipe.quantity_uom_id = uom_id
                 
                 db.session.add(recipe)
@@ -504,12 +503,17 @@ def upload_recipe_excel():
             
             # Recalculate percentages for each recipe group
             for recipe_code in uploaded_recipe_codes:
-                recipes_in_group = RecipeMaster.query.filter_by(recipe_code=recipe_code).all()
-                total_kg = sum(float(r.kg_per_batch) for r in recipes_in_group)
-                
-                if total_kg > 0:
-                    for recipe in recipes_in_group:
-                        recipe.percentage = round((float(recipe.kg_per_batch) / total_kg) * 100, 2)
+                # Find recipes by the finished good item code
+                finished_good = ItemMaster.query.filter_by(item_code=recipe_code).first()
+                if finished_good:
+                    recipes_in_group = RecipeMaster.query.filter_by(recipe_wip_id=finished_good.id).all()
+                    total_kg = sum(float(r.quantity_kg) for r in recipes_in_group)
+                    
+                    if total_kg > 0:
+                        for recipe in recipes_in_group:
+                            # Note: percentage is not stored in the database, it's calculated on-the-fly
+                            # So we don't need to set it here
+                            pass
         
         db.session.commit()
         
@@ -535,28 +539,34 @@ def download_recipe_excel():
         # Build query with same logic as get_search_recipes
         from sqlalchemy.orm import aliased
         RawMaterialItem = aliased(ItemMaster)
-        FinishedGoodItem = aliased(ItemMaster)
+        WipItem = aliased(ItemMaster)
         
         query = db.session.query(
             RecipeMaster,
             RawMaterialItem.item_code.label('raw_material_code'),
             RawMaterialItem.description.label('raw_material_name'),
-            FinishedGoodItem.item_code.label('finished_good_code'),
-            FinishedGoodItem.description.label('finished_good_name')
-        ).join(
-            RawMaterialItem,
-            RecipeMaster.raw_material_id == RawMaterialItem.id
-        ).join(
-            FinishedGoodItem,
-            RecipeMaster.finished_good_id == FinishedGoodItem.id
-        )
+            WipItem.item_code.label('wip_code'),
+            WipItem.description.label('wip_name')
+        ).select_from(RecipeMaster) \
+         .join(RawMaterialItem, RecipeMaster.component_item_id == RawMaterialItem.id) \
+         .join(WipItem, RecipeMaster.recipe_wip_id == WipItem.id)
         
         if search_recipe_code:
-            query = query.filter(RecipeMaster.recipe_code.ilike(f"%{search_recipe_code}%"))
+            query = query.filter(WipItem.item_code.ilike(f"%{search_recipe_code}%"))
         if search_description:
-            query = query.filter(RecipeMaster.description.ilike(f"%{search_description}%"))
+            query = query.filter(WipItem.description.ilike(f"%{search_description}%"))
         
         recipes = query.all()
+        
+        # Calculate total quantities for percentage calculation
+        recipe_totals = {}
+        for recipe in recipes:
+            recipe_wip_id = recipe.RecipeMaster.recipe_wip_id
+            if recipe_wip_id not in recipe_totals:
+                total_query = db.session.query(
+                    func.sum(RecipeMaster.quantity_kg).label('total_kg')
+                ).filter(RecipeMaster.recipe_wip_id == recipe_wip_id).first()
+                recipe_totals[recipe_wip_id] = float(total_query.total_kg) if total_query.total_kg else 0.0
         
         # Create workbook
         import openpyxl
@@ -567,7 +577,7 @@ def download_recipe_excel():
         
         # Define headers
         headers = [
-            'Recipe Code', 'Description', 'Finished Good Code', 'Finished Good Name',
+            'Recipe Code', 'Description', 'WIP Code', 'WIP Name',
             'Raw Material Code', 'Raw Material Name', 'Kg Per Batch', 'Percentage', 
             'UOM'
         ]
@@ -582,22 +592,35 @@ def download_recipe_excel():
         # Add data
         for row, recipe_data in enumerate(recipes, 2):
             recipe = recipe_data.RecipeMaster
-            sheet.cell(row=row, column=1, value=recipe.recipe_code)
-            sheet.cell(row=row, column=2, value=recipe.description)
-            sheet.cell(row=row, column=3, value=recipe_data.finished_good_code)
-            sheet.cell(row=row, column=4, value=recipe_data.finished_good_name)
-            sheet.cell(row=row, column=5, value=recipe_data.raw_material_code)
-            sheet.cell(row=row, column=6, value=recipe_data.raw_material_name)
-            sheet.cell(row=row, column=7, value=recipe.kg_per_batch)
-            sheet.cell(row=row, column=8, value=recipe.percentage)
             
-            # UOM
+            # Get recipe_code and description from the WIP item
+            recipe_code = recipe_data.wip_code if recipe_data.wip_code else "Unknown"
+            description = recipe_data.wip_name if recipe_data.wip_name else "Unknown"
+            
+            # Get kg_per_batch
+            kg_per_batch = float(recipe.quantity_kg) if recipe.quantity_kg else 0.0
+            
+            # Calculate percentage
+            total_kg = recipe_totals.get(recipe.recipe_wip_id, 0.0)
+            percentage = round((kg_per_batch / total_kg * 100), 2) if total_kg > 0 else 0.0
+            
+            # Get UOM
             uom_name = ''
             if recipe.quantity_uom_id:
                 from models.uom import UOM
                 uom = UOM.query.get(recipe.quantity_uom_id)
                 if uom:
                     uom_name = uom.UOMName
+            
+            # Write data to sheet
+            sheet.cell(row=row, column=1, value=recipe_code)
+            sheet.cell(row=row, column=2, value=description)
+            sheet.cell(row=row, column=3, value=recipe_data.wip_code)
+            sheet.cell(row=row, column=4, value=recipe_data.wip_name)
+            sheet.cell(row=row, column=5, value=recipe_data.raw_material_code)
+            sheet.cell(row=row, column=6, value=recipe_data.raw_material_name)
+            sheet.cell(row=row, column=7, value=kg_per_batch)
+            sheet.cell(row=row, column=8, value=percentage)
             sheet.cell(row=row, column=9, value=uom_name)
         
         # Auto-adjust column widths
@@ -629,6 +652,7 @@ def download_recipe_excel():
         )
         
     except Exception as e:
+        print(f"Error generating Excel file: {str(e)}")
         return jsonify({'error': f'Failed to generate Excel file: {str(e)}'}), 500
 
 @recipe_bp.route('/recipe/download-template', methods=['GET'])
@@ -849,11 +873,10 @@ def recipe_upload():
                     
                     # Create new recipe
                     recipe = RecipeMaster()
-                    recipe.recipe_code = recipe_code
-                    recipe.description = description
-                    recipe.finished_good_id = finished_good.id
-                    recipe.raw_material_id = raw_material.id
-                    recipe.kg_per_batch = kg_per_batch
+                    # Set the actual database columns instead of properties
+                    recipe.recipe_wip_id = finished_good.id  # finished_good_id maps to recipe_wip_id
+                    recipe.component_item_id = raw_material.id  # raw_material_id maps to component_item_id
+                    recipe.quantity_kg = kg_per_batch  # kg_per_batch maps to quantity_kg
                     recipe.quantity_uom_id = uom_id
                     
                     db.session.add(recipe)
@@ -877,12 +900,17 @@ def recipe_upload():
                 
                 # Recalculate percentages for each recipe group
                 for recipe_code in uploaded_recipe_codes:
-                    recipes_in_group = RecipeMaster.query.filter_by(recipe_code=recipe_code).all()
-                    total_kg = sum(float(r.kg_per_batch) for r in recipes_in_group)
-                    
-                    if total_kg > 0:
-                        for recipe in recipes_in_group:
-                            recipe.percentage = round((float(recipe.kg_per_batch) / total_kg) * 100, 2)
+                    # Find recipes by the finished good item code
+                    finished_good = ItemMaster.query.filter_by(item_code=recipe_code).first()
+                    if finished_good:
+                        recipes_in_group = RecipeMaster.query.filter_by(recipe_wip_id=finished_good.id).all()
+                        total_kg = sum(float(r.quantity_kg) for r in recipes_in_group)
+                        
+                        if total_kg > 0:
+                            for recipe in recipes_in_group:
+                                # Note: percentage is not stored in the database, it's calculated on-the-fly
+                                # So we don't need to set it here
+                                pass
             
             db.session.commit()
             

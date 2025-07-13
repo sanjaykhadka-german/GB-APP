@@ -6,6 +6,8 @@
 <style>
     .table-container {
         width: 100%;
+        max-height: 70vh;
+        overflow-y: auto;
         overflow-x: auto;
         border: 1px solid #dee2e6;
     }
@@ -20,7 +22,8 @@
         white-space: nowrap;
     }
     thead th {
-        background-color: #f8f9fa;
+        background-color: #343a40;
+        color: #fff;
         position: sticky;
         top: 0;
         z-index: 2;
@@ -44,6 +47,20 @@
     }
     .column-toggle label {
         margin-right: 15px;
+    }
+    thead tr.sticky-group-header th {
+        position: sticky;
+        top: 0;
+        background-color: #343a40;
+        color: #fff;
+        z-index: 3;
+    }
+    thead tr.sticky-column-header th {
+        position: sticky;
+        top: 38px;
+        background-color: #495057;
+        color: #fff;
+        z-index: 2;
     }
 </style>
 
@@ -73,7 +90,7 @@
     <div class="table-container">
         <table class="table table-bordered table-striped">
             <thead class="thead-dark">
-                <tr>
+                <tr class="sticky-group-header">
                     <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item</th>
                     <th rowspan="2">Category</th>
                     <th colspan="5">Weekly Summary</th>
@@ -85,7 +102,7 @@
                     <th colspan="7" class="day-group col-saturday">Saturday</th>
                     <th colspan="7" class="day-group col-sunday">Sunday</th>
                 </tr>
-                <tr>
+                <tr class="sticky-column-header">
                     <!-- Summary Headers -->
                     <th>Required Total</th>
                     <th>$/KG</th>
@@ -197,6 +214,11 @@ document.addEventListener('DOMContentLoaded', function() {
             columns.forEach(col => {
                 col.style.display = isChecked ? '' : 'none';
             });
+            // Hide/show the group header for this day in the first header row
+            const groupHeader = document.querySelector(`.day-group.col-${day}`);
+            if (groupHeader) {
+                groupHeader.style.display = isChecked ? '' : 'none';
+            }
         });
     });
 
