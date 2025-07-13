@@ -291,7 +291,11 @@ def get_items():
             'description': ItemMaster.description,
             'item_type': ItemType.type_name,
             'category': Category.name,
-            'department': Department.departmentName
+            'department': Department.departmentName,
+            'calculation_factor': ItemMaster.calculation_factor,
+            'units_per_bag': ItemMaster.units_per_bag,
+            'avg_weight_per_unit': ItemMaster.avg_weight_per_unit,
+            'is_active': ItemMaster.is_active
         }
         
         sort_column = sort_map.get(sort_by, ItemMaster.item_code)
@@ -330,6 +334,9 @@ def get_items():
                 'price_per_kg': item.price_per_kg,
                 'price_per_uom': item.price_per_uom,
                 'supplier_name': item.supplier_name,
+                'calculation_factor': item.calculation_factor,
+                'units_per_bag': item.units_per_bag,
+                'avg_weight_per_unit': item.avg_weight_per_unit,
                 'is_active': item.is_active,
                 'created_by': created_by,
                 'created_at': item.created_at.strftime('%d-%m-%Y %H:%M') if item.created_at else '',

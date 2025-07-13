@@ -57,6 +57,8 @@
                     <div class="toggle-row">
                         <label><input type="checkbox" data-col-index="13" onchange="toggleColumn(13)"> Avg Weight/Unit</label>
                         <label><input type="checkbox" checked data-col-index="14" onchange="toggleColumn(14)"> Status</label>
+                        <label><input type="checkbox" data-col-index="15" onchange="toggleColumn(15)"> User Info</label>
+                        <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Actions</label>
                     </div>
                     <div class="toggle-actions">
                         <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
@@ -143,6 +145,18 @@
                             </th>
                             <th class="sortable-header" data-sort="supplier_name">
                                 Supplier <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable-header" data-sort="calculation_factor">
+                                Calc Factor <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable-header" data-sort="units_per_bag">
+                                Units/Bag <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable-header" data-sort="avg_weight_per_unit">
+                                Avg Weight/Unit <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th class="sortable-header" data-sort="is_active">
+                                Status <i class="fas fa-sort sort-icon"></i>
                             </th>
                             <th>User Info</th>
                             <th>Actions</th>
@@ -412,7 +426,7 @@ function searchItems() {
             tbody.innerHTML = '';
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="16" class="text-center">No items found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="17" class="text-center">No items found</td></tr>';
                 return;
             }
             
@@ -430,6 +444,10 @@ function searchItems() {
                     <td>${item.price_per_kg ? '$' + parseFloat(item.price_per_kg).toFixed(2) : ''}</td>
                     <td>${item.price_per_uom ? '$' + parseFloat(item.price_per_uom).toFixed(2) : ''}</td>
                     <td>${item.supplier_name || ''}</td>
+                    <td>${item.calculation_factor || ''}</td>
+                    <td>${item.units_per_bag || ''}</td>
+                    <td>${item.avg_weight_per_unit || ''}</td>
+                    <td>${item.is_active ? 'Active' : 'Inactive'}</td>
                     <td>
                         <div class="text-muted small">
                             Created: ${item.created_by ? item.created_by + ' on ' + item.created_at : 'N/A'}<br>
@@ -638,7 +656,7 @@ function toggleColumn(colIndex) {
 
 function showEssentialColumns() {
     // Essential columns: Item Code, Description, Type, Status, Actions
-    const essentialColumns = [0, 1, 2, 14, 15];
+    const essentialColumns = [0, 1, 2, 14, 16];
     const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
     
     allCheckboxes.forEach(checkbox => {
@@ -659,7 +677,7 @@ function showAllColumns() {
 }
 
 function resetToDefault() {
-    // Default visible columns based on the initial state
+    // Default visible columns based on the actual table structure
     const defaultColumns = {
         2: true,   // Type
         3: true,   // Category
@@ -673,7 +691,9 @@ function resetToDefault() {
         11: false, // Calc Factor
         12: false, // Units/Bag
         13: false, // Avg Weight/Unit
-        14: true   // Status
+        14: true,  // Status
+        15: false, // User Info
+        16: true   // Actions
     };
     
     const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
