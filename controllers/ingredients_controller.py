@@ -552,12 +552,25 @@ def ingredients_download_excel():
         search_description = request.args.get('description', '').strip()
         search_category = request.args.get('category', '').strip()
 
-        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type_id == get_rm_type_id())
+        # Build query for ingredients
+        rm_type_id = get_rm_type_id()
+        if not rm_type_id:
+            flash("Raw Material item type not found in system!", "danger")
+            return redirect(url_for('ingredients.ingredients_list'))
+
+        ingredients_query = ItemMaster.query.filter(ItemMaster.item_type_id == rm_type_id)
         
         if search_item_code:
             ingredients_query = ingredients_query.filter(ItemMaster.item_code.ilike(f"%{search_item_code}%"))
         if search_description:
             ingredients_query = ingredients_query.filter(ItemMaster.description.ilike(f"%{search_description}%"))
+        if search_category:
+            try:
+                category_id = int(search_category)
+                ingredients_query = ingredients_query.filter(ItemMaster.category_id == category_id)
+            except (ValueError, TypeError):
+                # If category is not a valid ID, try filtering by category name
+                ingredients_query = ingredients_query.join(Category).filter(Category.name.ilike(f"%{search_category}%"))
 
         ingredients = ingredients_query.all()
 
@@ -583,14 +596,14 @@ def ingredients_download_excel():
         # Add data
         for ingredient in ingredients:
             row_data = [
-                ingredient.item_code,
-                ingredient.description,
-                ingredient.category.category_name if ingredient.category else '',
-                ingredient.department.department_name if ingredient.department else '',
-                ingredient.uom.UOM if ingredient.uom else '',
-                ingredient.min_level or 0,
-                ingredient.max_level or 0,
-                ingredient.price_per_kg or 0,
+                ingredient.item_code or '',
+                ingredient.description or '',
+                ingredient.category.name if ingredient.category else '',
+                ingredient.department.departmentName if ingredient.department else '',
+                ingredient.uom.UOMName if ingredient.uom else '',
+                float(ingredient.min_level) if ingredient.min_level is not None else 0.0,
+                float(ingredient.max_level) if ingredient.max_level is not None else 0.0,
+                float(ingredient.price_per_kg) if ingredient.price_per_kg is not None else 0.0,
                 'Yes' if ingredient.is_active else 'No'
             ]
             ws.append(row_data)
@@ -623,6 +636,7 @@ def ingredients_download_excel():
     except Exception as e:
         flash(f"Error generating Excel file: {str(e)}", "danger")
         return redirect(url_for('ingredients.ingredients_list'))
+    
 
 @ingredients_bp.route('/ingredients_download_template', methods=['GET'])
 def ingredients_download_template():

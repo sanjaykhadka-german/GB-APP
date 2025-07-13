@@ -52,9 +52,9 @@ def filling_list():
             flash("Invalid Filling Date format.", 'error')
             
     if search_fill_code:
-        fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+        fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.item_code.ilike(f"%{search_fill_code}%"))
     if search_description:
-        fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+        fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.description.ilike(f"%{search_description}%"))
 
     fillings = fillings_query.all()
     filling_data = [
@@ -237,9 +237,9 @@ def get_search_fillings():
                 return jsonify({"error": "Invalid Filling Date format"}), 400
 
         if search_fill_code:
-            fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+            fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.item_code.ilike(f"%{search_fill_code}%"))
         if search_description:
-            fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+            fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.description.ilike(f"%{search_description}%"))
 
         fillings = fillings_query.all()
 
@@ -248,8 +248,8 @@ def get_search_fillings():
                 "id": filling.id,
                 "filling_date": filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else "",
                 "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",
-                "fill_code": filling.fill_code or "",
-                "description": filling.description or "",
+                "fill_code": filling.item.item_code if filling.item else "",
+                "description": filling.item.description if filling.item else "",
                 "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""
             }
             for filling in fillings
@@ -286,9 +286,9 @@ def export_fillings_excel():
                 flash("Invalid Filling Date format.", 'error')
                 return redirect(url_for('filling.filling_list'))
         if search_fill_code:
-            fillings_query = fillings_query.filter(Filling.fill_code.ilike(f"%{search_fill_code}%"))
+            fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.item_code.ilike(f"%{search_fill_code}%"))
         if search_description:
-            fillings_query = fillings_query.filter(Filling.description.ilike(f"%{search_description}%"))
+            fillings_query = fillings_query.join(Filling.item).filter(ItemMaster.description.ilike(f"%{search_description}%"))
 
         fillings = fillings_query.all()
 
@@ -307,8 +307,8 @@ def export_fillings_excel():
                 filling.id,
                 filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else '',
                 filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else '',
-                filling.fill_code or '',
-                filling.description or '',
+                filling.item.item_code if filling.item else '',
+                filling.item.description if filling.item else '',
                 filling.kilo_per_size if filling.kilo_per_size is not None else ''
             ])
 

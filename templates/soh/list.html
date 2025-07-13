@@ -30,7 +30,6 @@
         <div class="d-flex gap-2 mb-3">
             <a href="{{ url_for('soh.soh_create') }}" class="btn btn-primary">Add New SOH Entry</a>
             <a href="{{ url_for('soh.soh_upload') }}" class="btn btn-success">Upload SOH Data</a>
-            <button type="button" class="btn btn-warning" id="bulkEditButton" onclick="openBulkEditModal()" disabled>Bulk Edit</button>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -48,7 +47,6 @@
             <table class="table table-bordered" id="sohListTable">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="selectAll"></th>
                         <th>ID</th>
                         <th class="sortable" data-column="week_commencing">Week Commencing <span class="sort-icon"></span></th>
                         <th class="sortable" data-column="fg_code">FG Code <span class="sort-icon"></span></th>
@@ -66,7 +64,6 @@
                 <tbody>
                     {% for soh in sohs %}
                     <tr data-id="{{ soh.id }}">
-                        <td><input type="checkbox" class="soh-checkbox" value="{{ soh.id }}"></td>
                         <td>{{ soh.id or '' }}</td>
                         <td class="editable date-column" tabindex="0" data-field="week_commencing" data-original-display="{{ soh.week_commencing_str }}" data-original-input="{{ soh.week_commencing_input_str }}">{{ soh.week_commencing_str }}</td>
                         <td>{{ soh.fg_code or '' }}</td>
@@ -94,44 +91,7 @@
         </div>
     </section>
 
-    <div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="bulkEditModalLabel">Bulk Edit SOH Entries</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="bulkEditForm">
-                        <div class="form-group">
-                            <label for="bulk_week_commencing">Week Commencing:</label>
-                            <input type="date" class="form-control" id="bulk_week_commencing" name="week_commencing">
-                        </div>
-                        <div class="form-group">
-                            <label for="bulk_soh_dispatch_boxes">Dispatch Boxes:</label>
-                            <input type="number" class="form-control" id="bulk_soh_dispatch_boxes" name="soh_dispatch_boxes" step="any">
-                        </div>
-                        <div class="form-group">
-                            <label for="bulk_soh_dispatch_units">Dispatch Units:</label>
-                            <input type="number" class="form-control" id="bulk_soh_dispatch_units" name="soh_dispatch_units" step="any">
-                        </div>
-                        <div class="form-group">
-                            <label for="bulk_soh_packing_boxes">Packing Boxes:</label>
-                            <input type="number" class="form-control" id="bulk_soh_packing_boxes" name="soh_packing_boxes" step="any">
-                        </div>
-                        <div class="form-group">
-                            <label for="bulk_soh_packing_units">Packing Units:</label>
-                            <input type="number" class="form-control" id="bulk_soh_packing_units" name="soh_packing_units" step="any">
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
+
 </div>
 
 <style>
@@ -286,20 +246,7 @@ $(document).ready(function() {
         }
     });
 
-    $(document).on('change', '.soh-checkbox, #selectAll', function() {
-        var checkedBoxes = $('.soh-checkbox:checked').length;
-        $('#bulkEditButton').prop('disabled', checkedBoxes === 0);
-        if (this.id === 'selectAll') {
-            $('.soh-checkbox').prop('checked', $(this).prop('checked'));
-        }
-    });
 
-    $('#bulkEditModal').on('hidden.bs.modal', function() {
-        $('#bulkEditForm')[0].reset();
-        $('.soh-checkbox').prop('checked', false);
-        $('#selectAll').prop('checked', false);
-        $('#bulkEditButton').prop('disabled', true);
-    });
 
     $('.sortable').click(function() {
         var column = $(this).data('column');
@@ -587,7 +534,7 @@ $(document).ready(function() {
                 if (response.error) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="13" class="text-center text-danger">
+                            <td colspan="12" class="text-center text-danger">
                                 <div class="alert alert-danger">
                                     ${response.error}
                                 </div>
@@ -601,7 +548,7 @@ $(document).ready(function() {
                 if (!Array.isArray(response) || response.length === 0) {
                     tableBody.append(`
                         <tr>
-                            <td colspan="13">
+                            <td colspan="12">
                                 <div class="no-results">
                                     <p>No SOH entries found for FG Code: ${fgCode || 'Any'}, Week Commencing:${weekCommencing || 'Any'}</p>
                                     <button class="add-soh-btn" onclick="addSOH('${fgCode}')">
@@ -626,7 +573,6 @@ $(document).ready(function() {
 
                         tableBody.append(`
                             <tr data-id="${soh.id}">
-                                <td><input type="checkbox" class="soh-checkbox" value="${soh.id}"></td>
                                 <td>${soh.id || ''}</td>
                                 <td class="editable date-column" tabindex="0"
                                     data-field="week_commencing"
@@ -688,49 +634,7 @@ $(document).ready(function() {
         window.location.href = `{{ url_for('soh.soh_create') }}?fg_code=${fgCode}`;
     }
 
-    function openBulkEditModal() {
-        if ($('.soh-checkbox:checked').length > 0) {
-            $('#bulkEditModal').modal('show');
-        }
-    }
 
-    function submitBulkEdit() {
-        var selectedIds = $('.soh-checkbox:checked').map(function() {
-            return $(this).val();
-        }).get();
-
-        var weekCommencing = $('#bulk_week_commencing').val().trim();
-        // The bulk edit modal's date input is already YYYY-MM-DD, no need to convert here.
-        // If empty, it's fine.
-
-        var formData = {
-            ids: selectedIds,
-            week_commencing: weekCommencing,
-            soh_dispatch_boxes: $('#bulk_soh_dispatch_boxes').val().trim(),
-            soh_dispatch_units: $('#bulk_soh_dispatch_units').val().trim(),
-            soh_packing_boxes: $('#bulk_soh_packing_boxes').val().trim(),
-            soh_packing_units: $('#bulk_soh_packing_units').val().trim()
-        };
-
-        $.ajax({
-            url: "{{ url_for('soh.soh_bulk_edit') }}",
-            type: "POST",
-            contentType: "application/json",
-            data: JSON.stringify(formData),
-            success: function(response) {
-                if (response.success) {
-                    $('#bulkEditModal').modal('hide');
-                    fetchSOHs();
-                    alert('SOH entries updated successfully!');
-                } else {
-                    alert('Error updating SOH entries: ' + response.error);
-                }
-            },
-            error: function() {
-                alert('Error updating SOH entries.');
-            }
-        });
-    }
 
     // Bind search button click event
     $('#searchForm button[type="button"]').click(function() {
