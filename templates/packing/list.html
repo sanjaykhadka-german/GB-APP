@@ -438,7 +438,7 @@
     
     // Initialize machinery filter options
     console.log('Fetching machinery options...');
-    fetch('/packing/machinery_options')
+    fetch('/machinery_options')
         .then(response => {
             console.log('Machinery options response status:', response.status);
             if (!response.ok) {
@@ -548,7 +548,7 @@
                 console.log("Packing autocomplete request for:", request.term);
                 
                 $.ajax({
-                    url: "/packing/search_product_codes",
+                    url: "/search_product_codes",
                     type: "GET",
                     dataType: "json",
                     data: { term: request.term },
@@ -608,7 +608,7 @@
             sort_order: currentSortOrder
         });
 
-        fetch(`/packing/search?${searchParams}`)
+        fetch(`/search?${searchParams}`)
             .then(response => response.json())
             .then(data => {
                 const tbody = document.querySelector('#packingListTable tbody');
@@ -658,8 +658,8 @@
                         <td data-field="calculation_factor">${packing.calculation_factor}</td>
                         <td data-field="priority" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.priority}</td>
                         <td>
-                            <a href="/packing/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
-                            <form action="/packing/delete/${packing.id}" method="POST" style="display: inline;">
+                            <a href="/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
+                            <form action="/delete/${packing.id}" method="POST" style="display: inline;">
                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing?')">Delete</button>
                             </form>
                         </td>
@@ -850,7 +850,7 @@ function submitBulkEdit() {
             }
         };
 
-        fetch('/packing/bulk_edit', {
+        fetch('/bulk_edit', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -889,7 +889,7 @@ function submitBulkEdit() {
             machinery: document.getElementById('search_machinery').value
         });
 
-        window.location.href = `/packing/export?${searchParams}`;
+        window.location.href = `/export?${searchParams}`;
     }
 
     // Inline editing functionality
@@ -947,7 +947,7 @@ function submitBulkEdit() {
     }
     
     function updateCellValue(packingId, field, value, cell, originalValue) {
-        fetch('/packing/update_cell', {
+        fetch('/update_cell', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1036,7 +1036,7 @@ function submitBulkEdit() {
         // Store current value as original for future reverts
         selectElement.dataset.originalValue = originalValue;
 
-        fetch('/packing/update_cell', {
+        fetch('/update_cell', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

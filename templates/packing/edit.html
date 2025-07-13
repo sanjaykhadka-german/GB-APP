@@ -510,7 +510,7 @@ function deleteProduction(id) {
 
 function deletePacking(id) {
     if (confirm('Are you sure you want to delete this packing entry?')) {
-        fetch(`/packing/delete/${id}`, {
+                    fetch(`/delete/${id}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -552,7 +552,7 @@ function updateMachinery(packingId, machineryId) {
         machinery_id: machineryId
     };
 
-    fetch('/packing/update_machinery/' + packingId, {
+            fetch('/update_machinery/' + packingId, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -654,7 +654,7 @@ function finishEditing(cell, input) {
     cell.appendChild(loadingIndicator);
 
     // Send update to server
-    fetch('/packing/update_field/' + packingId, {
+            fetch('/update_field/' + packingId, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

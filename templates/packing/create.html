@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 week_commencing: week_commencing
             });
             
-            fetch(`/packing/check_duplicate?${params}`)
+            fetch(`/check_duplicate?${params}`)
                 .then(response => response.json())
                 .then(data => {
                     const submitButton = document.getElementById('submitButton');
