@@ -157,6 +157,17 @@
     .editable-cell:hover::after {
         opacity: 0.5;
     }
+    .suggestion-list {
+        position: absolute;
+        background: white;
+        border: 1px solid #ccc;
+        border-top: none;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        width: 100%;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
     .suggestion-list ul {
         list-style: none;
         padding: 0;
@@ -165,12 +176,17 @@
     .suggestion-list li {
         padding: 8px 12px;
         cursor: pointer;
+        border-bottom: 1px solid #eee;
     }
     .suggestion-list li:hover {
         background-color: #f5f5f5;
     }
+    .suggestion-list li:last-child {
+        border-bottom: none;
+    }
     .form-group {
         margin-bottom: 15px;
+        position: relative;
     }
     .table-container {
         overflow-x: auto;
@@ -214,20 +230,25 @@
         // Autocomplete for Production Code
         $("#search_production_code").keyup(function() {
             var productionCode = $(this).val().trim();
+            console.log("Keyup event triggered, productionCode:", productionCode);
             if (productionCode.length > 0) {
+                console.log("Making AJAX request to autocomplete");
                 $.ajax({
                     url: "{{ url_for('production.autocomplete_production') }}",
                     type: "GET",
                     data: { query: productionCode },
                     success: function(response) {
+                        console.log("Autocomplete response:", response);
                         var suggestionsHtml = "<ul>";
                         response.forEach(function(production) {
                             suggestionsHtml += `<li data-production-code="${production.production_code}" data-description="${production.description}">${production.production_code} - ${production.description}</li>`;
                         });
                         suggestionsHtml += "</ul>";
                         $("#production_code_suggestions").html(suggestionsHtml);
+                        console.log("Suggestions HTML:", suggestionsHtml);
                     },
-                    error: function() {
+                    error: function(xhr, status, error) {
+                        console.log("Autocomplete error:", error);
                         $("#production_code_suggestions").empty();
                     }
                 });

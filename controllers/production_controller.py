@@ -291,9 +291,19 @@ def autocomplete_production():
         return jsonify([])
 
     try:
-        query = text("SELECT production_code, description FROM production WHERE production_code LIKE :search LIMIT 10")
-        results = db.session.execute(query, {"search": f"{search}%"}).fetchall()
-        suggestions = [{"production_code": row[0], "description": row[1]} for row in results]
+        # Use SQLAlchemy ORM query instead of raw SQL
+        productions = Production.query.filter(
+            Production.production_code.ilike(f"%{search}%")
+        ).limit(10).all()
+        
+        suggestions = [
+            {
+                "production_code": production.production_code,
+                "description": production.description
+            }
+            for production in productions
+            if production.production_code and production.description
+        ]
         return jsonify(suggestions)
     except Exception as e:
         print("Error fetching production autocomplete suggestions:", e)
