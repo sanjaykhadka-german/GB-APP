@@ -4,6 +4,7 @@ from database import db
 from models.production import Production
 from models.item_master import ItemMaster
 from models.packing import Packing
+from models.inventory import Inventory
 from sqlalchemy.sql import text
 import openpyxl
 from io import BytesIO
@@ -649,6 +650,56 @@ def create_or_update_production_entry(production_date, week_commencing, item_id,
         db.session.rollback()
         return False, f"Error updating production entry: {str(e)}"
 
+def update_inventory_daily_requirements(week_commencing):
+    """
+    Update inventory daily required kg values based on production data for a specific week.
+    """
+    try:
+        from populate_inventory import get_daily_required_kg
+        
+        # Get all raw materials
+        raw_materials = db.session.query(ItemMaster).join(ItemMaster.item_type).filter(
+            ItemMaster.item_type.has(type_name='RM')
+        ).all()
+        
+        for rm in raw_materials:
+            # Get or create inventory record for this week and raw material
+            inventory = db.session.query(Inventory).filter_by(
+                week_commencing=week_commencing,
+                item_id=rm.id
+            ).first()
+            
+            if inventory:
+                # Calculate daily required kg for this raw material
+                daily_reqs = get_daily_required_kg(db.session, week_commencing, rm.id)
+                
+                # Update the daily required kg values
+                inventory.monday_required_kg = daily_reqs[0]
+                inventory.tuesday_required_kg = daily_reqs[1]
+                inventory.wednesday_required_kg = daily_reqs[2]
+                inventory.thursday_required_kg = daily_reqs[3]
+                inventory.friday_required_kg = daily_reqs[4]
+                inventory.saturday_required_kg = daily_reqs[5]
+                inventory.sunday_required_kg = daily_reqs[6]
+                
+                # Update total required
+                inventory.required_in_total = sum(daily_reqs)
+                inventory.required_for_plan = sum(daily_reqs)
+                
+                # Recalculate value required
+                inventory.value_required_rm = inventory.required_in_total * (rm.price_per_kg or 0)
+                
+                # Recalculate weekly variance
+                inventory.variance_week = inventory.soh - inventory.required_for_plan
+        
+        db.session.commit()
+        print(f"Updated inventory daily requirements for week {week_commencing}")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating inventory daily requirements: {str(e)}")
+        raise
+
 def update_production_totals():
     """
     Update all production totals to match packing requirements.
@@ -669,7 +720,8 @@ def update_production_totals():
     except Exception as e:
         db.session.rollback()
         return False, f"Error updating production totals: {str(e)}"
-
+    
+    
 @production_bp.route('/update_daily_plan', methods=['POST'])
 def update_daily_plan():
     try:
@@ -686,7 +738,6 @@ def update_daily_plan():
 
         production = Production.query.get_or_404(id)
 
-        # Validate field name
         valid_fields = [
             'monday_planned', 'tuesday_planned', 'wednesday_planned',
             'thursday_planned', 'friday_planned', 'saturday_planned', 'sunday_planned'
@@ -694,10 +745,7 @@ def update_daily_plan():
         if field not in valid_fields:
             return jsonify({'success': False, 'error': 'Invalid field name'}), 400
 
-        # Update the field
         setattr(production, field, value)
-
-        # Recalculate total_planned
         production.total_planned = sum([
             production.monday_planned or 0,
             production.tuesday_planned or 0,
@@ -709,14 +757,23 @@ def update_daily_plan():
         ])
 
         db.session.commit()
+        update_inventory_daily_requirements(production.week_commencing)
 
-        # Calculate variance
-        variance = production.total_planned - production.total_kg if production.total_kg else 0
+        # Fetch updated inventory records for the week
+        inventory_records = db.session.query(Inventory).filter_by(
+            week_commencing=production.week_commencing
+        ).all()
+        inventory_data = {
+            inv.item_id: {
+                'tuesday_required_kg': float(inv.tuesday_required_kg or 0.0)
+            } for inv in inventory_records
+        }
 
         return jsonify({
             'success': True,
             'total_planned': production.total_planned,
-            'variance': variance
+            'variance': production.total_planned - production.total_kg if production.total_kg else 0,
+            'inventory_data': inventory_data
         })
 
     except Exception as e:

@@ -93,7 +93,7 @@
                 <tr class="sticky-group-header">
                     <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item</th>
                     <th rowspan="2">Category</th>
-                    <th colspan="5">Weekly Summary</th>
+                    <th colspan="7">Weekly Summary</th>
                     <th colspan="7" class="day-group col-monday">Monday</th>
                     <th colspan="7" class="day-group col-tuesday">Tuesday</th>
                     <th colspan="7" class="day-group col-wednesday">Wednesday</th>
@@ -108,6 +108,8 @@
                     <th>$/KG</th>
                     <th>$ Value RM</th>
                     <th>SOH</th>
+                    <th>Supplier Name</th>
+                    <th>Required for Plan</th>
                     <th>Variance Week</th>
                     <!-- Daily Headers -->
                     {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
@@ -120,6 +122,42 @@
                         <th class="day-group col-{{ day.lower() }}">{{ day }} Closing</th>
                     {% endfor %}
                 </tr>
+                <!-- Totals Row -->
+                <tr style="background-color: #e3f2fd; font-weight: bold;">
+                    <td colspan="5">TOTAL</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <!-- Monday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='monday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Tuesday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='tuesday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Wednesday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='wednesday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Thursday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='thursday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Friday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='friday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Saturday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='saturday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                    <!-- Sunday -->
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='sunday_required_kg')) }}</td>
+                    <td></td><td></td><td></td><td></td><td></td>
+                </tr>
             </thead>
             <tbody>
                 {% for inv in inventory_records %}
@@ -130,6 +168,8 @@
                     <td>{{ "%.2f"|format(inv.price_per_kg) }}</td>
                     <td>{{ "%.2f"|format(inv.value_required_rm) }}</td>
                     <td>{{ "%.2f"|format(inv.soh) }}</td>
+                    <td>{{ inv.item.supplier_name or '' }}</td>
+                    <td>{{ "%.2f"|format(inv.monday_required_kg + inv.tuesday_required_kg + inv.wednesday_required_kg + inv.thursday_required_kg + inv.friday_required_kg + inv.saturday_required_kg + inv.sunday_required_kg) }}</td>
                     <td data-field="variance_week">{{ "%.2f"|format(inv.variance_week) }}</td>
                     
                     <!-- Monday -->

@@ -159,6 +159,8 @@ def export_inventory():
                 '$/KG': inv.price_per_kg,
                 '$ Value RM': inv.value_required_rm,
                 'SOH': inv.soh,
+                'Supplier Name': inv.item.supplier_name or '',
+                'Required for Plan': inv.monday_required_kg + inv.tuesday_required_kg + inv.wednesday_required_kg + inv.thursday_required_kg + inv.friday_required_kg + inv.saturday_required_kg + inv.sunday_required_kg,
                 'Variance Week': inv.variance_week,
                 'Mon Opening': inv.monday_opening_stock,
                 'Mon Required': inv.monday_required_kg,

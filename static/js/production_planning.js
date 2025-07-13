@@ -1,45 +1,48 @@
-// Handle double-click to edit
-document.querySelectorAll('.editable-cell').forEach(cell => {
-    cell.addEventListener('dblclick', function() {
-        if (!this.classList.contains('editing')) {
-            const currentValue = this.textContent.trim();
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = '0.01';
-            input.value = currentValue;
-            input.classList.add('form-control');
-            
-            // Store original content
-            this.dataset.originalContent = this.innerHTML;
-            this.innerHTML = '';
-            this.appendChild(input);
-            this.classList.add('editing');
-            
-            input.focus();
-            input.select();
-            
-            // Handle input blur
-            input.addEventListener('blur', function() {
-                handleCellUpdate(cell);
-            });
-            
-            // Handle enter key
-            input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
+// Initialize editable cells function
+function initializeEditableCells() {
+    // Handle double-click to edit
+    document.querySelectorAll('.editable-cell').forEach(cell => {
+        cell.addEventListener('dblclick', function() {
+            if (!this.classList.contains('editing')) {
+                const currentValue = this.textContent.trim();
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = '0.01';
+                input.value = currentValue;
+                input.classList.add('form-control');
+                
+                // Store original content
+                this.dataset.originalContent = this.innerHTML;
+                this.innerHTML = '';
+                this.appendChild(input);
+                this.classList.add('editing');
+                
+                input.focus();
+                input.select();
+                
+                // Handle input blur
+                input.addEventListener('blur', function() {
                     handleCellUpdate(cell);
-                }
-            });
+                });
+                
+                // Handle enter key
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        handleCellUpdate(cell);
+                    }
+                });
 
-            // Handle escape key
-            input.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    cell.innerHTML = cell.dataset.originalContent;
-                    cell.classList.remove('editing');
-                }
-            });
-        }
+                // Handle escape key
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        cell.innerHTML = cell.dataset.originalContent;
+                        cell.classList.remove('editing');
+                    }
+                });
+            }
+        });
     });
-});
+}
 
 // Handle cell update
 function handleCellUpdate(cell) {
@@ -60,7 +63,7 @@ function handleCellUpdate(cell) {
         return;
     }
     
-    // Send update to server
+    // Send update to server - use the correct route
     fetch('/update_daily_plan', {
         method: 'POST',
         headers: {

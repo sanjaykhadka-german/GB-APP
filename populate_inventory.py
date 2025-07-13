@@ -6,10 +6,11 @@ from datetime import timedelta
 def get_daily_required_kg(db_session, week_commencing, raw_material_item_id):
     """
     Calculate the required kg for a specific raw material for each day of the week.
+    Uses the planned values (monday_planned, tuesday_planned, etc.) from Production records.
     """
-    daily_reqs = {i: 0.0 for i in range(7)}  # Monday is 0, Sunday is 6
+    daily_reqs = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
 
-    # Find all production planned for the given week
+    # Find all production records for the given week
     productions_in_week = db_session.query(Production).filter(
         Production.week_commencing == week_commencing
     ).all()
@@ -32,17 +33,42 @@ def get_daily_required_kg(db_session, week_commencing, raw_material_item_id):
         if total_recipe_qty == 0:
             continue
 
-        day_of_week = prod.production_date.weekday()
-        
+        # Calculate raw material requirements for each day using planned values
         for recipe in recipes:
             component_qty = float(recipe.quantity_kg or 0)
-            prod_qty = float(prod.total_kg or 0)
             
-            # Apportion the production quantity based on the recipe's component weight
-            usage_for_production = (component_qty / float(total_recipe_qty)) * prod_qty
-            daily_reqs[day_of_week] += usage_for_production
+            # Calculate the proportion of this raw material in the recipe
+            component_proportion = component_qty / float(total_recipe_qty) if total_recipe_qty > 0 else 0
             
-    return [daily_reqs[i] for i in range(7)] # Return as a list [Mon, Tue, ...]
+            # Monday required kg
+            monday_planned = float(prod.monday_planned or 0)
+            daily_reqs[0] += monday_planned * component_proportion
+            
+            # Tuesday required kg
+            tuesday_planned = float(prod.tuesday_planned or 0)
+            daily_reqs[1] += tuesday_planned * component_proportion
+            
+            # Wednesday required kg
+            wednesday_planned = float(prod.wednesday_planned or 0)
+            daily_reqs[2] += wednesday_planned * component_proportion
+            
+            # Thursday required kg
+            thursday_planned = float(prod.thursday_planned or 0)
+            daily_reqs[3] += thursday_planned * component_proportion
+            
+            # Friday required kg
+            friday_planned = float(prod.friday_planned or 0)
+            daily_reqs[4] += friday_planned * component_proportion
+            
+            # Saturday required kg
+            saturday_planned = float(prod.saturday_planned or 0)
+            daily_reqs[5] += saturday_planned * component_proportion
+            
+            # Sunday required kg
+            sunday_planned = float(prod.sunday_planned or 0)
+            daily_reqs[6] += sunday_planned * component_proportion
+            
+    return daily_reqs  # Return as a list [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
 
 def populate_inventory(weeks_to_process):
     """
