@@ -680,59 +680,204 @@ document.getElementById('item-form').addEventListener('submit', function(e) {
     });
 });
 
-// Modal save handlers (simplified versions)
+// Modal save handlers with API calls
 document.getElementById('save-new-item-type').addEventListener('click', function() {
-    const name = document.getElementById('new-item-type-name').value;
+    const name = document.getElementById('new-item-type-name').value.trim();
     if (name) {
-        // Add to dropdown and close modal
-        const select = document.getElementById('item_type');
-        const option = new Option(name, name);
-        select.add(option);
-        select.value = name;
-        
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newItemTypeModal'));
-        modal.hide();
-        
-        // Clear form
-        document.getElementById('new-item-type-form').reset();
+        fetch('/item-type', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({type_name: name})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new item type to the select dynamically
+                const select = document.getElementById('item_type');
+                const newOption = document.createElement('option');
+                newOption.value = name;
+                newOption.textContent = name;
+                select.appendChild(newOption);
+                
+                // Select the newly created item type
+                select.value = name;
+                
+                // Close modal and clear form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newItemTypeModal'));
+                modal.hide();
+                document.getElementById('new-item-type-form').reset();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the item type');
+        });
+    } else {
+        alert('Please enter an item type name');
     }
 });
 
 document.getElementById('save-new-category').addEventListener('click', function() {
-    const name = document.getElementById('new-category-name').value;
+    const name = document.getElementById('new-category-name').value.trim();
     if (name) {
-        // For now, just close modal (in real implementation, make API call)
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newCategoryModal'));
-        modal.hide();
-        document.getElementById('new-category-form').reset();
+        fetch('/category', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: name})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new category to the select dynamically
+                const select = document.getElementById('category_id');
+                const newOption = document.createElement('option');
+                newOption.value = result.id;
+                newOption.textContent = name;
+                select.appendChild(newOption);
+                
+                // Select the newly created category
+                select.value = result.id;
+                
+                // Close modal and clear form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newCategoryModal'));
+                modal.hide();
+                document.getElementById('new-category-form').reset();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the category');
+        });
+    } else {
+        alert('Please enter a category name');
     }
 });
 
 document.getElementById('save-new-department').addEventListener('click', function() {
-    const name = document.getElementById('new-department-name').value;
+    const name = document.getElementById('new-department-name').value.trim();
     if (name) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newDepartmentModal'));
-        modal.hide();
-        document.getElementById('new-department-form').reset();
+        fetch('/department', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({departmentName: name})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new department to the select dynamically
+                const select = document.getElementById('department_id');
+                const newOption = document.createElement('option');
+                newOption.value = result.id;
+                newOption.textContent = name;
+                select.appendChild(newOption);
+                
+                // Select the newly created department
+                select.value = result.id;
+                
+                // Close modal and clear form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newDepartmentModal'));
+                modal.hide();
+                document.getElementById('new-department-form').reset();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the department');
+        });
+    } else {
+        alert('Please enter a department name');
     }
 });
 
 document.getElementById('save-new-uom').addEventListener('click', function() {
-    const name = document.getElementById('new-uom-name').value;
+    const name = document.getElementById('new-uom-name').value.trim();
     if (name) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newUOMModal'));
-        modal.hide();
-        document.getElementById('new-uom-form').reset();
+        fetch('/uom', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({UOMName: name})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new UOM to the select dynamically
+                const select = document.getElementById('uom_id');
+                const newOption = document.createElement('option');
+                newOption.value = result.id;
+                newOption.textContent = name;
+                select.appendChild(newOption);
+                
+                // Select the newly created UOM
+                select.value = result.id;
+                
+                // Close modal and clear form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newUOMModal'));
+                modal.hide();
+                document.getElementById('new-uom-form').reset();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the UOM');
+        });
+    } else {
+        alert('Please enter a UOM name');
     }
 });
 
 document.getElementById('save-new-machinery').addEventListener('click', function() {
-    const name = document.getElementById('new-machinery-name').value;
+    const name = document.getElementById('new-machinery-name').value.trim();
     if (name) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newMachineryModal'));
-        modal.hide();
-        document.getElementById('new-machinery-form').reset();
+        fetch('/machinery', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({machineryName: name})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.error) {
+                alert(result.error);
+            } else {
+                // Add new machinery to the select dynamically
+                const select = document.getElementById('machinery_id');
+                const newOption = document.createElement('option');
+                newOption.value = result.id;
+                newOption.textContent = name;
+                select.appendChild(newOption);
+                
+                // Select the newly created machinery
+                select.value = result.id;
+                
+                // Close modal and clear form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('newMachineryModal'));
+                modal.hide();
+                document.getElementById('new-machinery-form').reset();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while saving the machinery');
+        });
+    } else {
+        alert('Please enter a machinery name');
     }
 });
 
