@@ -87,12 +87,29 @@
     <h1 class="my-4">Inventory Management</h1>
 
     <form method="GET" action="{{ url_for('inventory.list_inventory') }}" class="form-inline mb-4">
-        <div class="form-group mr-2">
-            <label for="week_commencing" class="mr-2">Week Commencing:</label>
-            <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ search_week_commencing }}">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="week_commencing">Week Commencing:</label>
+                    <input type="date" class="form-control" id="week_commencing" name="week_commencing" value="{{ search_week_commencing }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label for="item_code_search">Item Code:</label>
+                    <input type="text" class="form-control" id="item_code_search" name="item_code" placeholder="Search by item code" value="{{ search_item_code|default('') }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Search</button>
+                        <button type="button" class="btn btn-success" onclick="exportToExcel()">Export to Excel</button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary">Search</button>
-        <button type="button" class="btn btn-success ml-2" onclick="exportToExcel()">Export to Excel</button>
     </form>
 
     <div class="column-toggle">
@@ -400,6 +417,44 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Update failed:', error);
             alert('Failed to update value: ' + error.message);
         }
+    }
+});
+
+$(document).ready(function() {
+    // Initialize autocomplete for item code search
+    if (typeof $.ui !== 'undefined' && typeof $.ui.autocomplete !== 'undefined') {
+        $("#item_code_search").autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: "/inventory/search_item_codes",
+                    type: "GET",
+                    dataType: "json",
+                    data: { term: request.term },
+                    success: function(data) {
+                        if (Array.isArray(data)) {
+                            var suggestions = data.map(function(item) {
+                                return {
+                                    label: item.item_code + ' - ' + item.description,
+                                    value: item.item_code
+                                };
+                            });
+                            response(suggestions);
+                        } else {
+                            response([]);
+                        }
+                    },
+                    error: function() { response([]); }
+                });
+            },
+            minLength: 2,
+            delay: 300,
+            select: function(event, ui) {
+                $(this).val(ui.item.value);
+                $(this).closest('form').submit();
+                return false;
+            },
+            focus: function(event, ui) { return false; }
+        });
     }
 });
 

@@ -50,29 +50,32 @@ def list_inventory():
     from populate_inventory import populate_inventory
     try:
         search_week_commencing = request.args.get('week_commencing', '').strip()
+        search_item_code = request.args.get('item_code', '').strip()
 
         if not search_week_commencing:
             # Default to the current week if none is selected
             today = datetime.today().date()
             search_week_commencing = (today - timedelta(days=today.weekday())).strftime('%Y-%m-%d')
-        
         week_date = datetime.strptime(search_week_commencing, '%Y-%m-%d').date()
-        
+
         # Run the population script to ensure data is up-to-date for the selected week
         populate_inventory({week_date})
 
         # Query the data for the template
-        inventory_records = db.session.query(Inventory).options(
+        query = db.session.query(Inventory).options(
             joinedload(Inventory.item).joinedload(ItemMaster.category)
-        ).filter_by(week_commencing=week_date).all()
-        
+        ).filter_by(week_commencing=week_date)
+        if search_item_code:
+            query = query.join(Inventory.item).filter(ItemMaster.item_code == search_item_code)
+        inventory_records = query.all()
         categories = Category.query.all()
 
         return render_template(
             'inventory/list.html',
             inventory_records=inventory_records,
             categories=categories,
-            search_week_commencing=search_week_commencing
+            search_week_commencing=search_week_commencing,
+            search_item_code=search_item_code
         )
     except Exception as e:
         flash(f"Error loading inventory page: {str(e)}", 'danger')
@@ -229,3 +232,24 @@ def export_inventory():
     except Exception as e:
         flash(f"An error occurred while exporting: {str(e)}", 'danger')
         return redirect(url_for('inventory.list_inventory', week_commencing=search_week_commencing))
+
+
+@inventory_bp.route('/inventory/search_item_codes', methods=['GET'])
+def search_item_codes():
+    """Search for item codes with auto-suggestion"""
+    from flask import session
+    # Check if user is authenticated
+    if 'user_id' not in session:
+        return jsonify([]), 401
+    term = request.args.get('term', '')
+    if not term or len(term) < 2:
+        return jsonify([])
+    try:
+        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(10).all()
+        results = [{
+            'item_code': item.item_code,
+            'description': item.description or ''
+        } for item in items]
+        return jsonify(results)
+    except Exception as e:
+        return jsonify([]), 500

@@ -81,8 +81,23 @@ def populate_inventory(weeks_to_process):
 
         for week in weeks_to_process:
             print(f"Populating inventory for week: {week}")
-            # Get all raw materials
-            raw_materials = db.session.query(ItemMaster).join(ItemType).filter(ItemType.type_name == 'RM').all()
+            
+            # Get all raw materials from raw_material_report_table instead of filtering by item type
+            # This ensures we include all items that are actually used as raw materials
+            raw_material_items = db.session.query(
+                RawMaterialReportTable.raw_material_id
+            ).filter(
+                RawMaterialReportTable.week_commencing == week
+            ).distinct().all()
+            
+            # Get the actual ItemMaster objects
+            raw_materials = []
+            for item_id in raw_material_items:
+                item = ItemMaster.query.get(item_id[0])
+                if item:
+                    raw_materials.append(item)
+            
+            print(f"Found {len(raw_materials)} raw materials from reports")
 
             for rm in raw_materials:
                 # Check if inventory record already exists
@@ -91,12 +106,10 @@ def populate_inventory(weeks_to_process):
                     inv = Inventory(week_commencing=week, item_id=rm.id)
                     db.session.add(inv)
                 
-                # A & B: Week and Item are set by the loop/query
-                
+                # Rest of the logic remains the same...
                 # G: SOH - from raw_material_stocktake
                 stocktake = db.session.query(RawMaterialStocktake).filter(
                     RawMaterialStocktake.item_code == rm.item_code,
-                    # Assuming we use the stocktake from the same week
                     RawMaterialStocktake.week_commencing == week
                 ).first()
                 inv.soh = float(stocktake.current_stock) if stocktake and stocktake.current_stock else 0.0
@@ -113,7 +126,6 @@ def populate_inventory(weeks_to_process):
                 # D, E, H: Category, Price, Supplier from Item Master
                 inv.price_per_kg = float(rm.price_per_kg or 0.0)
                 inv.supplier_name = rm.supplier_name
-                # Category requires a join, handled in controller for display
 
                 # F: $ Value for Required RM
                 inv.value_required_rm = inv.required_in_total * inv.price_per_kg
