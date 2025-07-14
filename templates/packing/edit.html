@@ -1,6 +1,10 @@
 {% extends 'index.html' %}
 
 {% block content %}
+<!-- Add mapping from backend (Jinja2 to JS) -->
+<script>
+const familyToDescription = {{ family_to_description|tojson }};
+</script>
 <div class="container-fluid">
     <h2>Edit Packing Entry - Week {{ packing.week_commencing.strftime('%Y-%m-%d') }}</h2>
     
@@ -354,7 +358,6 @@
 // Global variables for filtering
 let currentFilter = '';
 let allProductFamilies = new Set();
-
 // Initialize product families on page load
 document.addEventListener('DOMContentLoaded', function() {
     populateProductFamilies();
@@ -389,7 +392,9 @@ function populateProductFamilies() {
     Array.from(allProductFamilies).sort().forEach(family => {
         const option = document.createElement('option');
         option.value = family;
-        option.textContent = `${family} - Products`;
+        // Show code and description if available
+        const desc = familyToDescription[family] ? ` - ${familyToDescription[family]}` : '';
+        option.textContent = `${family}${desc}`;
         select.appendChild(option);
     });
 }

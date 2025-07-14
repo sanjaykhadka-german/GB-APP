@@ -624,7 +624,14 @@ def packing_edit(id):
     ).order_by(ItemMaster.item_code).all()
     machinery = Machinery.query.all()
     allergens = Allergen.query.all()
-    
+
+    # Build a mapping of product family code to description (first product in each family)
+    family_to_description = {}
+    for product in products:
+        family_code = product.item_code.split('.')[0] if product.item_code else None
+        if family_code and family_code not in family_to_description:
+            family_to_description[family_code] = product.description
+
     return render_template('packing/edit.html', 
                          packing=packing,
                          production_entries=production_entries,
@@ -638,7 +645,8 @@ def packing_edit(id):
                          products=products,
                          machinery=machinery,
                          allergens=allergens,
-                         current_page="packing")
+                         current_page="packing",
+                         family_to_description=family_to_description)
 
 @packing_bp.route('/delete/<int:id>', methods=['POST'])
 def packing_delete(id):
