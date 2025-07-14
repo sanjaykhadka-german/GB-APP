@@ -62,6 +62,25 @@
         color: #fff;
         z-index: 2;
     }
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable:hover {
+        background-color: #6c757d !important;
+    }
+    .sort-icon {
+        font-size: 12px;
+        margin-left: 5px;
+    }
+    .sort-asc .sort-icon::after {
+        content: " ↑";
+        color: #28a745;
+    }
+    .sort-desc .sort-icon::after {
+        content: " ↓";
+        color: #dc3545;
+    }
 </style>
 
 <div class="container-fluid">
@@ -91,8 +110,9 @@
         <table class="table table-bordered table-striped">
             <thead class="thead-dark">
                 <tr class="sticky-group-header">
-                    <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item</th>
-                    <th rowspan="2">Category</th>
+                    <th rowspan="2" style="position: sticky; left: 0; z-index: 3; background-color: #343a40;">Item Code</th>
+                    <th rowspan="2" style="position: sticky; left: 80px; z-index: 3; background-color: #343a40;" class="sortable" data-sort="item">Item <span class="sort-icon">↕</span></th>
+                    <th rowspan="2" class="sortable" data-sort="category">Category <span class="sort-icon">↕</span></th>
                     <th colspan="7">Weekly Summary</th>
                     <th colspan="7" class="day-group col-monday">Monday</th>
                     <th colspan="7" class="day-group col-tuesday">Tuesday</th>
@@ -124,7 +144,10 @@
                 </tr>
                 <!-- Totals Row -->
                 <tr style="background-color: #e3f2fd; font-weight: bold;">
-                    <td colspan="5">TOTAL</td>
+                    <td colspan="3">TOTAL</td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='required_in_total')) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(inventory_records|sum(attribute='value_required_rm')) }}</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -162,7 +185,8 @@
             <tbody>
                 {% for inv in inventory_records %}
                 <tr data-id="{{ inv.id }}">
-                    <td style="position: sticky; left: 0; z-index: 1; background-color: white;">{{ inv.item.description }}</td>
+                    <td style="position: sticky; left: 0; z-index: 1; background-color: white;">{{ inv.item.item_code or '' }}</td>
+                    <td style="position: sticky; left: 80px; z-index: 1; background-color: white;">{{ inv.item.description }}</td>
                     <td>{{ inv.item.category.name if inv.item.category else '' }}</td>
                     <td>{{ "%.2f"|format(inv.required_in_total) }}</td>
                     <td>{{ "%.2f"|format(inv.price_per_kg) }}</td>
@@ -245,6 +269,54 @@
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.querySelector('table');
     const toggles = document.querySelectorAll('.col-toggle');
+    let currentSort = { column: null, direction: 'asc' };
+
+    // Sorting functionality
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const sortType = this.dataset.sort;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            // Determine sort direction
+            let direction = 'asc';
+            if (currentSort.column === sortType && currentSort.direction === 'asc') {
+                direction = 'desc';
+            }
+            
+            // Update sort indicators
+            sortableHeaders.forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            this.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // Sort the rows
+            rows.sort((a, b) => {
+                let aValue, bValue;
+                
+                if (sortType === 'item') {
+                    aValue = a.cells[1].textContent.trim().toLowerCase();
+                    bValue = b.cells[1].textContent.trim().toLowerCase();
+                } else if (sortType === 'category') {
+                    aValue = a.cells[2].textContent.trim().toLowerCase();
+                    bValue = b.cells[2].textContent.trim().toLowerCase();
+                }
+                
+                if (direction === 'asc') {
+                    return aValue.localeCompare(bValue);
+                } else {
+                    return bValue.localeCompare(aValue);
+                }
+            });
+            
+            // Reorder the rows in the DOM
+            rows.forEach(row => tbody.appendChild(row));
+            
+            // Update current sort state
+            currentSort = { column: sortType, direction: direction };
+        });
+    });
 
     toggles.forEach(toggle => {
         toggle.addEventListener('change', function() {
