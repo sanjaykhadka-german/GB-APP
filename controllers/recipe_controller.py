@@ -122,21 +122,24 @@ def recipe_page():
     search_description = request.args.get('description', '')
     edit_id = request.args.get('edit_id')
     
-    # Get only WIP items for recipe codes and RM items for components
+    # Get WIP items for recipe codes
     wip_items = db.session.query(ItemMaster).join(
         ItemType, ItemMaster.item_type_id == ItemType.id
     ).filter(ItemType.type_name == 'WIP').order_by(ItemMaster.item_code).all()
     
+    # Get both RM and WIP items for components (multi-level BOM support)
     component_items = db.session.query(ItemMaster).join(
         ItemType, ItemMaster.item_type_id == ItemType.id  
-    ).filter(ItemType.type_name == 'RM').order_by(ItemMaster.item_code).all()
+    ).filter(
+        ItemType.type_name.in_(['RM', 'WIP'])  # Allow both RM and WIP as components
+    ).order_by(ItemMaster.item_code).all()
 
     return render_template('recipe/recipe.html', 
                          search_recipe_code=search_recipe_code,
                          search_description=search_description,
                          recipes=RecipeMaster.query.all(),
-                         wip_items=wip_items,  # Only WIP items for recipe codes
-                         component_items=component_items,  # Only RM items for components
+                         wip_items=wip_items,
+                         component_items=component_items,  # Now includes both RM and WIP
                          current_page='recipe')
 
 @recipe_bp.route('/recipe/delete/<int:id>', methods=['POST'])
