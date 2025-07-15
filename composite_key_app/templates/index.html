@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Composite Key Item Master{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-light p-5 rounded">
+            <h1 class="display-4">
+                <i class="fas fa-cubes text-primary"></i> Item Master System
+            </h1>
+            <p class="lead">
+                A modern manufacturing item management system implementing composite key constraints 
+                for <code>(item_code, description)</code> to support product variants.
+            </p>
+            <hr class="my-4">
+            <p>
+                This system solves the challenge of managing items with the same code but different 
+                descriptions, such as <strong>"1007 - HF Pulled pork - WIP"</strong> and 
+                <strong>"1007 - GB Pulled Pork - WIP"</strong>.
+            </p>
+            <div class="d-flex gap-3">
+                <a class="btn btn-primary btn-lg" href="{{ url_for('items_page') }}" role="button">
+                    <i class="fas fa-box"></i> Manage Items
+                </a>
+                <a class="btn btn-success btn-lg" href="{{ url_for('recipes_page') }}" role="button">
+                    <i class="fas fa-list-ul"></i> Manage Recipes
+                </a>
+                <button class="btn btn-info btn-lg" onclick="showCompositeKeyInfo()">
+                    <i class="fas fa-info-circle"></i> Learn More
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Features Section -->
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-key fa-3x text-primary"></i>
+                </div>
+                <h5 class="card-title">Composite Key Design</h5>
+                <p class="card-text">
+                    Unique constraint on <code>(item_code, description)</code> allows multiple 
+                    variants while preventing exact duplicates.
+                </p>
+                <button class="btn btn-outline-primary" onclick="showCompositeKeyInfo()">
+                    Learn More
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-search fa-3x text-success"></i>
+                </div>
+                <h5 class="card-title">Smart Search</h5>
+                <p class="card-text">
+                    Advanced search functionality that handles both item codes and descriptions, 
+                    with support for finding variants.
+                </p>
+                <a href="{{ url_for('items_page') }}" class="btn btn-outline-success">
+                    Try Search
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-cogs fa-3x text-warning"></i>
+                </div>
+                <h5 class="card-title">Recipe Management</h5>
+                <p class="card-text">
+                    Comprehensive bill of materials management with automatic percentage 
+                    calculations and component tracking.
+                </p>
+                <a href="{{ url_for('recipes_page') }}" class="btn btn-outline-warning">
+                    View Recipes
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Section -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h3><i class="fas fa-chart-bar"></i> System Statistics</h3>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="total-items">-</h4>
+                        <p class="card-text">Total Items</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-box fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="wip-items">-</h4>
+                        <p class="card-text">WIP Items</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-hammer fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="total-recipes">-</h4>
+                        <p class="card-text">Total Recipes</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-list-ul fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title" id="duplicate-codes">-</h4>
+                        <p class="card-text">Duplicate Codes</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-copy fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Items Section -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h3><i class="fas fa-history"></i> Recent Items</h3>
+        <div class="card">
+            <div class="card-body">
+                <div id="recent-items-loading" class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading recent items...</p>
+                </div>
+                <div id="recent-items-container" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Item Code</th>
+                                    <th>Description</th>
+                                    <th>Type</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-items-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="recent-items-error" class="alert alert-warning" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    No recent items found or unable to load data.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Example Data Section -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h3><i class="fas fa-lightbulb"></i> Example: Composite Key in Action</h3>
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-database"></i> Sample Data: Item Code "1007" Variants
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Item Code</th>
+                                <th>Description</th>
+                                <th>Type</th>
+                                <th>Unique Key</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="table-success">
+                                <td class="item-code">1007</td>
+                                <td>HF Pulled pork - WIP</td>
+                                <td><span class="badge bg-primary">WIP</span></td>
+                                <td><code>("1007", "HF Pulled pork - WIP")</code></td>
+                                <td><i class="fas fa-check text-success"></i> Valid</td>
+                            </tr>
+                            <tr class="table-success">
+                                <td class="item-code">1007</td>
+                                <td>GB Pulled Pork - WIP</td>
+                                <td><span class="badge bg-primary">WIP</span></td>
+                                <td><code>("1007", "GB Pulled Pork - WIP")</code></td>
+                                <td><i class="fas fa-check text-success"></i> Valid</td>
+                            </tr>
+                            <tr class="table-danger">
+                                <td class="item-code">1007</td>
+                                <td>HF Pulled pork - WIP</td>
+                                <td><span class="badge bg-primary">WIP</span></td>
+                                <td><code>("1007", "HF Pulled pork - WIP")</code></td>
+                                <td><i class="fas fa-times text-danger"></i> Duplicate (Blocked)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> How it works:</h6>
+                        <ul class="mb-0">
+                            <li>Each combination of <code>(item_code, description)</code> must be unique</li>
+                            <li>Same item code with different descriptions is allowed</li>
+                            <li>Exact duplicates (same code + same description) are prevented</li>
+                            <li>This enables product variants while maintaining data integrity</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load dashboard data when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboardStats();
+        loadRecentItems();
+    });
+    
+    async function loadDashboardStats() {
+        try {
+            // Load total items
+            const itemsResponse = await apiRequest('/api/items/?per_page=1');
+            document.getElementById('total-items').textContent = itemsResponse.total || 0;
+            
+            // Load WIP items
+            const wipResponse = await apiRequest('/api/items/?item_type=WIP&per_page=1');
+            document.getElementById('wip-items').textContent = wipResponse.total || 0;
+            
+            // Load total recipes
+            const recipesResponse = await apiRequest('/api/recipes/?per_page=1');
+            document.getElementById('total-recipes').textContent = recipesResponse.total || 0;
+            
+            // Calculate duplicate codes (items with same code but different descriptions)
+            const allItemsResponse = await apiRequest('/api/items/?per_page=1000');
+            const items = allItemsResponse.items || [];
+            const codeGroups = {};
+            
+            items.forEach(item => {
+                if (!codeGroups[item.item_code]) {
+                    codeGroups[item.item_code] = [];
+                }
+                codeGroups[item.item_code].push(item);
+            });
+            
+            const duplicateCodes = Object.keys(codeGroups).filter(code => codeGroups[code].length > 1).length;
+            document.getElementById('duplicate-codes').textContent = duplicateCodes;
+            
+        } catch (error) {
+            console.error('Error loading dashboard stats:', error);
+            // Set fallback values
+            document.getElementById('total-items').textContent = 'N/A';
+            document.getElementById('wip-items').textContent = 'N/A';
+            document.getElementById('total-recipes').textContent = 'N/A';
+            document.getElementById('duplicate-codes').textContent = 'N/A';
+        }
+    }
+    
+    async function loadRecentItems() {
+        try {
+            const response = await apiRequest('/api/items/?per_page=5');
+            const items = response.items || [];
+            
+            const tbody = document.getElementById('recent-items-tbody');
+            tbody.innerHTML = '';
+            
+            if (items.length === 0) {
+                document.getElementById('recent-items-loading').style.display = 'none';
+                document.getElementById('recent-items-error').style.display = 'block';
+                return;
+            }
+            
+            items.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="item-code">${item.item_code}</td>
+                    <td>${item.description}</td>
+                    <td><span class="badge bg-primary">${item.item_type || 'N/A'}</span></td>
+                    <td>${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}</td>
+                    <td>
+                        <a href="/items?search=${encodeURIComponent(item.item_code)}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('recent-items-loading').style.display = 'none';
+            document.getElementById('recent-items-container').style.display = 'block';
+            
+        } catch (error) {
+            console.error('Error loading recent items:', error);
+            document.getElementById('recent-items-loading').style.display = 'none';
+            document.getElementById('recent-items-error').style.display = 'block';
+        }
+    }
+</script>
+{% endblock %}
