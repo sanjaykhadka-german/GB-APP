@@ -121,6 +121,14 @@
                     </tr>
                     {% endif %}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6" style="text-align:right;"><strong>Totals:</strong></td>
+                        <td id="totalKgCell"><strong>0.00</strong></td>
+                        <td id="totalPlannedCell"><strong>0.00</strong></td>
+                        <td colspan="9"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </section>
@@ -265,6 +273,7 @@
             $("#search_description").val(description);
             $("#production_code_suggestions").empty();
         });
+        updateTotals(); // <-- Add this line
     });
 
     // Store URL patterns for use in JavaScript
@@ -339,6 +348,8 @@ function fetchProductions() {
 
                 // Re-initialize editable cells
                 initializeEditableCells();
+                // Update totals after table is updated
+                updateTotals();
             },
             error: function(xhr, status, error) {
                 alert("Error fetching production entries: " + error);
@@ -356,6 +367,22 @@ function exportToExcel() {
         }).toString();
 
         window.location.href = "{{ url_for('production.export_productions_excel') }}?" + searchParams;
+}
+
+function updateTotals() {
+    let totalKg = 0;
+    let totalPlanned = 0;
+    // Sum all visible rows (skip the "no results" row)
+    $("#productionListTable tbody tr").each(function() {
+        if ($(this).find(".total-kg").length) {
+            const kg = parseFloat($(this).find(".total-kg").text()) || 0;
+            const planned = parseFloat($(this).find(".total-planned").text()) || 0;
+            totalKg += kg;
+            totalPlanned += planned;
+        }
+    });
+    $("#totalKgCell strong").text(totalKg.toFixed(2));
+    $("#totalPlannedCell strong").text(totalPlanned.toFixed(2));
 }
 </script>
 {% endblock %}

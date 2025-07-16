@@ -237,8 +237,8 @@ def packing_list():
         requirement_kg = packing.requirement_kg if packing.requirement_kg else 0
         requirement_unit = packing.requirement_unit if packing.requirement_unit else 0
 
-        # Calculate SOH requirement kg/week
-        soh_requirement_kg_week = requirement_kg * 4 if requirement_kg else 0
+        # Calculate SOH requirement kg/week # changed from 4 to avg_weight_per_unit
+        soh_requirement_kg_week = requirement_kg * avg_weight_per_unit if requirement_kg else 0
 
         # Calculate total stock
         total_stock_kg = soh_kg + requirement_kg if soh_kg is not None and requirement_kg is not None else 0
@@ -625,12 +625,22 @@ def packing_edit(id):
     machinery = Machinery.query.all()
     allergens = Allergen.query.all()
 
-    # Build a mapping of product family code to description (first product in each family)
+    # Build a mapping of product family code to WIP description
     family_to_description = {}
     for product in products:
         family_code = product.item_code.split('.')[0] if product.item_code else None
         if family_code and family_code not in family_to_description:
-            family_to_description[family_code] = product.description
+            # Find the WIP item for this family code
+            wip_item = ItemMaster.query.join(ItemMaster.item_type).filter(
+                ItemMaster.item_code == family_code,
+                ItemMaster.item_type.has(type_name='WIP')
+            ).first()
+            
+            if wip_item:
+                family_to_description[family_code] = wip_item.description
+            else:
+                # Fallback to product description if no WIP found
+                family_to_description[family_code] = product.description
 
     return render_template('packing/edit.html', 
                          packing=packing,
