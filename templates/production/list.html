@@ -228,10 +228,11 @@
 </style>
 
 <!-- Add JavaScript for production planning -->
-<script src="{{ url_for('static', filename='js/production_planning.js') }}"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{{ url_for('static', filename='js/production_planning.js') }}"></script>
 <script>
     $(document).ready(function() {
+        console.log('Document ready, initializing production planning...');
         // Initialize editable cells
         initializeEditableCells();
 

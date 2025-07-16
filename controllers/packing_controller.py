@@ -227,25 +227,16 @@ def packing_list():
         item = packing.item
         avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
 
-        # Calculate special order unit
-        special_order_unit = round(packing.special_order_kg / avg_weight_per_unit) if packing.special_order_kg and avg_weight_per_unit else 0
-
-        # Calculate SOH kg
+        # Excel-style calculations for display only (leave for other fields)
+        special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        soh_requirement_kg_week = int((packing.soh_requirement_units_week or 0) * avg_weight_per_unit) if avg_weight_per_unit else 0
+        total_stock_kg = soh_requirement_kg_week * (packing.calculation_factor or 1)
+        total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
 
-        # Calculate requirement kg and unit
-        requirement_kg = packing.requirement_kg if packing.requirement_kg else 0
-        requirement_unit = packing.requirement_unit if packing.requirement_unit else 0
-
-        # Calculate SOH requirement kg/week # changed from 4 to avg_weight_per_unit
-        soh_requirement_kg_week = requirement_kg * 4 if requirement_kg else 0
-
-        # Calculate total stock
-        total_stock_kg = soh_kg + requirement_kg if soh_kg is not None and requirement_kg is not None else 0
-        total_stock_units = soh_units + requirement_unit if soh_units is not None and requirement_unit is not None else 0
-
-        # Get week commencing
-        week_commencing = packing.week_commencing
+        # Use stored values for requirement_kg and requirement_unit
+        requirement_kg = packing.requirement_kg if packing.requirement_kg is not None else 0
+        requirement_unit = packing.requirement_unit if packing.requirement_unit is not None else 0
 
         # Update totals
         total_requirement_kg += requirement_kg
@@ -261,7 +252,7 @@ def packing_list():
             'soh_units': soh_units,
             'total_stock_kg': total_stock_kg,
             'total_stock_units': total_stock_units,
-            'week_commencing': week_commencing.strftime('%Y-%m-%d') if week_commencing else '',
+            'week_commencing': packing.week_commencing.strftime('%Y-%m-%d') if packing.week_commencing else '',
             'machinery': {'machine_name': packing.machinery.machineryName} if packing.machinery else None,
             'priority': packing.priority
         })
@@ -760,14 +751,16 @@ def get_search_packings():
         soh_units = soh.soh_total_units if soh else 0
         avg_weight_per_unit = p.item.avg_weight_per_unit or p.item.kg_per_unit or 0.0
 
-        # Calculate derived values
+        # Calculate derived values for display only
         special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         soh_requirement_kg_week = int(p.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
         total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
         total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-        requirement_kg = round(total_stock_kg - soh_kg + p.special_order_kg, 0) if (total_stock_kg - soh_kg + p.special_order_kg) > 0 else 0
-        requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+
+        # Use stored values for requirement_kg and requirement_unit
+        requirement_kg = p.requirement_kg if p.requirement_kg is not None else 0
+        requirement_unit = p.requirement_unit if p.requirement_unit is not None else 0
 
         result.append({
             'id': p.id,
@@ -1038,11 +1031,49 @@ def update_cell():
         try:
             # Handle different field types
             if field == 'special_order_kg':
-                packing.special_order_kg = float(value) if value else 0.0
+                new_special_order_kg = float(value) if value else 0.0
+                old_special_order_kg = packing.special_order_kg or 0.0
+                old_requirement_kg = packing.requirement_kg or 0.0
+                old_requirement_unit = packing.requirement_unit or 0
+
+                # Calculate base requirement (without special order)
+                base_requirement_kg = old_requirement_kg - old_special_order_kg
+                base_requirement_unit = old_requirement_unit
+                item = packing.item
+                avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+                new_special_order_unit = int(new_special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                old_special_order_unit = int(old_special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                base_requirement_unit = old_requirement_unit - old_special_order_unit
+
+                # Update special order and requirement
+                packing.special_order_kg = new_special_order_kg
+                packing.requirement_kg = round(base_requirement_kg + new_special_order_kg, 1)
+                packing.requirement_unit = base_requirement_unit + new_special_order_unit
+
+                db.session.commit()
+
+                # Re-aggregate downstream (production, filling, reports) for this week
+                re_aggregate_filling_and_production_for_week(packing.week_commencing)
+
+                return jsonify({
+                    'success': True,
+                    'updates': {
+                        'special_order_kg': packing.special_order_kg,
+                        'special_order_unit': new_special_order_unit,
+                        'requirement_kg': packing.requirement_kg,
+                        'requirement_unit': packing.requirement_unit
+                    }
+                })
             elif field == 'calculation_factor':
                 packing.calculation_factor = float(value) if value else 0.0
+                db.session.commit()
+                # Optionally, re-aggregate if calculation_factor affects requirements
+                re_aggregate_filling_and_production_for_week(packing.week_commencing)
+                return jsonify({'success': True, 'updates': {'calculation_factor': packing.calculation_factor}})
             elif field == 'priority':
                 packing.priority = int(value) if value else 0
+                db.session.commit()
+                return jsonify({'success': True, 'updates': {'priority': packing.priority}})
             elif field == 'machinery':
                 if value:
                     machinery_id = int(value)
@@ -1053,17 +1084,8 @@ def update_cell():
                     packing.machinery_id = machinery_id
                 else:
                     packing.machinery_id = None
-                
                 db.session.commit()
-                
-                # Return success without re-aggregating since machinery change doesn't affect requirements
-                return jsonify({
-                    'success': True,
-                    'updates': {
-                        'machinery_id': packing.machinery_id
-                    }
-                })
-
+                return jsonify({'success': True, 'updates': {'machinery_id': packing.machinery_id}})
             else:
                 return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
 
@@ -1437,4 +1459,3 @@ def update_field(id):
         db.session.rollback()
         logger.error(f"Error updating field: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
-

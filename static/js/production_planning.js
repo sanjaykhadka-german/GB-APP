@@ -1,123 +1,85 @@
 // Initialize editable cells function
 function initializeEditableCells() {
-    // Handle double-click to edit
-    document.querySelectorAll('.editable-cell').forEach(cell => {
-        cell.addEventListener('dblclick', function() {
-            if (!this.classList.contains('editing')) {
-                const currentValue = this.textContent.trim();
-                const input = document.createElement('input');
-                input.type = 'number';
-                input.step = '0.01';
-                input.value = currentValue;
-                input.classList.add('form-control');
-                
-                // Store original content
-                this.dataset.originalContent = this.innerHTML;
-                this.innerHTML = '';
-                this.appendChild(input);
-                this.classList.add('editing');
-                
-                input.focus();
-                input.select();
-                
-                // Handle input blur
-                input.addEventListener('blur', function() {
-                    handleCellUpdate(cell);
-                });
-                
-                // Handle enter key
-                input.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        handleCellUpdate(cell);
-                    }
-                });
+    console.log('Initializing editable cells...');
+    $('.editable-cell').off('dblclick').on('dblclick', function() {
+        console.log('Cell double-clicked');
+        var cell = $(this);
+        if (cell.hasClass('editing')) return;
+        
+        cell.addClass('editing');
+        var originalValue = cell.text().trim();
+        var input = $('<input type="number" step="0.01">').val(originalValue);
+        cell.html(input);
+        input.focus();
 
-                // Handle escape key
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape') {
-                        cell.innerHTML = cell.dataset.originalContent;
-                        cell.classList.remove('editing');
+        input.on('blur keydown', function(e) {
+            if (e.type === 'blur' || e.key === 'Enter') {
+                console.log('Processing cell update...');
+                var newValue = input.val();
+                var id = cell.data('id');
+                var field = cell.data('field');
+                
+                console.log('Updating:', { id: id, field: field, value: newValue });
+                
+                // Validate input
+                if (isNaN(newValue) || parseFloat(newValue) < 0) {
+                    alert('Please enter a valid positive number');
+                    cell.text(originalValue);
+                    cell.removeClass('editing');
+                    return;
+                }
+                
+                $.ajax({
+                    url: '/update_daily_plan',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ id: id, field: field, value: parseFloat(newValue) }),
+                    success: function(response) {
+                        console.log('Update response:', response);
+                        if (response.success) {
+                            // Update the cell value
+                            cell.text(parseFloat(newValue).toFixed(2));
+                            cell.removeClass('editing');
+                            
+                            // Update TOTAL PLANNED and VARIANCE in the same row
+                            var row = cell.closest('tr');
+                            if (response.total_planned !== undefined) {
+                                row.find('.total-planned').text(parseFloat(response.total_planned).toFixed(2));
+                            }
+                            if (response.variance !== undefined) {
+                                row.find('.variance').text(parseFloat(response.variance).toFixed(2));
+                            }
+                            
+                            // Update footer totals
+                            if (typeof updateTotals === 'function') {
+                                updateTotals();
+                            }
+                            
+                            // Add visual feedback
+                            cell.addClass('updated');
+                            setTimeout(() => cell.removeClass('updated'), 1000);
+                        } else {
+                            alert('Error updating value: ' + (response.error || 'Unknown error'));
+                            cell.text(originalValue);
+                            cell.removeClass('editing');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('AJAX Error:', error);
+                        console.error('Status:', status);
+                        console.error('Response:', xhr.responseText);
+                        alert('Error updating value. Please try again.');
+                        cell.text(originalValue);
+                        cell.removeClass('editing');
                     }
                 });
+            } else if (e.key === 'Escape') {
+                cell.text(originalValue);
+                cell.removeClass('editing');
             }
         });
     });
-}
-
-// Handle cell update
-function handleCellUpdate(cell) {
-    if (!cell.classList.contains('editing')) return;
-    
-    const input = cell.querySelector('input');
-    if (!input) return;
-
-    const newValue = parseFloat(input.value) || 0;
-    const id = cell.dataset.id;
-    const field = cell.dataset.field;
-
-    // Validate input
-    if (isNaN(newValue) || newValue < 0) {
-        alert('Please enter a valid positive number');
-        cell.innerHTML = cell.dataset.originalContent;
-        cell.classList.remove('editing');
-        return;
-    }
-    
-    // Send update to server - use the correct route
-    fetch('/update_daily_plan', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            id: id,
-            field: field,
-            value: newValue
-        })
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            // Update the cell value
-            cell.innerHTML = newValue.toFixed(2);
-            cell.classList.remove('editing');
-            
-            // Update total planned
-            const row = cell.closest('tr');
-            if (row) {
-                const totalPlannedCell = row.querySelector('.total-planned');
-                if (totalPlannedCell) {
-                    totalPlannedCell.textContent = data.total_planned.toFixed(2);
-                }
-                
-                // Update variance
-                const varianceCell = row.querySelector('.variance');
-                if (varianceCell) {
-                    varianceCell.textContent = data.variance.toFixed(2);
-                }
-            }
-            
-            // Add visual feedback
-            cell.classList.add('updated');
-            setTimeout(() => cell.classList.remove('updated'), 1000);
-        } else {
-            // Revert changes on error
-            cell.innerHTML = cell.dataset.originalContent;
-            cell.classList.remove('editing');
-            alert('Error updating value: ' + (data.error || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        cell.innerHTML = cell.dataset.originalContent;
-        cell.classList.remove('editing');
-        alert('Error updating value. Please try again.');
-    });
+    console.log('Editable cells initialized');
 }
 
 // Add styles for visual feedback
@@ -130,6 +92,37 @@ style.textContent = `
     @keyframes flash-update {
         0% { background-color: #28a745; }
         100% { background-color: #f8f9fa; }
+    }
+    
+    .editable-cell {
+        position: relative;
+        cursor: pointer;
+    }
+
+    .editable-cell.editing {
+        padding: 0;
+    }
+
+    .editable-cell input {
+        width: 100%;
+        height: 100%;
+        padding: 0.5rem;
+        border: none;
+        outline: none;
+    }
+
+    .editable-cell::after {
+        content: '✎';
+        position: absolute;
+        top: 50%;
+        right: 5px;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .editable-cell:hover::after {
+        opacity: 0.5;
     }
 `;
 document.head.appendChild(style); 
