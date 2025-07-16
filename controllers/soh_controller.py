@@ -553,6 +553,20 @@ def soh_create():
                     if production_entry:
                         db.session.commit()
                         
+                    # ADD THIS: Create usage reports for the production entry
+                    try:
+                        usage_reports = BOMService.create_usage_report(
+                            item_id=item.id,
+                            week_commencing=packing_date_for_update,
+                            requirement_kg=production_entry.total_kg,
+                            requirement_unit=0
+                        )
+                        if usage_reports:
+                            db.session.commit()
+                            print(f"Created {len(usage_reports)} usage report entries for {fg_code}")
+                    except Exception as e:
+                        print(f"Warning: Could not create usage reports for {fg_code}: {str(e)}")
+                        
                 except Exception as e:
                     flash(f"Warning: Could not create downstream entries for {fg_code}: {str(e)}", "warning")
 

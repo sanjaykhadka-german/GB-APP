@@ -238,7 +238,7 @@ def packing_list():
         requirement_unit = packing.requirement_unit if packing.requirement_unit else 0
 
         # Calculate SOH requirement kg/week # changed from 4 to avg_weight_per_unit
-        soh_requirement_kg_week = requirement_kg * avg_weight_per_unit if requirement_kg else 0
+        soh_requirement_kg_week = requirement_kg * 4 if requirement_kg else 0
 
         # Calculate total stock
         total_stock_kg = soh_kg + requirement_kg if soh_kg is not None and requirement_kg is not None else 0
