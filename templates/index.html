@@ -216,6 +216,9 @@
                     class="{% if current_page == 'inventory' %}active{% endif %}">
                     <a href="{{ url_for('inventory.list_inventory') }}">Inventory</a>
                 </li>
+                <li class="{% if current_page == 'min_max_calculator' %}active{% endif %}">
+                    <a href="{{ url_for('min_max.min_max_calculator') }}">Min/Max Calculator</a>
+                </li>
             </ul>
         </nav>
 

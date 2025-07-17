@@ -18,6 +18,7 @@ from controllers.soh_controller import soh_bp
 from controllers.login_controller import login_bp
 from controllers.ingredients_controller import ingredients_bp
 from controllers.uom_controller import uom_bp
+from controllers.min_max_controller import min_max_bp
 from models import SOH, Packing, Filling, Production, ItemMaster, RecipeMaster, Joining
 
 # Create a global app instance
@@ -45,6 +46,7 @@ app.register_blueprint(item_type_bp)
 app.register_blueprint(soh_bp)
 app.register_blueprint(ingredients_bp)
 app.register_blueprint(uom_bp)
+app.register_blueprint(min_max_bp)
 
 # Add template filters
 @app.template_filter('datetime_add_days')
