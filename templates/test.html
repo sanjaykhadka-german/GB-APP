@@ -1,0 +1,417 @@
+{% extends 'index.html' %}
+
+{% block title %}Recipe Calculator{% endblock %}
+
+{% block content %}
+<style>
+    .calculator-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .form-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: block;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .form-control:focus {
+        border-color: #80bdff;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 10px;
+    }
+    
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .btn-secondary:hover {
+        background-color: #545b62;
+    }
+    
+    .results-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin-top: 20px;
+    }
+    
+    .recipe-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    
+    .recipe-table th,
+    .recipe-table td {
+        border: 1px solid #dee2e6;
+        padding: 12px;
+        text-align: left;
+    }
+    
+    .recipe-table th {
+        background-color: #343a40;
+        color: white;
+        font-weight: bold;
+    }
+    
+    .recipe-table tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    
+    .recipe-table tr:hover {
+        background-color: #e9ecef;
+    }
+    
+    .summary-box {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        border-left: 4px solid #2196f3;
+    }
+    
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    
+    .summary-label {
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .summary-value {
+        color: #2196f3;
+        font-weight: bold;
+    }
+    
+    .error-message {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border: 1px solid #f5c6cb;
+    }
+    
+    .success-message {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: #6c757d;
+    }
+    
+    .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+<div class="calculator-container">
+    <h1 class="mb-4">Recipe Calculator</h1>
+    
+    <div class="form-section">
+        <h3>Production Parameters</h3>
+        
+        <div class="form-group">
+            <label for="production_code" class="form-label">Production Code (WIP/Recipe)</label>
+            <select id="production_code" class="form-control" required>
+                <option value="">Select a production code...</option>
+                {% for item in wip_items %}
+                <option value="{{ item.id }}" data-description="{{ item.description }}">
+                    {{ item.item_code }} - {{ item.description }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="batch_size" class="form-label">Batch Size (kg)</label>
+            <input type="number" id="batch_size" class="form-control" step="0.01" min="0" placeholder="Enter batch size" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="production_requirement" class="form-label">Production Requirement (kg)</label>
+            <input type="number" id="production_requirement" class="form-control" step="0.01" min="0" placeholder="Enter production requirement" required>
+        </div>
+        
+        <div class="form-group">
+            <button type="button" class="btn btn-primary" onclick="calculateRecipe()">Calculate Recipe</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+        </div>
+    </div>
+    
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>Calculating recipe...</p>
+    </div>
+    
+    <div id="error-message" class="error-message" style="display: none;"></div>
+    
+    <div id="results-section" class="results-section" style="display: none;">
+        <h3>Recipe Calculation Results</h3>
+        
+        <div id="summary-box" class="summary-box">
+            <h4>Production Summary</h4>
+            <div class="summary-item">
+                <span class="summary-label">Production Code:</span>
+                <span id="summary-code" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Description:</span>
+                <span id="summary-description" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Batch Size:</span>
+                <span id="summary-batch-size" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Production Requirement:</span>
+                <span id="summary-production-req" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Number of Batches:</span>
+                <span id="summary-batches" class="summary-value"></span>
+            </div>
+        </div>
+        
+        <h4>Recipe Components</h4>
+        <table class="recipe-table">
+            <thead>
+                <tr>
+                    <th>Component Code</th>
+                    <th>Component Description</th>
+                    <th>Quantity per Batch (kg)</th>
+                    <th>Total Required (kg)</th>
+                    <th>Percentage</th>
+                </tr>
+            </thead>
+            <tbody id="recipe-tbody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let currentRecipeData = null;
+
+function calculateRecipe() {
+    const productionCode = document.getElementById('production_code').value;
+    const batchSize = parseFloat(document.getElementById('batch_size').value);
+    const productionRequirement = parseFloat(document.getElementById('production_requirement').value);
+    
+    // Validation
+    if (!productionCode) {
+        showError('Please select a production code.');
+        return;
+    }
+    
+    if (!batchSize || batchSize <= 0) {
+        showError('Please enter a valid batch size (greater than 0).');
+        return;
+    }
+    
+    if (!productionRequirement || productionRequirement <= 0) {
+        showError('Please enter a valid production requirement (greater than 0).');
+        return;
+    }
+    
+    // Show loading
+    showLoading(true);
+    hideError();
+    hideResults();
+    
+    // Make API call to get recipe data
+    fetch(`/test/get_recipe_data?production_code=${productionCode}`)
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            if (!data.recipe_components || data.recipe_components.length === 0) {
+                showError('No recipe components found for this production code.');
+                return;
+            }
+            
+            // Calculate and display results
+            displayResults(data, batchSize, productionRequirement);
+        })
+        .catch(error => {
+            showLoading(false);
+            showError('An error occurred while calculating the recipe: ' + error.message);
+        });
+}
+
+function displayResults(recipeData, batchSize, productionRequirement) {
+    const selectedOption = document.getElementById('production_code').selectedOptions[0];
+    const productionCode = selectedOption.text.split(' - ')[0];
+    const description = selectedOption.text.split(' - ')[1];
+    
+    // Calculate number of batches
+    const numberOfBatches = Math.ceil(productionRequirement / batchSize);
+    const actualProduction = numberOfBatches * batchSize;
+    
+    // Update summary
+    document.getElementById('summary-code').textContent = productionCode;
+    document.getElementById('summary-description').textContent = description;
+    document.getElementById('summary-batch-size').textContent = batchSize.toFixed(2) + ' kg';
+    document.getElementById('summary-production-req').textContent = productionRequirement.toFixed(2) + ' kg';
+    document.getElementById('summary-batches').textContent = numberOfBatches + ' batches (' + actualProduction.toFixed(2) + ' kg total)';
+    
+    // Calculate total recipe weight for percentage calculation
+    const totalRecipeWeight = recipeData.recipe_components.reduce((sum, component) => sum + component.quantity_kg, 0);
+    
+    // Populate recipe table
+    const tbody = document.getElementById('recipe-tbody');
+    tbody.innerHTML = '';
+    
+    recipeData.recipe_components.forEach(component => {
+        const totalRequired = (component.quantity_kg / totalRecipeWeight) * batchSize * numberOfBatches;
+        const percentage = (component.quantity_kg / totalRecipeWeight) * 100;
+        
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${component.component_code}</td>
+            <td>${component.component_description}</td>
+            <td>${component.quantity_kg.toFixed(2)}</td>
+            <td>${totalRequired.toFixed(2)}</td>
+            <td>${percentage.toFixed(2)}%</td>
+        `;
+    });
+    
+    // Store current data for potential export
+    currentRecipeData = {
+        productionCode,
+        description,
+        batchSize,
+        productionRequirement,
+        numberOfBatches,
+        actualProduction,
+        recipeComponents: recipeData.recipe_components.map(component => ({
+            ...component,
+            totalRequired: (component.quantity_kg / totalRecipeWeight) * batchSize * numberOfBatches,
+            percentage: (component.quantity_kg / totalRecipeWeight) * 100
+        }))
+    };
+    
+    showResults();
+}
+
+function resetForm() {
+    document.getElementById('production_code').value = '';
+    document.getElementById('batch_size').value = '';
+    document.getElementById('production_requirement').value = '';
+    hideError();
+    hideResults();
+    currentRecipeData = null;
+}
+
+function showLoading(show) {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+}
+
+function showError(message) {
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function hideError() {
+    document.getElementById('error-message').style.display = 'none';
+}
+
+function showResults() {
+    document.getElementById('results-section').style.display = 'block';
+}
+
+function hideResults() {
+    document.getElementById('results-section').style.display = 'none';
+}
+
+// Auto-calculate production requirement when batch size changes
+document.getElementById('batch_size').addEventListener('input', function() {
+    const batchSize = parseFloat(this.value);
+    const productionRequirement = document.getElementById('production_requirement');
+    
+    if (batchSize > 0) {
+        // You could add logic here to auto-calculate based on typical batch sizes
+        // For now, we'll just enable the field
+        productionRequirement.disabled = false;
+    }
+});
+
+// Auto-populate description when production code is selected
+document.getElementById('production_code').addEventListener('change', function() {
+    const selectedOption = this.selectedOptions[0];
+    if (selectedOption && selectedOption.dataset.description) {
+        // You could display the description somewhere if needed
+        console.log('Selected:', selectedOption.dataset.description);
+    }
+});
+</script>
+{% endblock %} 

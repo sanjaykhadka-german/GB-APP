@@ -98,11 +98,14 @@ def min_max_calculator():
             min_stock = (units_sold * lead_time) + (units_sold * safety_stock_days)
             max_stock = min_stock + (units_sold * buffer_days)
 
-            # Update ItemMaster with calculated min_level and max_level
-            item.min_level = round(min_stock, 2)
-            item.max_level = round(max_stock, 2)
-            db.session.commit()
-            logging.debug(f"Updated ItemMaster for {product_code}: min_level={item.min_level}, max_level={item.max_level}")
+            if quantity_sold_boxes > 0:
+                # Update ItemMaster with calculated min_level and max_level
+                item.min_level = round(min_stock, 2)
+                item.max_level = round(max_stock, 2)
+                db.session.commit()
+                logging.debug(f"Updated ItemMaster for {product_code}: min_level={item.min_level}, max_level={item.max_level}")
+            else:
+                logging.debug(f"Skipped ItemMaster update for {product_code} due to zero quantity_sold")
 
             logging.debug(f"Calculated for {product_code}: Units Sold={units_sold}, Min={min_stock}, Max={max_stock}")
 
