@@ -166,6 +166,38 @@
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
+
+    .toggle-container {
+        margin-bottom: 10px;
+    }
+    .toggle-button {
+        background: #2196f3;
+        color: #fff;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .toggle-button:hover {
+        background: #1769aa;
+    }
+
+    .toggle-checkbox {
+        display: flex;
+        align-items: center;
+        font-size: 16px;
+        font-family: inherit;
+        gap: 6px;
+        margin-right: 30px;
+        font-weight: 500;
+    }
+    .toggle-checkbox input[type="checkbox"] {
+        accent-color: #444;
+        width: 18px;
+        height: 18px;
+        margin-right: 4px;
+    }
 </style>
 
 <div class="calculator-container">
@@ -237,6 +269,16 @@
         </div>
         
         <h4>Recipe Components</h4>
+        <div class="toggle-container" style="margin-bottom: 10px; display: flex; gap: 40px;">
+            <label class="toggle-checkbox">
+                <input type="checkbox" id="toggle-batch" checked onchange="toggleColumn(2)">
+                <span>Quantity per Batch (kg)</span>
+            </label>
+            <label class="toggle-checkbox">
+                <input type="checkbox" id="toggle-total" checked onchange="toggleColumn(3)">
+                <span>Total Required (kg)</span>
+            </label>
+        </div>
         <table class="recipe-table">
             <thead>
                 <tr>
@@ -283,8 +325,11 @@ function calculateRecipe() {
     hideResults();
     
     // Make API call to get recipe data
-    fetch(`/test/get_recipe_data?production_code=${productionCode}`)
-        .then(response => response.json())
+    fetch(`/recipe_calculator/get_recipe_data?production_code=${productionCode}`)       
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
         .then(data => {
             showLoading(false);
             
@@ -391,6 +436,20 @@ function showResults() {
 
 function hideResults() {
     document.getElementById('results-section').style.display = 'none';
+}
+
+function toggleColumn(colIndex) {
+    // colIndex is 2 for Quantity per Batch, 3 for Total Required
+    const table = document.querySelector('.recipe-table');
+    if (!table) return;
+    // Toggle header
+    const th = table.querySelector(`thead th:nth-child(${colIndex + 1})`);
+    if (th) th.style.display = (th.style.display === 'none' ? '' : 'none');
+    // Toggle all rows
+    table.querySelectorAll('tbody tr').forEach(row => {
+        const td = row.querySelector(`td:nth-child(${colIndex + 1})`);
+        if (td) td.style.display = (td.style.display === 'none' ? '' : 'none');
+    });
 }
 
 // Auto-calculate production requirement when batch size changes

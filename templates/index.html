@@ -181,8 +181,8 @@
                     <li class="{% if current_page == 'recipe' %}active{% endif %}">
                     <a href="{{ url_for('recipe.recipe_page') }}">Recipe</a>
                 </li>
-                    <li class="{% if current_page == 'test' %}active{% endif %}">
-                    <a href="{{ url_for('test.test_page') }}">Recipe Calculator</a>
+                    <li class="{% if current_page == 'recipe_calculator' %}active{% endif %}">
+                    <a href="{{ url_for('recipe_calculator.recipe_calculator_page') }}">Recipe Calculator</a>
                 </li>
                 <li
                     class="{% if current_page == 'soh' or current_page == 'ingredients' %}active{% endif %}">

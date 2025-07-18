@@ -3,12 +3,12 @@ from database import db
 from models import ItemMaster, RecipeMaster, ItemType
 from sqlalchemy.orm import aliased
 
-# Create a Blueprint for test routes
-test_bp = Blueprint('test', __name__, template_folder='templates')
+# Create a Blueprint for recipe calculator routes
+recipe_calculator_bp = Blueprint('recipe_calculator', __name__, template_folder='templates')   
 
-@test_bp.route('/test')
-def test_page():
-    """Render the test page with recipe calculator functionality."""
+@recipe_calculator_bp.route('/recipe_calculator')
+def recipe_calculator_page():
+    """Render the recipe calculator page with recipe calculator functionality."""    
     try:
         # Get WIP items for the dropdown (these are the production codes/recipes)
         wip_items = db.session.query(ItemMaster).join(
@@ -17,12 +17,12 @@ def test_page():
             ItemType.type_name == 'WIP'
         ).order_by(ItemMaster.item_code).all()
         
-        return render_template('test.html', wip_items=wip_items)
+        return render_template('recipe/recipe_calculator.html', wip_items=wip_items)
         
     except Exception as e:
-        return render_template('test.html', wip_items=[], error=str(e))
+        return render_template('recipe/recipe_calculator.html', wip_items=[], error=str(e))
 
-@test_bp.route('/test/get_recipe_data')
+@recipe_calculator_bp.route('/recipe_calculator/get_recipe_data')    
 def get_recipe_data():
     """API endpoint to get recipe data for a specific production code (WIP item)."""
     try:
@@ -72,7 +72,7 @@ def get_recipe_data():
     except Exception as e:
         return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
-@test_bp.route('/test/export_recipe')
+@recipe_calculator_bp.route('/recipe_calculator/export_recipe')
 def export_recipe():
     """Export recipe data to Excel or PDF (future enhancement)."""
     try:
