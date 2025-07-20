@@ -938,7 +938,7 @@ def search_item_codes():
                 ItemMaster.item_code.ilike(f'%{term}%'),
                 ItemMaster.description.ilike(f'%{term}%')
             )
-        ).limit(10).all()
+        ).limit(50).all()
         
         # Return list of matching items with descriptions
         results = [{
