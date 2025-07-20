@@ -72,8 +72,8 @@
             <div class="row mb-4">
                 <div class="col-md-3">
                     <div class="form-group">
-                        <label for="item_code_search">Item Code:</label>
-                        <input type="text" class="form-control" id="item_code_search" placeholder="Search by item code">
+                        <label for="item_code_search">Item Code/Name:</label>
+                        <input type="text" class="form-control" id="item_code_search" placeholder="Search by item code or description">
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -111,7 +111,7 @@
             <!-- Results Table -->
             <div class="table-responsive">
                 <table class="table table-striped table-bordered table-hover" id="items-table">
-                    <thead class="table-light">
+                    <thead class="table-light sticky-header">
                         <tr>
                             <th class="sortable-header" data-sort="item_code">
                                 Item Code <i class="fas fa-sort sort-icon"></i>
@@ -248,7 +248,22 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #000000
+    color: #000000;
+}
+
+/* Ensure table responsive works with sticky headers */
+.table-responsive {
+    max-height: 70vh;
+    overflow-y: auto;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+}
+
+/* Ensure sticky headers work properly in table-responsive */
+.table-responsive .sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
 .table-hover tbody tr:hover {
@@ -270,6 +285,27 @@
     background-color: #e74a3b;
     color: white;
 } */
+
+/* Sticky header styles */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #f8f9fc !important;
+    border-bottom: 2px solid #e3e6f0;
+}
+
+.sticky-header th {
+    background-color: #f8f9fc !important;
+    border-bottom: 2px solid #e3e6f0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #000000;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
 
 /* Sortable header styles */
 .sortable-header {
@@ -405,13 +441,13 @@ let currentSort = {
 };
 
 function searchItems() {
-    const code = document.getElementById('item_code_search').value;
+    const codeOrName = document.getElementById('item_code_search').value;
     const description = document.getElementById('search-description').value;
     const type = document.getElementById('search-type').value;
     
     // Build URL with search and sort parameters
     const params = new URLSearchParams();
-    if (code) params.append('item_code', code);
+    if (codeOrName) params.append('item_code_or_description', codeOrName);
     if (description) params.append('description', description);
     if (type) params.append('item_type', type);
     params.append('sort_by', currentSort.column);
@@ -599,13 +635,13 @@ function uploadExcel() {
 
 function downloadExcel() {
     // Get current search parameters
-    const code = document.getElementById('item_code_search').value;
+    const codeOrName = document.getElementById('item_code_search').value;
     const description = document.getElementById('search-description').value;
     const type = document.getElementById('search-type').value;
     
     // Build query string
     const params = new URLSearchParams();
-    if (code) params.append('item_code', code);
+    if (codeOrName) params.append('item_code_or_description', codeOrName);
     if (description) params.append('description', description);
     if (type) params.append('item_type', type);
     
@@ -767,7 +803,7 @@ $(document).ready(function() {
             return;
         }
     
-    // Initialize autocomplete for item code search
+    // Initialize autocomplete for item code/description search
     $("#item_code_search").autocomplete({
         source: function(request, response) {
             console.log("Autocomplete request for:", request.term);

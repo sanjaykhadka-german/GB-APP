@@ -244,6 +244,7 @@ def get_items():
 
         # Search filters
         search_code = request.args.get('item_code')
+        search_code_or_desc = request.args.get('item_code_or_description')
         search_desc = request.args.get('description')
         search_type = request.args.get('item_type')
         search_category = request.args.get('category')
@@ -272,7 +273,16 @@ def get_items():
             query = query.join(Department, isouter=True)
 
         # Apply filters
-        if search_code:
+        if search_code_or_desc:
+            # Search in both item_code and description
+            from sqlalchemy import or_
+            query = query.filter(
+                or_(
+                    ItemMaster.item_code.ilike(f'%{search_code_or_desc}%'),
+                    ItemMaster.description.ilike(f'%{search_code_or_desc}%')
+                )
+            )
+        elif search_code:
             query = query.filter(ItemMaster.item_code.ilike(f'%{search_code}%'))
         if search_desc:
             query = query.filter(ItemMaster.description.ilike(f'%{search_desc}%'))
@@ -921,10 +931,16 @@ def search_item_codes():
         return jsonify([])
     
     try:
-        # Search for item codes that match the term
-        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(10).all()
+        # Search for items that match the term in either item_code or description
+        from sqlalchemy import or_
+        items = ItemMaster.query.filter(
+            or_(
+                ItemMaster.item_code.ilike(f'%{term}%'),
+                ItemMaster.description.ilike(f'%{term}%')
+            )
+        ).limit(10).all()
         
-        # Return list of matching item codes with descriptions
+        # Return list of matching items with descriptions
         results = [{
             'item_code': item.item_code,
             'description': item.description or ''
