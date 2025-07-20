@@ -1,9 +1,9 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<!-- Add mapping from backend (Jinja2 to JS) -->
+<!-- Add mapping from backend (Jinja2 to JS) -->    
 <script>
-const familyToDescription = {{ (family_to_description or {})|tojson }}; // Ensure this is properly JSON-encoded                     
+const familyToDescription = {{ (family_to_description or {})|tojson|safe }};                     
 </script>
 <div class="container-fluid">
     <h2>Edit Packing Entry - Week {{ packing.week_commencing.strftime('%Y-%m-%d') }}</h2>

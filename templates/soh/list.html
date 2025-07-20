@@ -178,6 +178,62 @@
         margin-top: 10px;
         margin-bottom: 10px;
     }
+
+    /* Table container with scrolling */
+    .table-container {
+        overflow-x: auto;
+        margin-top: 20px;
+        max-height: 70vh; /* Limit height to enable scrolling */
+        overflow-y: auto;
+    }
+
+    /* Table styles with sticky headers */
+    .table {
+        position: relative;
+    }
+
+    .table thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #f8f9fa;
+    }
+
+    .table th {
+        white-space: nowrap;
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .table td {
+        white-space: nowrap;
+        background-color: white;
+    }
+
+    /* Ensure proper spacing for sticky headers */
+    .table thead th:first-child {
+        border-left: 1px solid #dee2e6;
+    }
+
+    .table thead th:last-child {
+        border-right: 1px solid #dee2e6;
+    }
+
+    /* Add shadow to sticky header for better visual separation */
+    .table thead::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.1), transparent);
+        pointer-events: none;
+    }
 </style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

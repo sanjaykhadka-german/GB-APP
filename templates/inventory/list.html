@@ -53,14 +53,50 @@
         top: 0;
         background-color: #343a40;
         color: #fff;
-        z-index: 3;
+        z-index: 1002;
     }
     thead tr.sticky-column-header th {
         position: sticky;
         top: 38px;
         background-color: #495057;
         color: #fff;
-        z-index: 2;
+        z-index: 1001;
+    }
+    
+    /* Sticky totals row */
+    .sticky-totals-row {
+        position: sticky !important;
+        top: 76px !important; /* 38px (first header) + 38px (second header) */
+        z-index: 999 !important;
+        background-color: #e3f2fd !important;
+        border: 2px solid #007bff !important;
+    }
+    
+    .sticky-totals-row td {
+        background-color: #e3f2fd !important;
+        border: 1px solid #dee2e6;
+        position: relative;
+        font-weight: bold !important;
+    }
+    
+    /* Ensure the totals row stays visible */
+    .sticky-totals-row th,
+    .sticky-totals-row td {
+        background-color: #e3f2fd !important;
+        border: 1px solid #dee2e6;
+        font-weight: bold !important;
+    }
+    
+    /* Add a shadow to make the totals row more prominent */
+    .sticky-totals-row::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -2px;
+        height: 2px;
+        background: linear-gradient(to bottom, rgba(0,123,255,0.3), transparent);
+        pointer-events: none;
     }
     .sortable {
         cursor: pointer;
@@ -160,8 +196,8 @@
                     {% endfor %}
                 </tr>
                 <!-- Totals Row -->
-                <tr style="background-color: #e3f2fd; font-weight: bold;">
-                    <td colspan="3">TOTAL</td>
+                <tr class="sticky-totals-row" style="background-color: #e3f2fd; font-weight: bold;">
+                    <td colspan="3" style="position: sticky; left: 0; z-index: 1; background-color: #e3f2fd;">TOTAL</td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='required_in_total')) }}</td>
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='value_required_rm')) }}</td>

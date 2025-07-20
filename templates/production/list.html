@@ -199,11 +199,18 @@
     .table-container {
         overflow-x: auto;
         margin-bottom: 1rem;
+        max-height: 70vh; /* Limit height to enable scrolling */
+        overflow-y: auto;
+        position: relative;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
     }
+    
     .no-results {
         text-align: center;
         padding: 20px;
     }
+    
     .add-production-btn {
         background-color: #007bff;
         color: white;
@@ -213,12 +220,114 @@
         cursor: pointer;
         margin-bottom: 20px;
     }
+    
     .add-production-btn:hover {
         background-color: #0056b3;
     }
-    .table th, .table td {
+    
+    /* Table styles with sticky headers */
+    #productionListTable {
+        position: relative;
+    }
+    
+    #productionListTable thead {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1000 !important;
+        background-color: #f8f9fa !important;
+    }
+    
+    #productionListTable th {
         white-space: nowrap;
         padding: 0.5rem;
+        background-color: #f8f9fa !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1000 !important;
+        border-bottom: 2px solid #dee2e6;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    #productionListTable td {
+        white-space: nowrap;
+        padding: 0.5rem;
+        background-color: white;
+    }
+    
+    /* Ensure proper spacing for sticky headers */
+    #productionListTable thead th:first-child {
+        border-left: 1px solid #dee2e6;
+    }
+    
+    #productionListTable thead th:last-child {
+        border-right: 1px solid #dee2e6;
+    }
+    
+    /* Add shadow to sticky header for better visual separation */
+    #productionListTable thead::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 3px;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.15), transparent);
+        pointer-events: none;
+    }
+    
+    /* Ensure the list section has proper positioning context */
+    #list {
+        position: relative;
+    }
+    
+    /* Add margin to prevent headers from overlapping search section */
+    #list h2 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+        position: relative;
+        z-index: 1001;
+        background-color: white;
+        padding: 10px 0;
+    }
+    
+    /* Ensure buttons stay above sticky headers */
+    .btn-group {
+        position: relative;
+        z-index: 1001;
+        background-color: white;
+        padding: 10px 0;
+        margin-bottom: 10px;
+    }
+    
+    /* Additional styles to ensure sticky headers work */
+    #resultSection {
+        position: relative;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    /* Override any Bootstrap table styles that might interfere */
+    .table-bordered thead th {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1000 !important;
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Ensure search section stays visible */
+    #search {
+        position: relative;
+        z-index: 1002;
+        background-color: white;
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    
+    /* Add spacing between sections */
+    #search + #list {
+        margin-top: 20px;
     }
 
     .total-planned, .variance {

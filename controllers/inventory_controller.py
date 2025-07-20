@@ -6,6 +6,7 @@ from models import Inventory, ItemMaster, Category, Production, RecipeMaster
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
+
 inventory_bp = Blueprint('inventory', __name__, template_folder='templates')
 
 def recalculate_row(inventory_item):
