@@ -457,6 +457,44 @@
     padding: 0.75rem 1.25rem;
     margin-bottom: 1rem;
 }
+
+/* Clickable item code and description styling */
+.clickable-item {
+    color: #007bff !important;
+    text-decoration: none;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.clickable-item:hover {
+    color: #0056b3 !important;
+    text-decoration: underline;
+    transform: translateY(-1px);
+}
+
+.clickable-item:active {
+    color: #004085 !important;
+    transform: translateY(0);
+}
+
+.item-code-link {
+    font-weight: 600;
+    color: #007bff !important;
+    text-decoration: none;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.item-code-link:hover {
+    color: #0056b3 !important;
+    text-decoration: underline;
+    transform: translateY(-1px);
+}
+
+.item-code-link:active {
+    color: #004085 !important;
+    transform: translateY(0);
+}
 </style>
 
 <script>
@@ -495,8 +533,8 @@ function searchItems() {
             items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${item.item_code}</td>
-                    <td>${item.description}</td>
+                    <td><a href="/item-master/edit/${item.id}" class="item-code-link">${item.item_code}</a></td>
+                    <td><a href="/item-master/edit/${item.id}" class="clickable-item">${item.description}</a></td>
                     <td>${item.item_type || ''}</td>
                     <td>${item.category || ''}</td>
                     <td>${item.department || ''}</td>

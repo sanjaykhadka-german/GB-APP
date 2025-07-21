@@ -113,15 +113,40 @@
     
     /* Hierarchy fields styling */
     #wip_selection_field, #wipf_selection_field {
-        border-left: 3px solid #007bff;
+        border-left: 4px solid #007bff;
         background-color: #f8f9ff;
-        padding-left: 15px;
-        border-radius: 0 0.375rem 0.375rem 0;
+        padding: 20px;
+        border-radius: 0.375rem;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
     }
     
     #wip_selection_field label, #wipf_selection_field label {
         color: #0056b3;
-        font-weight: 500;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+    }
+    
+    #wip_selection_field select, #wipf_selection_field select {
+        font-size: 1rem;
+        padding: 12px 15px;
+        border: 2px solid #dee2e6;
+        border-radius: 0.375rem;
+        background-color: white;
+        min-height: 50px;
+    }
+    
+    #wip_selection_field select:focus, #wipf_selection_field select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+    
+    #wip_selection_field .form-text, #wipf_selection_field .form-text {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 8px;
+        font-style: italic;
     }
 </style>
 
@@ -171,33 +196,6 @@
                             </div>
                         </div>
                         
-                        <!-- FG Hierarchy Fields - Hidden by default -->
-                        <div class="col-md-3" id="wip_selection_field" style="display: none;">
-                            <div class="form-group">
-                                <label for="wip_item_id" class="form-label">WIP Component</label>
-                                <select id="wip_item_id" name="wip_item_id" class="form-select">
-                                    <option value="">Select WIP Item</option>
-                                    {% for wip_item in wip_items %}
-                                    <option value="{{ wip_item.id }}">{{ wip_item.item_code }} - {{ wip_item.description }}</option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text" id="wip_help_text">Select the WIP item this FG/WIPF is produced from</div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-3" id="wipf_selection_field" style="display: none;">
-                            <div class="form-group">
-                                <label for="wipf_item_id" class="form-label">WIPF Component</label>
-                                <select id="wipf_item_id" name="wipf_item_id" class="form-select">
-                                    <option value="">Select WIPF Item</option>
-                                    {% for wipf_item in wipf_items %}
-                                    <option value="{{ wipf_item.id }}">{{ wipf_item.item_code }} - {{ wipf_item.description }}</option>
-                                    {% endfor %}
-                                </select>
-                                <div class="form-text">Select the WIPF item this FG is filled from</div>
-                            </div>
-                        </div>
-                        
                         <div class="col-md-3" id="category_field">
                             <div class="form-group">
                                 <label for="category_id" class="form-label">Category</label>
@@ -212,6 +210,35 @@
                                         <i class="fas fa-plus"></i>
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- FG Hierarchy Fields - Hidden by default -->
+                    <div class="row mb-3" id="hierarchy_fields_row" style="display: none;">
+                        <div class="col-md-6" id="wip_selection_field">
+                            <div class="form-group">
+                                <label for="wip_item_id" class="form-label">WIP Component</label>
+                                <select id="wip_item_id" name="wip_item_id" class="form-select">
+                                    <option value="">Select WIP Item</option>
+                                    {% for wip_item in wip_items %}
+                                    <option value="{{ wip_item.id }}">{{ wip_item.item_code }} - {{ wip_item.description }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text" id="wip_help_text">Select the WIP item this FG/WIPF is produced from</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6" id="wipf_selection_field">
+                            <div class="form-group">
+                                <label for="wipf_item_id" class="form-label">WIPF Component</label>
+                                <select id="wipf_item_id" name="wipf_item_id" class="form-select">
+                                    <option value="">Select WIPF Item</option>
+                                    {% for wipf_item in wipf_items %}
+                                    <option value="{{ wipf_item.id }}">{{ wipf_item.item_code }} - {{ wipf_item.description }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Select the WIPF item this FG is filled from</div>
                             </div>
                         </div>
                     </div>
@@ -542,31 +569,28 @@
 // Function to toggle hierarchy fields based on item type selection
 function toggleHierarchyFields() {
     const itemType = document.getElementById('item_type').value;
+    const hierarchyRow = document.getElementById('hierarchy_fields_row');
     const wipField = document.getElementById('wip_selection_field');
     const wipfField = document.getElementById('wipf_selection_field');
-    const categoryField = document.getElementById('category_field');
     const wipHelpText = document.getElementById('wip_help_text');
     
     if (itemType === 'FG') {
         // Show WIP and WIPF selection fields for FG items
+        hierarchyRow.style.display = 'block';
         wipField.style.display = 'block';
         wipfField.style.display = 'block';
-        categoryField.classList.remove('col-md-3');
-        categoryField.classList.add('col-md-3');
         wipHelpText.textContent = 'Select the WIP item this FG is produced from';
     } else if (itemType === 'WIPF') {
         // Show only WIP selection field for WIPF items
+        hierarchyRow.style.display = 'block';
         wipField.style.display = 'block';
         wipfField.style.display = 'none';
-        categoryField.classList.remove('col-md-3');
-        categoryField.classList.add('col-md-3');
         wipHelpText.textContent = 'Select the WIP item this WIPF is produced from';
     } else {
         // Hide fields for other item types
+        hierarchyRow.style.display = 'none';
         wipField.style.display = 'none';
         wipfField.style.display = 'none';
-        categoryField.classList.remove('col-md-3');
-        categoryField.classList.add('col-md-3');
     }
         
     // Clear selections when changing item type

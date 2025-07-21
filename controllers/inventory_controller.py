@@ -246,7 +246,7 @@ def search_item_codes():
     if not term or len(term) < 2:
         return jsonify([])
     try:
-        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(10).all()
+        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(50).all()
         results = [{
             'item_code': item.item_code,
             'description': item.description or ''
