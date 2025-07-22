@@ -147,35 +147,77 @@ class BOMService:
             logger.info(f"WIPF aggregations for week {week_commencing}: { {data['item'].item_code: data['total_kg'] for data in wipf_aggregations.values()} }")
             logger.info(f"WIP aggregations for week {week_commencing}: { {data['item'].item_code: data['total_kg'] for data in wip_aggregations.values()} }")
 
-            # Clear existing downstream entries for the week before creating new ones
-            Filling.query.filter_by(week_commencing=week_commencing).delete()
-            Production.query.filter_by(week_commencing=week_commencing).delete()
-            logger.info(f"Cleared existing Filling and Production entries for week {week_commencing}")
+            # Get existing entries to preserve daily planning data
+            existing_fillings = {f.item_id: f for f in Filling.query.filter_by(week_commencing=week_commencing).all()}
+            existing_productions = {p.item_id: p for p in Production.query.filter_by(week_commencing=week_commencing).all()}
 
-            # Second pass: Create new Filling entries
+            # Update or create Filling entries (preserve any existing data)
             for wipf_id, data in wipf_aggregations.items():
-                new_filling = Filling(
-                    filling_date=week_commencing,
-                    week_commencing=week_commencing,
-                    item_id=wipf_id,
-                    requirement_kg=data['total_kg'],
-                    kilo_per_size=data['total_kg']
-                )
-                db.session.add(new_filling)
-                logger.info(f"Created Filling entry for {data['item'].item_code} with {data['total_kg']} kg")
+                if wipf_id in existing_fillings:
+                    # Update existing filling entry
+                    filling = existing_fillings[wipf_id]
+                    filling.requirement_kg = data['total_kg']
+                    filling.kilo_per_size = data['total_kg']
+                    logger.info(f"Updated existing Filling entry for {data['item'].item_code} with {data['total_kg']} kg")
+                else:
+                    # Create new filling entry
+                    new_filling = Filling(
+                        filling_date=week_commencing,
+                        week_commencing=week_commencing,
+                        item_id=wipf_id,
+                        requirement_kg=data['total_kg'],
+                        kilo_per_size=data['total_kg']
+                    )
+                    db.session.add(new_filling)
+                    logger.info(f"Created new Filling entry for {data['item'].item_code} with {data['total_kg']} kg")
 
-            # Third pass: Create new Production entries
+            # Update or create Production entries (preserve daily planning data)
             for wip_id, data in wip_aggregations.items():
-                new_production = Production(
-                    production_date=week_commencing,
-                    week_commencing=week_commencing,
-                    item_id=wip_id,
-                    production_code=data['item'].item_code,
-                    total_kg=data['total_kg'],
-                    batches=data['total_kg'] / 300.0
-                )
-                db.session.add(new_production)
-                logger.info(f"Created Production entry for {data['item'].item_code} with {data['total_kg']} kg")
+                if wip_id in existing_productions:
+                    # Update existing production entry - preserve daily planning fields
+                    production = existing_productions[wip_id]
+                    production.total_kg = data['total_kg']
+                    production.batches = data['total_kg'] / 300.0
+                    production.production_code = data['item'].item_code
+                    # Keep existing daily planning values: monday_planned, tuesday_planned, etc.
+                    logger.info(f"Updated existing Production entry for {data['item'].item_code} with {data['total_kg']} kg (preserved daily planning)")
+                else:
+                    # Create new production entry
+                    new_production = Production(
+                        production_date=week_commencing,
+                        week_commencing=week_commencing,
+                        item_id=wip_id,
+                        production_code=data['item'].item_code,
+                        total_kg=data['total_kg'],
+                        batches=data['total_kg'] / 300.0,
+                        # Daily planning fields will default to 0.0
+                        total_planned=0.0,
+                        monday_planned=0.0,
+                        tuesday_planned=0.0,
+                        wednesday_planned=0.0,
+                        thursday_planned=0.0,
+                        friday_planned=0.0,
+                        saturday_planned=0.0,
+                        sunday_planned=0.0
+                    )
+                    db.session.add(new_production)
+                    logger.info(f"Created new Production entry for {data['item'].item_code} with {data['total_kg']} kg")
+
+            # Remove entries that are no longer needed
+            current_wipf_ids = set(wipf_aggregations.keys())
+            current_wip_ids = set(wip_aggregations.keys())
+            
+            # Remove obsolete filling entries
+            for wipf_id, filling in existing_fillings.items():
+                if wipf_id not in current_wipf_ids:
+                    db.session.delete(filling)
+                    logger.info(f"Removed obsolete Filling entry for item_id {wipf_id}")
+            
+            # Remove obsolete production entries
+            for wip_id, production in existing_productions.items():
+                if wip_id not in current_wip_ids:
+                    db.session.delete(production)
+                    logger.info(f"Removed obsolete Production entry for item_id {wip_id}")
 
             db.session.commit()
             logger.info(f"Successfully updated downstream requirements for week {week_commencing}")

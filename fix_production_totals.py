@@ -17,14 +17,14 @@ import logging
 # Add the project root to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import create_app
+from app import app
 from database import db
 from models.packing import Packing
 from models.production import Production
 from models.filling import Filling
 from models.item_master import ItemMaster
 from sqlalchemy import func
-from controllers.bom_service import update_downstream_requirements
+from controllers.bom_service import BOMService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def fix_production_totals():
             logger.info(f"Packing total for {date}: {packing_total:.1f} kg")
             
             # Recalculate production requirements
-            success, message = update_downstream_requirements(date, week)
+            success, message = BOMService.update_downstream_requirements(week)
             if not success:
                 logger.error(f"Failed to update requirements for {date}: {message}")
                 continue
@@ -99,6 +99,5 @@ def fix_production_totals():
         raise e
 
 if __name__ == '__main__':
-    app = create_app()
     with app.app_context():
         fix_production_totals() 

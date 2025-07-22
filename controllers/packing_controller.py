@@ -139,7 +139,7 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
                 special_order_units = special_order_kg / avg_weight_per_unit if avg_weight_per_unit > 0 else 0
                 requirement_unit += special_order_units
                 
-            packing.requirement_kg = round(requirement_kg, 1)
+            packing.requirement_kg = round(requirement_kg, 0)
             packing.requirement_unit = int(requirement_unit)
         else:
             # If no requirements, set to 0
@@ -1047,7 +1047,7 @@ def update_cell():
 
                 # Update special order and requirement
                 packing.special_order_kg = new_special_order_kg
-                packing.requirement_kg = round(base_requirement_kg + new_special_order_kg, 1)
+                packing.requirement_kg = round(base_requirement_kg + new_special_order_kg, 0)
                 packing.requirement_unit = base_requirement_unit + new_special_order_unit
 
                 db.session.commit()
