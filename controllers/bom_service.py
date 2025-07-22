@@ -149,8 +149,9 @@ class BOMService:
 
             # Clear existing downstream entries for the week before creating new ones
             Filling.query.filter_by(week_commencing=week_commencing).delete()
-            Production.query.filter_by(week_commencing=week_commencing).delete()
-            logger.info(f"Cleared existing Filling and Production entries for week {week_commencing}")
+            # DON'T delete Production entries - we need to preserve planned values
+            # Production.query.filter_by(week_commencing=week_commencing).delete()
+            logger.info(f"Cleared existing Filling entries for week {week_commencing}")
 
             # Second pass: Create new Filling entries
             for wipf_id, data in wipf_aggregations.items():
@@ -164,20 +165,44 @@ class BOMService:
                 db.session.add(new_filling)
                 logger.info(f"Created Filling entry for {data['item'].item_code} with {data['total_kg']} kg")
 
-            # Third pass: Create new Production entries
+            # Third pass: Update or create Production entries (preserve planned values)
             for wip_id, data in wip_aggregations.items():
-                new_production = Production(
-                    production_date=week_commencing,
-                    week_commencing=week_commencing,
+                # Check for existing production entry
+                existing_production = Production.query.filter_by(
                     item_id=wip_id,
-                    production_code=data['item'].item_code,
-                    total_kg=data['total_kg'],
-                    batches=data['total_kg'] / 300.0
-                )
-                db.session.add(new_production)
-                logger.info(f"Created Production entry for {data['item'].item_code} with {data['total_kg']} kg")
+                    week_commencing=week_commencing
+                ).first()
+                
+                if existing_production:
+                    # Update existing entry - preserve all planned values
+                    existing_production.total_kg = data['total_kg']
+                    existing_production.batches = data['total_kg'] / 300.0
+                    existing_production.production_code = data['item'].item_code
+                    existing_production.production_date = week_commencing
+                    logger.info(f"Updated existing Production entry for {data['item'].item_code} with {data['total_kg']} kg (preserved planned values)")
+                else:
+                    # Create new entry only if none exists
+                    new_production = Production(
+                        production_date=week_commencing,
+                        week_commencing=week_commencing,
+                        item_id=wip_id,
+                        production_code=data['item'].item_code,
+                        total_kg=data['total_kg'],
+                        batches=data['total_kg'] / 300.0
+                    )
+                    db.session.add(new_production)
+                    logger.info(f"Created new Production entry for {data['item'].item_code} with {data['total_kg']} kg")
 
             db.session.commit()
+            
+            # Update inventory daily requirements based on the updated production data
+            try:
+                from controllers.production_controller import update_inventory_daily_requirements
+                update_inventory_daily_requirements(week_commencing)
+                logger.info(f"Updated inventory daily requirements for week {week_commencing}")
+            except Exception as inv_error:
+                logger.warning(f"Could not update inventory daily requirements: {inv_error}")
+            
             logger.info(f"Successfully updated downstream requirements for week {week_commencing}")
             return True
 
