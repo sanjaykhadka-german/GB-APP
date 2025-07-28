@@ -381,7 +381,14 @@ function populateProductFamilies() {
     allRows.forEach(row => {
         const family = row.getAttribute('data-family');
         if (family && family.trim() !== '') {
-            allProductFamilies.add(family);
+            // Get the description for this family
+            const desc = familyToDescription[family] || '';
+            
+            // Filter out WIPF entries - check both family code and description
+            // Only include families that don't have 'WIPF' in their description
+            if (family !== 'WIPF' && !desc.includes('WIPF')) {
+                allProductFamilies.add(family);
+            }
         }
     });
     
