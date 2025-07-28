@@ -117,6 +117,41 @@
         content: " ↓";
         color: #dc3545;
     }
+
+    /* Autocomplete dropdown styles */
+    .ui-autocomplete {
+        max-height: 200px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 9999 !important;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-size: 14px;
+    }
+
+    .ui-menu-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ui-menu-item:hover,
+    .ui-menu-item.ui-state-focus {
+        background-color: #f8f9fa;
+        color: #495057;
+    }
+
+    .ui-menu-item:last-child {
+        border-bottom: none;
+    }
+
+    /* Ensure form container doesn't interfere with autocomplete */
+    .position-relative {
+        position: relative;
+        z-index: 1;
+    }
 </style>
 
 <div class="container-fluid">
@@ -131,9 +166,9 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="form-group">
-                    <label for="item_code_search">Item Code:</label>
-                    <input type="text" class="form-control" id="item_code_search" name="item_code" placeholder="Search by item code" value="{{ search_item_code|default('') }}">
+                <div class="form-group position-relative">
+                    <label for="item_code_search">Item Code / Description:</label>
+                    <input type="text" class="form-control" id="item_code_search" name="item_code" placeholder="Search by item code or description" value="{{ search_item_code|default('') }}">
                 </div>
             </div>
             <div class="col-md-3">

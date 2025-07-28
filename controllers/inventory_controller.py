@@ -67,7 +67,13 @@ def list_inventory():
             joinedload(Inventory.item).joinedload(ItemMaster.category)
         ).filter_by(week_commencing=week_date)
         if search_item_code:
-            query = query.join(Inventory.item).filter(ItemMaster.item_code == search_item_code)
+            from sqlalchemy import or_
+            query = query.join(Inventory.item).filter(
+                or_(
+                    ItemMaster.item_code.ilike(f'%{search_item_code}%'),
+                    ItemMaster.description.ilike(f'%{search_item_code}%')
+                )
+            )
         inventory_records = query.all()
         categories = Category.query.all()
 
@@ -246,7 +252,13 @@ def search_item_codes():
     if not term or len(term) < 2:
         return jsonify([])
     try:
-        items = ItemMaster.query.filter(ItemMaster.item_code.ilike(f'%{term}%')).limit(50).all()
+        from sqlalchemy import or_
+        items = ItemMaster.query.filter(
+            or_(
+                ItemMaster.item_code.ilike(f'%{term}%'),
+                ItemMaster.description.ilike(f'%{term}%')
+            )
+        ).limit(50).all()
         results = [{
             'item_code': item.item_code,
             'description': item.description or ''
