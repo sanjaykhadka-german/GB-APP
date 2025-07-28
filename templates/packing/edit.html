@@ -249,6 +249,102 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
     font-weight: 600;
 }
 
+/* Production List Table */
+    .card:nth-child(2) .table-responsive .table th:nth-child(1),
+    .card:nth-child(2) .table-responsive .table td:nth-child(1),
+    .card:nth-child(2) .table-responsive .table th:nth-child(2),
+    .card:nth-child(2) .table-responsive .table td:nth-child(2),
+    .card:nth-child(2) .table-responsive .table th:nth-child(3),
+    .card:nth-child(2) .table-responsive .table td:nth-child(3),
+    .card:nth-child(2) .table-responsive .table th:nth-child(4),
+    .card:nth-child(2) .table-responsive .table td:nth-child(4),
+    .card:nth-child(2) .table-responsive .table th:nth-child(5),
+    .card:nth-child(2) .table-responsive .table td:nth-child(5) {
+        text-align: left;
+    }
+
+    .card:nth-child(2) .table-responsive .table th:nth-child(6),
+    .card:nth-child(2) .table-responsive .table td:nth-child(6),
+    .card:nth-child(2) .table-responsive .table th:nth-child(7),
+    .card:nth-child(2) .table-responsive .table td:nth-child(7) {
+        text-align: right;
+    }
+
+    .card:nth-child(2) .table-responsive .table th:nth-child(8),
+    .card:nth-child(2) .table-responsive .table td:nth-child(8) {
+        text-align: center;
+    }
+
+    /* Packing List Table */
+    .card:nth-child(3) .table-responsive .table th:nth-child(1),
+    .card:nth-child(3) .table-responsive .table td:nth-child(1),
+    .card:nth-child(3) .table-responsive .table th:nth-child(2),
+    .card:nth-child(3) .table-responsive .table td:nth-child(2),
+    .card:nth-child(3) .table-responsive .table th:nth-child(3),
+    .card:nth-child(3) .table-responsive .table td:nth-child(3),
+    .card:nth-child(3) .table-responsive .table th:nth-child(4),
+    .card:nth-child(3) .table-responsive .table td:nth-child(4),
+    .card:nth-child(3) .table-responsive .table th:nth-child(12),
+    .card:nth-child(3) .table-responsive .table td:nth-child(12) {
+        text-align: left;
+    }
+
+    .card:nth-child(3) .table-responsive .table th:nth-child(5),
+    .card:nth-child(3) .table-responsive .table td:nth-child(5),
+    .card:nth-child(3) .table-responsive .table th:nth-child(6),
+    .card:nth-child(3) .table-responsive .table td:nth-child(6),
+    .card:nth-child(3) .table-responsive .table th:nth-child(7),
+    .card:nth-child(3) .table-responsive .table td:nth-child(7),
+    .card:nth-child(3) .table-responsive .table th:nth-child(8),
+    .card:nth-child(3) .table-responsive .table td:nth-child(8),
+    .card:nth-child(3) .table-responsive .table th:nth-child(9),
+    .card:nth-child(3) .table-responsive .table td:nth-child(9),
+    .card:nth-child(3) .table-responsive .table th:nth-child(10),
+    .card:nth-child(3) .table-responsive .table td:nth-child(10),
+    .card:nth-child(3) .table-responsive .table th:nth-child(11),
+    .card:nth-child(3) .table-responsive .table td:nth-child(11),
+    .card:nth-child(3) .table-responsive .table th:nth-child(13),
+    .card:nth-child(3) .table-responsive .table td:nth-child(13) {
+        text-align: right;
+    }
+
+    .card:nth-child(3) .table-responsive .table th:nth-child(14),
+    .card:nth-child(3) .table-responsive .table td:nth-child(14) {
+        text-align: center;
+    }
+
+    /* Filling List Table */
+    .card:nth-child(4) .table-responsive .table th:nth-child(1),
+    .card:nth-child(4) .table-responsive .table td:nth-child(1),
+    .card:nth-child(4) .table-responsive .table th:nth-child(2),
+    .card:nth-child(4) .table-responsive .table td:nth-child(2),
+    .card:nth-child(4) .table-responsive .table th:nth-child(3),
+    .card:nth-child(4) .table-responsive .table td:nth-child(3),
+    .card:nth-child(4) .table-responsive .table th:nth-child(4),
+    .card:nth-child(4) .table-responsive .table td:nth-child(4) {
+        text-align: left;
+    }
+
+    .card:nth-child(4) .table-responsive .table th:nth-child(5),
+    .card:nth-child(4) .table-responsive .table td:nth-child(5) {
+        text-align: right;
+    }
+
+    .card:nth-child(4) .table-responsive .table th:nth-child(6),
+    .card:nth-child(4) .table-responsive .table td:nth-child(6) {
+        text-align: center;
+    }
+
+    /* Ensure input fields in editable cells respect alignment */
+    .editable-cell input {
+        text-align: right;
+    }
+
+    /* Ensure select elements in Machinery column are left-aligned */
+    .card:nth-child(3) .table-responsive .table td:nth-child(12) select {
+        text-align: left;
+    }
+
 .card-header h4 {
     font-weight: 600;
 }

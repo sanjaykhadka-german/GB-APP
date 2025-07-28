@@ -89,6 +89,24 @@
         padding: 12px;
         text-align: left;
     }
+
+    /* Ensure left alignment for alphabetic columns */
+    .recipe-table th:nth-child(1),
+    .recipe-table td:nth-child(1),
+    .recipe-table th:nth-child(2),
+    .recipe-table td:nth-child(2) {
+        text-align: left;
+    }
+
+    /* Right alignment for numeric columns */
+    .recipe-table th:nth-child(3),
+    .recipe-table td:nth-child(3),
+    .recipe-table th:nth-child(4),
+    .recipe-table td:nth-child(4),
+    .recipe-table th:nth-child(5),
+    .recipe-table td:nth-child(5) {
+        text-align: right;
+    }
     
     .recipe-table th {
         background-color: #343a40;

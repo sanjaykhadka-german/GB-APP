@@ -399,6 +399,58 @@
         white-space: nowrap;
         background-color: white;
     }
+
+    /* Left alignment for alphabetic columns */
+    #packingListTable th:nth-child(2),
+    #packingListTable td:nth-child(2),
+    #packingListTable th:nth-child(3),
+    #packingListTable td:nth-child(3),
+    #packingListTable th:nth-child(4),
+    #packingListTable td:nth-child(4),
+    #packingListTable th:nth-child(5),
+    #packingListTable td:nth-child(5),
+    #packingListTable th:nth-child(15),
+    #packingListTable td:nth-child(15) {
+        text-align: left;
+    }
+
+    /* Right alignment for numeric columns */
+    #packingListTable th:nth-child(6),
+    #packingListTable td:nth-child(6),
+    #packingListTable th:nth-child(7),
+    #packingListTable td:nth-child(7),
+    #packingListTable th:nth-child(8),
+    #packingListTable td:nth-child(8),
+    #packingListTable th:nth-child(9),
+    #packingListTable td:nth-child(9),
+    #packingListTable th:nth-child(10),
+    #packingListTable td:nth-child(10),
+    #packingListTable th:nth-child(11),
+    #packingListTable td:nth-child(11),
+    #packingListTable th:nth-child(12),
+    #packingListTable td:nth-child(12),
+    #packingListTable th:nth-child(13),
+    #packingListTable td:nth-child(13),
+    #packingListTable th:nth-child(14),
+    #packingListTable td:nth-child(14),
+    #packingListTable th:nth-child(16),
+    #packingListTable td:nth-child(16),
+    #packingListTable th:nth-child(17),
+    #packingListTable td:nth-child(17),
+    #packingListTable th:nth-child(18),
+    #packingListTable td:nth-child(18),
+    #packingListTable th:nth-child(19),
+    #packingListTable td:nth-child(19) {
+        text-align: right;
+    }
+
+    /* Center alignment for Checkbox and Actions columns */
+    #packingListTable th:nth-child(1),
+    #packingListTable td:nth-child(1),
+    #packingListTable th:nth-child(20),
+    #packingListTable td:nth-child(20) {
+        text-align: center;
+    }
     
     /* Ensure proper spacing for sticky headers */
     .table thead th:first-child {

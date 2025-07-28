@@ -226,6 +226,76 @@
         padding: 8px;
         text-align: left;
     }
+
+    /* Search Results Table */
+    #search-results-table th:nth-child(1),
+    #search-results-table td:nth-child(1),
+    #search-results-table th:nth-child(2),
+    #search-results-table td:nth-child(2) {
+        text-align: left;
+    }
+
+    #search-results-table th:nth-child(3),
+    #search-results-table td:nth-child(3),
+    #search-results-table th:nth-child(4),
+    #search-results-table td:nth-child(4) {
+        text-align: right;
+    }
+
+    #search-results-table th:nth-child(5),
+    #search-results-table td:nth-child(5) {
+        text-align: center;
+    }
+
+    /* Add Recipe Table */
+    #addRecipeTable th:nth-child(1),
+    #addRecipeTable td:nth-child(1),
+    #addRecipeTable th:nth-child(2),
+    #addRecipeTable td:nth-child(2) {
+        text-align: left;
+    }
+
+    #addRecipeTable th:nth-child(3),
+    #addRecipeTable td:nth-child(3) {
+        text-align: right;
+    }
+
+    #addRecipeTable th:nth-child(4),
+    #addRecipeTable td:nth-child(4) {
+        text-align: center;
+    }
+
+    /* Edit Recipe Table */
+    #editRecipeTable th:nth-child(1),
+    #editRecipeTable td:nth-child(1),
+    #editRecipeTable th:nth-child(2),
+    #editRecipeTable td:nth-child(2) {
+        text-align: left;
+    }
+
+    #editRecipeTable th:nth-child(3),
+    #editRecipeTable td:nth-child(3) {
+        text-align: right;
+    }
+
+    #editRecipeTable th:nth-child(4),
+    #editRecipeTable td:nth-child(4) {
+        text-align: center;
+    }
+
+    /* Ensure input fields in numeric columns are right-aligned */
+    #addRecipeTable td:nth-child(3) input,
+    #editRecipeTable td:nth-child(3) input {
+        text-align: right;
+    }
+
+    /* Ensure select elements in alphabetic columns are left-aligned */
+    #addRecipeTable td:nth-child(1) select,
+    #addRecipeTable td:nth-child(2) select,
+    #editRecipeTable td:nth-child(1) select,
+    #editRecipeTable td:nth-child(2) select {
+        text-align: left;
+    }
     table th {
         background-color: #f5f5f5;
         font-weight: bold;

@@ -214,6 +214,53 @@
         background-color: white;
     }
 
+    /* SOH List Table */
+    #sohListTable th:nth-child(1),
+    #sohListTable td:nth-child(1),
+    #sohListTable th:nth-child(3),
+    #sohListTable td:nth-child(3),
+    #sohListTable th:nth-child(4),
+    #sohListTable td:nth-child(4),
+    #sohListTable th:nth-child(11),
+    #sohListTable td:nth-child(11) {
+        text-align: left;
+    }
+
+    #sohListTable th:nth-child(5),
+    #sohListTable td:nth-child(5),
+    #sohListTable th:nth-child(6),
+    #sohListTable td:nth-child(6),
+    #sohListTable th:nth-child(7),
+    #sohListTable td:nth-child(7),
+    #sohListTable th:nth-child(8),
+    #sohListTable td:nth-child(8),
+    #sohListTable th:nth-child(9),
+    #sohListTable td:nth-child(9),
+    #sohListTable th:nth-child(10),
+    #sohListTable td:nth-child(10) {
+        text-align: right;
+    }
+
+    #sohListTable th:nth-child(2),
+    #sohListTable td:nth-child(2),
+    #sohListTable th:nth-child(12),
+    #sohListTable td:nth-child(12) {
+        text-align: center;
+    }
+
+    /* Ensure input fields in numeric columns are right-aligned */
+    #sohListTable td:nth-child(5) input,
+    #sohListTable td:nth-child(6) input,
+    #sohListTable td:nth-child(7) input,
+    #sohListTable td:nth-child(8) input {
+        text-align: right;
+    }
+
+    /* Ensure input fields in date columns are centered */
+    #sohListTable td:nth-child(2) input {
+        text-align: center;
+    }
+
     /* Ensure proper spacing for sticky headers */
     .table thead th:first-child {
         border-left: 1px solid #dee2e6;

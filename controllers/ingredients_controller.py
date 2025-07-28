@@ -344,7 +344,7 @@ def stocktake_edit(id):
     uoms = UOM.query.all()
     categories = Category.query.all()
 
-    return render_template('ingredients/stocktake_edit.html',
+    return render_template('ingredients/edit.html',
                            stocktake=stocktake,
                            departments=departments,
                            uoms=uoms,
