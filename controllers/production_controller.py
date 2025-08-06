@@ -5,6 +5,7 @@ from models.production import Production
 from models.item_master import ItemMaster
 from models.packing import Packing
 from models.inventory import Inventory
+from models.recipe_master import RecipeMaster
 from sqlalchemy.sql import text
 import openpyxl
 from io import BytesIO
@@ -650,30 +651,31 @@ def create_or_update_production_entry(production_date, week_commencing, item_id,
         db.session.rollback()
         return False, f"Error updating production entry: {str(e)}"
 
-def update_inventory_daily_requirements(week_commencing):
-    """
-    Update inventory daily required kg values based on production data for a specific week.
-    """
+def update_inventory_daily_requirements(production):
     try:
         from populate_inventory import get_daily_required_kg
         
-        # Get all raw materials
-        raw_materials = db.session.query(ItemMaster).join(ItemMaster.item_type).filter(
+        # Get the specific WIP item and its related raw materials via RecipeMaster
+        wip_item = ItemMaster.query.get(production.item_id)
+        if not wip_item:
+            return
+
+        # Get raw materials used in the recipe for this WIP item
+        raw_materials = db.session.query(ItemMaster).join(
+            RecipeMaster, RecipeMaster.component_item_id == ItemMaster.id
+        ).filter(
+            RecipeMaster.recipe_wip_id == wip_item.id,
             ItemMaster.item_type.has(type_name='RM')
         ).all()
-        
+
         for rm in raw_materials:
-            # Get or create inventory record for this week and raw material
             inventory = db.session.query(Inventory).filter_by(
-                week_commencing=week_commencing,
+                week_commencing=production.week_commencing,
                 item_id=rm.id
             ).first()
             
             if inventory:
-                # Calculate daily required kg for this raw material
-                daily_reqs = get_daily_required_kg(db.session, week_commencing, rm.id)
-                
-                # Update the daily required kg values
+                daily_reqs = get_daily_required_kg(db.session, production.week_commencing, rm.id)
                 inventory.monday_required_kg = daily_reqs[0]
                 inventory.tuesday_required_kg = daily_reqs[1]
                 inventory.wednesday_required_kg = daily_reqs[2]
@@ -681,20 +683,13 @@ def update_inventory_daily_requirements(week_commencing):
                 inventory.friday_required_kg = daily_reqs[4]
                 inventory.saturday_required_kg = daily_reqs[5]
                 inventory.sunday_required_kg = daily_reqs[6]
-                
-                # Update total required
                 inventory.required_in_total = sum(daily_reqs)
                 inventory.required_for_plan = sum(daily_reqs)
-                
-                # Recalculate value required
                 inventory.value_required_rm = inventory.required_in_total * (rm.price_per_kg or 0)
-                
-                # Recalculate weekly variance
                 inventory.variance_week = inventory.soh - inventory.required_for_plan
-        
+
         db.session.commit()
-        print(f"Updated inventory daily requirements for week {week_commencing}")
-        
+        print(f"Updated inventory daily requirements for week {production.week_commencing}")
     except Exception as e:
         db.session.rollback()
         print(f"Error updating inventory daily requirements: {str(e)}")
@@ -757,7 +752,8 @@ def update_daily_plan():
         ])
 
         db.session.commit()
-        update_inventory_daily_requirements(production.week_commencing)
+        #update_inventory_daily_requirements(production.week_commencing)
+        update_inventory_daily_requirements(production)
 
         # Fetch updated inventory records for the week
         inventory_records = db.session.query(Inventory).filter_by(

@@ -9,6 +9,7 @@
             <div class="form-group">
                 <label for="search_production_code">Production Code:</label>
                 <input type="text" id="search_production_code" name="production_code" value="{{ search_production_code | default('') }}" autocomplete="off">
+                
             </div>
             <div class="form-group">
                 <label for="search_description">Description:</label>
@@ -86,35 +87,35 @@
                     {% for production in productions %}
                     <tr data-id="{{ production.id }}">
                         <td>{{ production.id }}</td>
-                            <td class="date-column">{{ production.week_commencing | default('') }}</td>
-                            <td class="date-column">{{ production.production_date | default('') }}</td>
-                            <td>{{ production.production_code | default('') }}</td>
+                        <td class="date-column">{{ production.week_commencing | default('') }}</td>
+                        <td class="date-column">{{ production.production_date | default('') }}</td>
+                        <td>{{ production.production_code | default('') }}</td>
                         <td>{{ production.description or (production.item.item_code + ' - ' + production.item.description if production.item else 'None') }}</td>
-                            <td>{{ "%.2f"|format(production.batches|float) if production.batches else '0.00' }}</td>
-                            <td class="total-kg">{{ "%.2f"|format(production.total_kg|float) if production.total_kg else '0.00' }}</td>
+                        <td>{{ "%.2f"|format(production.batches|float) if production.batches else '0.00' }}</td>
+                        <td class="total-kg">{{ "%.2f"|format(production.total_kg|float) if production.total_kg else '0.00' }}</td>
                         <td class="total-planned">{{ "%.2f"|format(production.total_planned|float) if production.total_planned else '0.00' }}</td>
-                            <td class="variance">{{ "%.2f"|format((production.total_planned - production.total_kg)|float) if production.total_planned and production.total_kg else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="monday_planned">{{ "%.2f"|format(production.monday_planned|float) if production.monday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="tuesday_planned">{{ "%.2f"|format(production.tuesday_planned|float) if production.tuesday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="wednesday_planned">{{ "%.2f"|format(production.wednesday_planned|float) if production.wednesday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="thursday_planned">{{ "%.2f"|format(production.thursday_planned|float) if production.thursday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="friday_planned">{{ "%.2f"|format(production.friday_planned|float) if production.friday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="saturday_planned">{{ "%.2f"|format(production.saturday_planned|float) if production.saturday_planned else '0.00' }}</td>
-                            <td class="editable-cell" data-id="{{ production.id }}" data-field="sunday_planned">{{ "%.2f"|format(production.sunday_planned|float) if production.sunday_planned else '0.00' }}</td>
+                        <td class="variance">{{ "%.2f"|format((production.total_planned - production.total_kg)|float) if production.total_planned and production.total_kg else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="monday_planned">{{ "%.2f"|format(production.monday_planned|float) if production.monday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="tuesday_planned">{{ "%.2f"|format(production.tuesday_planned|float) if production.tuesday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="wednesday_planned">{{ "%.2f"|format(production.wednesday_planned|float) if production.wednesday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="thursday_planned">{{ "%.2f"|format(production.thursday_planned|float) if production.thursday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="friday_planned">{{ "%.2f"|format(production.friday_planned|float) if production.friday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="saturday_planned">{{ "%.2f"|format(production.saturday_planned|float) if production.saturday_planned else '0.00' }}</td>
+                        <td class="editable-cell" data-id="{{ production.id }}" data-field="sunday_planned">{{ "%.2f"|format(production.sunday_planned|float) if production.sunday_planned else '0.00' }}</td>
                         <td>
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('production.production_edit', id=production.id) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    <form action="{{ url_for('production.production_delete', id=production.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this production entry?');">
-                                        <button type="submit" class="btn btn-sm btn-danger">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </form>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('production.production_edit', id=production.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <form action="{{ url_for('production.production_delete', id=production.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this production entry?');">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
-                        {% endfor %}
+                    {% endfor %}
                     {% else %}
                     <tr>
                         <td colspan="17" class="no-results">No production entries found.</td>
@@ -326,7 +327,7 @@
         right: 0;
         bottom: 0;
         height: 3px;
-        background: linear-gradient(to bottom, rgba(0,0,0,0.15), transparent);
+        background: linear-gradient(to bottom, rgba(0,0,0,0.1), transparent);
         pointer-events: none;
     }
     
@@ -401,44 +402,67 @@
         initializeEditableCells();
 
         // Autocomplete for Production Code
-        $("#search_production_code").keyup(function() {
+        $("#search_production_code").on('keyup', function() {
             var productionCode = $(this).val().trim();
             console.log("Keyup event triggered, productionCode:", productionCode);
             if (productionCode.length > 0) {
-                console.log("Making AJAX request to autocomplete");
+                console.log("Making AJAX request to:", "{{ url_for('production.autocomplete_production') }}");
                 $.ajax({
                     url: "{{ url_for('production.autocomplete_production') }}",
                     type: "GET",
                     data: { query: productionCode },
+                    dataType: "json",
                     success: function(response) {
                         console.log("Autocomplete response:", response);
                         var suggestionsHtml = "<ul>";
-                        response.forEach(function(production) {
-                            suggestionsHtml += `<li data-production-code="${production.production_code}" data-description="${production.description}">${production.production_code} - ${production.description}</li>`;
-                        });
+                        if (response && Array.isArray(response) && response.length > 0) {
+                            response.forEach(function(production) {
+                                if (production.production_code && production.description) {
+                                    suggestionsHtml += `<li data-production-code="${production.production_code}" data-description="${production.description}">${production.production_code} - ${production.description}</li>`;
+                                } else {
+                                    console.warn("Invalid production data:", production);
+                                }
+                            });
+                        } else {
+                            console.log("No suggestions found or invalid response format");
+                        }
                         suggestionsHtml += "</ul>";
                         $("#production_code_suggestions").html(suggestionsHtml);
-                        console.log("Suggestions HTML:", suggestionsHtml);
+                        console.log("Suggestions HTML set:", suggestionsHtml);
+                        // Ensure dropdown is visible
+                        $("#production_code_suggestions").show();
                     },
                     error: function(xhr, status, error) {
-                        console.log("Autocomplete error:", error);
+                        console.error("Autocomplete error:", status, error, xhr.responseText);
                         $("#production_code_suggestions").empty();
                     }
                 });
             } else {
+                console.log("Empty input, clearing suggestions");
                 $("#production_code_suggestions").empty();
             }
         });
 
-    // Handle suggestion click
+        // Handle suggestion click
         $(document).on('click', '#production_code_suggestions li', function() {
             var productionCode = $(this).data('production-code');
             var description = $(this).data('description');
+            console.log("Suggestion clicked:", productionCode, description);
             $("#search_production_code").val(productionCode);
             $("#search_description").val(description);
             $("#production_code_suggestions").empty();
+            fetchProductions();
         });
-        updateTotals(); // <-- Add this line
+
+        // Hide suggestions when clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('#search_production_code, #production_code_suggestions').length) {
+                console.log("Clicked outside, hiding suggestions");
+                $("#production_code_suggestions").empty();
+            }
+        });
+
+        updateTotals(); // Initialize totals on page load
     });
 
     // Store URL patterns for use in JavaScript
@@ -450,20 +474,22 @@
         export: "{{ url_for('production.export_productions_excel') }}"
     };
 
-function fetchProductions() {
-    var searchData = {
-        production_code: $("#search_production_code").val(),
-        description: $("#search_description").val(),
-        week_commencing: $("#search_week_commencing").val(),
-        production_date_start: $("#search_production_date_start").val(),
-        production_date_end: $("#search_production_date_end").val()
-    };
+    function fetchProductions() {
+        var searchData = {
+            production_code: $("#search_production_code").val(),
+            description: $("#search_description").val(),
+            week_commencing: $("#search_week_commencing").val(),
+            production_date_start: $("#search_production_date_start").val(),
+            production_date_end: $("#search_production_date_end").val()
+        };
+        console.log("Fetching productions with data:", searchData);
 
         $.ajax({
             url: URLS.search,
             type: "GET",
             data: searchData,
             success: function(response) {
+                console.log("Search response:", response);
                 if (response.error) {
                     alert(response.error);
                     return;
@@ -517,37 +543,40 @@ function fetchProductions() {
                 updateTotals();
             },
             error: function(xhr, status, error) {
+                console.error("Search error:", status, error, xhr.responseText);
                 alert("Error fetching production entries: " + error);
             }
         });
     }
 
-function exportToExcel() {
+    function exportToExcel() {
         var searchParams = new URLSearchParams({
-        production_code: $("#search_production_code").val(),
-        description: $("#search_description").val(),
-        week_commencing: $("#search_week_commencing").val(),
-        production_date_start: $("#search_production_date_start").val(),
-        production_date_end: $("#search_production_date_end").val()
+            production_code: $("#search_production_code").val(),
+            description: $("#search_description").val(),
+            week_commencing: $("#search_week_commencing").val(),
+            production_date_start: $("#search_production_date_start").val(),
+            production_date_end: $("#search_production_date_end").val()
         }).toString();
+        console.log("Exporting to Excel with params:", searchParams);
 
         window.location.href = "{{ url_for('production.export_productions_excel') }}?" + searchParams;
-}
+    }
 
-function updateTotals() {
-    let totalKg = 0;
-    let totalPlanned = 0;
-    // Sum all visible rows (skip the "no results" row)
-    $("#productionListTable tbody tr").each(function() {
-        if ($(this).find(".total-kg").length) {
-            const kg = parseFloat($(this).find(".total-kg").text()) || 0;
-            const planned = parseFloat($(this).find(".total-planned").text()) || 0;
-            totalKg += kg;
-            totalPlanned += planned;
-        }
-    });
-    $("#totalKgCell strong").text(totalKg.toFixed(2));
-    $("#totalPlannedCell strong").text(totalPlanned.toFixed(2));
-}
+    function updateTotals() {
+        let totalKg = 0;
+        let totalPlanned = 0;
+        // Sum all visible rows (skip the "no results" row)
+        $("#productionListTable tbody tr").each(function() {
+            if ($(this).find(".total-kg").length) {
+                const kg = parseFloat($(this).find(".total-kg").text()) || 0;
+                const planned = parseFloat($(this).find(".total-planned").text()) || 0;
+                totalKg += kg;
+                totalPlanned += planned;
+            }
+        });
+        $("#totalKgCell strong").text(totalKg.toFixed(2));
+        $("#totalPlannedCell strong").text(totalPlanned.toFixed(2));
+        console.log("Totals updated:", { totalKg, totalPlanned });
+    }
 </script>
 {% endblock %}
