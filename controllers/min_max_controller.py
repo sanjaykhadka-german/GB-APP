@@ -1,163 +1,182 @@
-from flask import Blueprint, redirect, render_template, request, jsonify, send_file, flash, session, url_for
-from werkzeug.utils import secure_filename
+from flask import Blueprint, request, render_template, jsonify
 import pandas as pd
-import os
-from io import BytesIO
-from database import db
-from models import ItemMaster
-import logging
+import io
+from datetime import datetime
 
 min_max_bp = Blueprint('min_max', __name__, template_folder='templates')
 
-# Ensure upload folder exists
-UPLOAD_FOLDER = 'Uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
-
-# Logging setup
-logging.basicConfig(level=logging.DEBUG)
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@min_max_bp.route('/min_max_calculator', methods=['GET', 'POST']) 
+@min_max_bp.route('/min_max/')
 def min_max_calculator():
-    if request.method == 'GET':
-        return render_template('min_max/list.html', current_page="min_max_calculator")
-    
-    try:
-        if 'file' not in request.files:
-            flash('No file part', 'error')
-            return redirect(request.url)
-        file = request.files['file']
-        if file.filename == '':
-            flash('No selected file', 'error')
-            return redirect(request.url)
-        if not allowed_file(file.filename):
-            flash('Invalid file type. Only .xlsx or .xls allowed', 'error')
-            return redirect(request.url)
+    """Render the Min/Max calculator upload page."""
+    return render_template('min_max/list.html', current_page='min_max_calculator')
 
-        # Save file temporarily
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(file_path)
+@min_max_bp.route('/min_max_calculator')
+def min_max_calculator_alias():
+    return render_template('min_max/list.html', current_page='min_max_calculator')
 
-        # Read Excel file
-        df = pd.read_excel(file_path)
-        logging.debug(f"Excel file columns: {list(df.columns)}")
-        logging.debug(f"Excel file shape: {df.shape}")
-        
-        required_columns = ['product_code', 'product_description', 'quantity_sold']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
-        if missing_columns:
-            flash(f'Excel file must contain the following columns: {", ".join(required_columns)}. Missing: {missing_columns}', 'error')
-            os.remove(file_path)
-            return redirect(request.url)
+@min_max_bp.route('/min_max/calculate', methods=['POST'])
+def calculate_min_max():
+    """
+    Handle the uploaded file and compute per-product weekly totals, then min/max across weeks.
 
-        # Aggregate duplicates by product_code and product_description, summing quantity_sold
-        df = df.groupby(['product_code', 'product_description'], as_index=False)['quantity_sold'].sum()
-        logging.debug(f"Aggregated data shape: {df.shape}")
-        logging.debug(f"Aggregated data: {df.to_dict(orient='records')}")
+    Supports either a precomputed ISO week column (e.g., ISOWEEKNUM) or a date column
+    (e.g., OrderCheckoutDate) from which ISO week is derived.
+    Returns: { success: true, results: { product -> { min, max } } }
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
 
-        # Get parameters from form
-        lead_time = float(request.form.get('lead_time', 5))
-        safety_stock_days = float(request.form.get('safety_stock_days', 2))
-        buffer_days = float(request.form.get('buffer_days', 10))
+    file = request.files['file']
 
-        # Query ItemMaster for units_per_bag and update min_level, max_level
-        results = []
-        logging.debug(f"Processing {len(df)} unique products...")
-        
-        for _, row in df.iterrows():
-            product_code = row['product_code']
-            product_description = row['product_description']
-            quantity_sold_boxes = row['quantity_sold']
-            
-            logging.debug(f"Processing product: {product_code} - {product_description} - Qty: {quantity_sold_boxes}")
-            
-            # Query ItemMaster
-            item = ItemMaster.query.filter_by(item_code=str(product_code)).first()
-            if not item or not item.units_per_bag:
-                logging.debug(f"Item not found or units_per_bag missing for {product_code}")
-                results.append({
-                    'product_code': product_code,
-                    'product_description': product_description,
-                    'quantity_sold_boxes': quantity_sold_boxes,
-                    'error': 'Item not found or units_per_bag missing'
-                })
-                continue
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
 
-            # Convert boxes to units
-            units_sold = quantity_sold_boxes * item.units_per_bag
-            
-            # Calculate min/max (assuming quantity_sold is daily demand)
-            min_stock = (units_sold * lead_time) + (units_sold * safety_stock_days)
-            max_stock = min_stock + (units_sold * buffer_days)
+    if file:
+        try:
+            # Read the Excel file
+            df = pd.read_excel(io.BytesIO(file.read()), engine='openpyxl')
+            df.columns = [str(col).strip() for col in df.columns]
 
-            if quantity_sold_boxes > 0:
-                # Update ItemMaster with calculated min_level and max_level
-                item.min_level = round(min_stock, 2)
-                item.max_level = round(max_stock, 2)
-                db.session.commit()
-                logging.debug(f"Updated ItemMaster for {product_code}: min_level={item.min_level}, max_level={item.max_level}")
+            # Define acceptable column name variants (includes Excel-style columns)
+            column_variants = {
+                'product': [
+                    'Product Code Description', 'Product Description', 'Product', 'Product Name', 'Item', 'Item Description'
+                ],
+                'weight': [
+                    'TotalWeight', 'Total Weight', 'Total_Weight', 'Weight', 'Total Kg', 'Total KG', 'Kg', 'KG'
+                ],
+                'date': [
+                    'OrderCheckoutDate', 'Order Checkout Date', 'Date', 'Transaction Date', 'Created Date', 'Order Date', 'Delivery Date'
+                ],
+                'week': [
+                    'ISOWEEKNUM', 'ISO Week', 'ISO Week Number', 'ISOWeekNum', 'ISO WeekNum',
+                    'Week', 'Week Number', 'Week No', 'Week_No'
+                ]
+            }
+
+            def find_column_possibilities(possible_names):
+                lowered = {c.lower().strip(): c for c in df.columns}
+                for name in possible_names:
+                    key = str(name).lower().strip()
+                    if key in lowered:
+                        return lowered[key]
+                return None
+
+            def fuzzy_find_product_column() -> str | None:
+                candidates = [str(c) for c in df.columns]
+                for c in candidates:
+                    normalized = c.lower()
+                    if ('product' in normalized or 'item' in normalized) and (
+                        'description' in normalized or 'code' in normalized or 'name' in normalized
+                    ):
+                        return c
+                for c in candidates:
+                    if c.lower().strip() in {'product', 'item', 'description'}:
+                        return c
+                return None
+
+            def fuzzy_find_weight_column() -> str | None:
+                candidates = [str(c) for c in df.columns]
+                for c in candidates:
+                    normalized = c.lower().replace(' ', '')
+                    if 'total' in normalized and ('weight' in normalized or 'kg' in normalized):
+                        return c
+                for c in candidates:
+                    if c.lower().strip() in {'totalweight', 'weight', 'kg'}:
+                        return c
+                return None
+
+            def fuzzy_find_date_column() -> str | None:
+                candidates = [str(c) for c in df.columns]
+                for c in candidates:
+                    normalized = c.lower()
+                    if 'date' in normalized:
+                        return c
+                return None
+
+            def fuzzy_find_week_column() -> str | None:
+                candidates = [str(c) for c in df.columns]
+                for c in candidates:
+                    normalized = c.lower().replace(' ', '')
+                    if 'week' in normalized:
+                        return c
+                return None
+
+            # Find required columns
+            product_col = find_column_possibilities(column_variants['product']) or fuzzy_find_product_column()
+            weight_col = find_column_possibilities(column_variants['weight']) or fuzzy_find_weight_column()
+            date_col = find_column_possibilities(column_variants['date']) or fuzzy_find_date_column()
+            week_col = find_column_possibilities(column_variants['week']) or fuzzy_find_week_column()
+
+            if not product_col or not weight_col:
+                return jsonify({
+                    'error': 'Missing required columns. Expected product and weight columns.',
+                    'details': {
+                        'found_columns': list(map(str, df.columns)),
+                        'expected_product_any_of': column_variants['product'],
+                        'expected_weight_any_of': column_variants['weight']
+                    }
+                }), 400
+
+            # Ensure weight column is numeric
+            df[weight_col] = pd.to_numeric(df[weight_col], errors='coerce')
+            df = df.dropna(subset=[product_col, weight_col])
+
+            # Determine week source: prefer explicit week, else derive from date
+            if not week_col and date_col:
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                iso = df[date_col].dt.isocalendar()
+                df['__week_key__'] = (
+                    iso['year'].astype(int).astype(str) + '-W' + iso['week'].astype(int).astype(str).str.zfill(2)
+                )
+            elif week_col:
+                # Use provided week column as string key to avoid numeric NaN issues
+                df['__week_key__'] = df[week_col].astype(str).str.strip()
             else:
-                logging.debug(f"Skipped ItemMaster update for {product_code} due to zero quantity_sold")
+                return jsonify({
+                    'error': 'Missing week/date information. Provide ISOWEEKNUM or a date column like OrderCheckoutDate.',
+                    'details': {
+                        'found_columns': list(map(str, df.columns)),
+                        'expected_week_any_of': column_variants['week'],
+                        'expected_date_any_of': column_variants['date']
+                    }
+                }), 400
 
-            logging.debug(f"Calculated for {product_code}: Units Sold={units_sold}, Min={min_stock}, Max={max_stock}")
+            # Drop rows without computed week key
+            df = df.dropna(subset=['__week_key__'])
 
-            results.append({
-                'product_code': product_code,
-                'product_description': product_description,
-                'quantity_sold_boxes': quantity_sold_boxes,
-                'units_per_bag': item.units_per_bag,
-                'units_sold': units_sold,
-                'min_stock': round(min_stock, 2),
-                'max_stock': round(max_stock, 2)
-            })
+            # Aggregate weekly sums per product
+            weekly_sums = (
+                df.groupby([product_col, '__week_key__'])[weight_col]
+                .sum()
+                .reset_index(name='weekly_total')
+            )
 
-        # Clean up uploaded file
-        os.remove(file_path)
+            # Build a complete product x week matrix and fill missing with 0
+            all_products = (
+                df[product_col].dropna().astype(str).unique().tolist()
+            )
+            all_weeks = (
+                df['__week_key__'].dropna().astype(str).unique().tolist()
+            )
 
-        # Save results to session for download
-        session['min_max_results'] = results
-        logging.debug(f"Generated {len(results)} results")
-        logging.debug(f"Results: {results}")
-        
-        # Add flash message to show results count
-        flash(f'Successfully processed and updated {len(results)} items', 'success')
-        
-        return render_template('min_max/list.html', 
-                             results=results, 
-                             current_page="min_max_calculator")
+            pivot = weekly_sums.pivot_table(
+                index=product_col,
+                columns='__week_key__',
+                values='weekly_total',
+                aggfunc='sum'
+            )
+            # Ensure all products and weeks are present; fill missing with 0
+            pivot = pivot.reindex(index=all_products, columns=all_weeks).fillna(0)
 
-    except Exception as e:
-        logging.error(f"Error processing file: {str(e)}")
-        db.session.rollback()  # Rollback on error to prevent partial updates
-        flash(f'Error: {str(e)}', 'error')
-        return redirect(request.url)
+            # Compute min/max across weeks for each product, including zero-weeks
+            min_series = pivot.min(axis=1)
+            max_series = pivot.max(axis=1)
 
-@min_max_bp.route('/download_min_max')
-def download_min_max():
-    try:
-        results = session.get('min_max_results', [])
-        if not results:
-            flash('No results available to download', 'error')
-            return redirect(url_for('min_max.min_max_calculator'))
+            results = {prod: {'min': float(min_series.loc[prod]), 'max': float(max_series.loc[prod])}
+                       for prod in pivot.index}
 
-        # Convert results to CSV
-        output = BytesIO()
-        df = pd.DataFrame(results)
-        df.to_csv(output, index=False)
-        output.seek(0)
+            return jsonify({'success': True, 'results': results})
 
-        return send_file(output, mimetype='text/csv', 
-                        download_name='min_max_results.csv', 
-                        as_attachment=True)
-    except Exception as e:
-        logging.error(f"Error generating download: {str(e)}")
-        flash(f'Error: {str(e)}', 'error')
-        return redirect(url_for('min_max.min_max_calculator'))
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500

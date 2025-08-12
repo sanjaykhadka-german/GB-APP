@@ -1,111 +1,86 @@
 {% extends 'index.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="mb-0">Min/Max Stock Calculator</h2>
-                </div>
-                <div class="card-body">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
+<div class="container bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl">
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Excel Weekly Min/Max Calculator</h1>
+    
+    <form id="uploadForm" enctype="multipart/form-data" class="flex flex-col items-center space-y-4">
+        <label for="fileInput" class="block text-lg font-medium text-gray-700">
+            Upload your Excel file (.xlsx/.xlsm) with Product, TotalWeight, and ISOWEEKNUM columns:
+        </label>
+        <input 
+            type="file" 
+            name="file" 
+            id="fileInput" 
+            accept=".xlsx,.xlsm"
+            required 
+            class="block w-full text-sm text-gray-500
+                   file:mr-4 file:py-2 file:px-4
+                   file:rounded-full file:border-0
+                   file:text-sm file:font-semibold
+                   file:bg-green-50 file:text-green-700
+                   hover:file:bg-green-100 cursor-pointer
+                   rounded-md border border-gray-300 p-2"
+        >
+        <button 
+            type="submit" 
+            class="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md 
+                   hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75
+                   transition duration-200 ease-in-out transform hover:scale-105"
+        >
+            Calculate Weekly Min/Max
+        </button>
+    </form>
 
-                    <form method="POST" enctype="multipart/form-data" class="mb-4">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="file" class="form-label">Upload Excel File (.xlsx, .xls)</label>
-                                    <input type="file" class="form-control" id="filename" name="file" accept=".xlsx,.xls" required>
-                                    <div class="form-text">File must contain product_code, product_description, and quantity_sold columns</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="lead_time" class="form-label">Lead Time (days)</label>
-                                            <input type="number" class="form-control" id="lead_time" name="lead_time" value="5" step="0.1" min="0" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="safety_stock_days" class="form-label">Safety Stock (days)</label>
-                                            <input type="number" class="form-control" id="safety_stock_days" name="safety_stock_days" value="2" step="0.1" min="0" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="buffer_days" class="form-label">Buffer Days for Max</label>
-                                            <input type="number" class="form-control" id="buffer_days" name="buffer_days" value="10" step="0.1" min="0" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Calculate Min/Max</button>
-                    </form>
-
-                    <!-- Debug information -->
-                    <div class="mt-3">
-                        <p><strong>Debug Info:</strong></p>
-                        <p>Results variable exists: {{ results is defined }}</p>
-                        <p>Results count: {{ results|length if results else 0 }}</p>
-                        {% if results %}
-                        <p>First result: [object Object][object Object]results[0] }}</p>
-                        {% endif %}
-                    </div>
-
-                    {% if results %}
-                    <div class="mt-4">
-                        <h3>Results</h3>
-                        <div class="table-responsive">
-                            <table class="table table-striped table-bordered">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>Product Code</th>
-                                        <th>Product Description</th>
-                                        <th>Qty Sold (Boxes)</th>
-                                        <th>Units per Bag</th>
-                                        <th>Units Sold</th>
-                                        <th>Min Stock</th>
-                                        <th>Max Stock</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for result in results %}
-                                    <tr>
-                                        <td>{{ result.product_code }}</td>
-                                        <td>{{ result.product_description }}</td>
-                                        <td>{{ result.quantity_sold_boxes }}</td>
-                                        <td>{{ result.units_per_bag }}</td>
-                                        <td>{{ result.units_sold }}</td>
-                                        <td>{{ result.min_stock }}</td>
-                                        <td>{{ result.max_stock }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-3">
-                            <a href="{{ url_for('min_max.download_min_max') }}" class="btn btn-success">
-                                <i class="fas fa-download"></i> Download Results
-                            </a>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+    <div id="results" class="mt-8 border-t-2 border-gray-200 pt-6">
+        <!-- Results will be displayed here dynamically -->
     </div>
 </div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#uploadForm').submit(function(event) {
+        event.preventDefault();
+
+        var formData = new FormData(this);
+        $('#results').empty();
+
+        $.ajax({
+            url: "{{ url_for('min_max.calculate_min_max') }}",
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            success: function(response) {
+                if (response.success) {
+                    var resultsDiv = $('#results');
+                    resultsDiv.append('<h2 class="text-2xl font-semibold text-gray-800 mb-4">Weekly Min/Max TotalWeight</h2>');
+                    for (var product in response.results) {
+                        var minVal = response.results[product].min;
+                        var maxVal = response.results[product].max;
+                        resultsDiv.append(
+                            '<div class="product-item bg-green-50 p-4 rounded-md shadow-sm mb-3 border border-green-200">' +
+                                '<h4 class="text-lg font-semibold text-green-800 mb-1">' + product + '</h4>' +
+                                '<p class="text-gray-700">Min Weekly TotalWeight: <span class="font-bold text-green-700">' + minVal + '</span></p>' +
+                                '<p class="text-gray-700">Max Weekly TotalWeight: <span class="font-bold text-green-700">' + maxVal + '</span></p>' +
+                            '</div>'
+                        );
+                    }
+                } else {
+                    $('#results').html('<p class="text-red-600 text-center text-lg">Error: ' + response.error + '</p>');
+                }
+            },
+            error: function(xhr) {
+                var errorMsg = "An unexpected error occurred. Please check the file format or server logs.";
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                $('#results').html('<p class="text-red-600 text-center text-lg">Error: ' + errorMsg + '</p>');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -258,7 +258,7 @@ def search_item_codes():
                 ItemMaster.item_code.ilike(f'%{term}%'),
                 ItemMaster.description.ilike(f'%{term}%')
             )
-        ).limit(50).all()
+        ).limit(20).all()
         results = [{
             'item_code': item.item_code,
             'description': item.description or ''
