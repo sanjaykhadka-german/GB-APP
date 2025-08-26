@@ -1,0 +1,41 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Item Types</h4>
+            <button class="btn btn-primary" onclick="window.location.href='/item-type/create'">
+                <i class="fas fa-plus"></i> Add New Item Type
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item_type in item_types %}
+                        <tr>
+                            <td>{{ item_type.type_name }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-edit" onclick="window.location.href='/item-type/edit/{{ item_type.id }}'">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-delete" onclick="if(confirm('Are you sure?')) { fetch('/item-type/{{ item_type.id }}', {method: 'DELETE'}).then(() => location.reload()); }">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

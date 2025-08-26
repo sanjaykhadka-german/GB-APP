@@ -1,0 +1,38 @@
+{% extends 'index.html' %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4 class="mb-0">Edit Item Type</h4>
+        </div>
+        <div class="card-body">
+            <form id="item-type-form">
+                <input type="hidden" id="type-id" value="{{ item_type.id }}">
+                <div class="form-group">
+                    <label for="type-name" class="form-label">Type Name</label>
+                    <input type="text" id="type-name" class="form-control" value="{{ item_type.type_name }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Save</button>
+                <button type="button" class="btn btn-secondary mt-3" onclick="window.location.href='/item-type'">Cancel</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('item-type-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const id = document.getElementById('type-id').value;
+    fetch(`/item-type/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type_name: document.getElementById('type-name').value})
+    }).then(response => response.json())
+      .then(data => {
+          if (data.error) alert(data.error);
+          else window.location.href = '/item-type';
+      });
+});
+</script>
+{% endblock %}

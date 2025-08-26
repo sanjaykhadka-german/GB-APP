@@ -2,11 +2,11 @@
 
 {% block content %}
 <div class="container bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl">
-    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Excel Weekly Min/Max Calculator</h1>
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Min/Max Calculator</h1>
     
     <form id="uploadForm" enctype="multipart/form-data" class="flex flex-col items-center space-y-4">
         <label for="fileInput" class="block text-lg font-medium text-gray-700">
-            Upload your Excel file (.xlsx/.xlsm) with Product, TotalWeight, and ISOWEEKNUM columns:
+            Upload your Excel file (.xlsx/.xlsm):
         </label>
         <input 
             type="file" 
@@ -28,7 +28,7 @@
                    hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75
                    transition duration-200 ease-in-out transform hover:scale-105"
         >
-            Calculate Weekly Min/Max
+            Calculate Min/Max
         </button>
     </form>
 

@@ -1419,15 +1419,13 @@ def update_field(id):
                 if not success:
                     logger.warning(f"Warning while updating downstream entries: {message}")
 
-                # Get updated filling and production entries
+                # Get updated filling and production entries for the entire week
                 filling_entries = Filling.query.filter_by(
-                    week_commencing=packing.week_commencing,
-                    item_id=packing.item_id
+                    week_commencing=packing.week_commencing
                 ).all()
                 
                 production_entries = Production.query.filter_by(
-                    week_commencing=packing.week_commencing,
-                    item_id=packing.item_id
+                    week_commencing=packing.week_commencing
                 ).all()
 
                 # Format the entries for response

@@ -57,7 +57,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                     </thead>
                     <tbody>
                         {% for prod in production_entries %}
-                        <tr class="production-row" data-family="{{ prod.item.item_code.split('.')[0] if prod.item and prod.item.item_code else '' }}" data-kg="{{ prod.total_kg or 0 }}">
+                        <tr class="production-row" data-id="{{ prod.id }}" data-family="{{ prod.item.item_code.split('.')[0] if prod.item and prod.item.item_code else '' }}" data-kg="{{ prod.total_kg or 0 }}">
                             <td>{{ prod.id }}</td>
                             <td>{{ prod.week_commencing.strftime('%Y-%m-%d') }}</td>
                             <td>{{ prod.production_date.strftime('%Y-%m-%d') }}</td>
@@ -67,7 +67,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                                 </span>
                             </td>
                             <td>{{ prod.item.description if prod.item else 'N/A' }}</td>
-                            <td>{{ "%.4f"|format(prod.batches|float) }}</td>
+                            <td class="batches-value">{{ "%.4f"|format(prod.batches|float) }}</td>
                             <td class="kg-value">{{ "%.1f"|format(prod.total_kg|float) }}</td>
                             <td>
                                 <a href="{{ url_for('production.production_edit', id=prod.id) }}" class="btn btn-sm btn-warning">Edit</a>
@@ -117,7 +117,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                         </thead>
                         <tbody>
                             {% for pack in packing_entries %}
-                            <tr class="packing-row" data-family="{{ pack.item.item_code.split('.')[0] if pack.item and pack.item.item_code else '' }}" data-kg="{{ pack.requirement_kg or 0 }}" data-units="{{ pack.requirement_unit or 0 }}">
+                            <tr class="packing-row" data-id="{{ pack.id }}" data-family="{{ pack.item.item_code.split('.')[0] if pack.item and pack.item.item_code else '' }}" data-kg="{{ pack.requirement_kg or 0 }}" data-units="{{ pack.requirement_unit or 0 }}">
                                 <td>{{ pack.week_commencing.strftime('%Y-%m-%d') }}</td>
                                 <td>{{ pack.packing_date.strftime('%Y-%m-%d') if pack.packing_date else 'N/A' }}</td>
                                 <td>
@@ -196,7 +196,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                     </thead>
                     <tbody>
                         {% for fill in filling_entries %}
-                        <tr class="filling-row" data-family="{{ fill.item.item_code.split('.')[0] if fill.item and fill.item.item_code else '' }}" data-kg="{{ fill.kilo_per_size or 0 }}">
+                        <tr class="filling-row" data-id="{{ fill.id }}" data-family="{{ fill.item.item_code.split('.')[0] if fill.item and fill.item.item_code else '' }}" data-kg="{{ fill.kilo_per_size or 0 }}">
                             <td>{{ fill.week_commencing.strftime('%Y-%m-%d') }}</td>
                             <td>{{ fill.filling_date.strftime('%Y-%m-%d') if fill.filling_date else 'N/A' }}</td>
                             <td>
@@ -776,6 +776,8 @@ function finishEditing(cell, input) {
     .then(data => {
         // Remove loading indicator
         loadingIndicator.remove();
+        
+        console.log('Server response:', data);
 
         if (data.success) {
             // Update row data attributes for filtering
@@ -798,32 +800,43 @@ function finishEditing(cell, input) {
 
                 // Update filling entries if present
                 if (data.filling_entries) {
+                    console.log('Updating filling entries:', data.filling_entries);
                     data.filling_entries.forEach(fill => {
                         const fillRow = document.querySelector(`.filling-row[data-id="${fill.id}"]`);
+                        console.log(`Looking for filling row with data-id="${fill.id}":`, fillRow);
                         if (fillRow) {
                             const kiloCell = fillRow.querySelector('.kg-value');
                             if (kiloCell) {
                                 kiloCell.textContent = fill.kilo_per_size.toFixed(1);
                                 fillRow.setAttribute('data-kg', fill.kilo_per_size);
+                                console.log(`Updated filling row ${fill.id} with kilo_per_size: ${fill.kilo_per_size}`);
                             }
+                        } else {
+                            console.log(`Filling row with data-id="${fill.id}" not found`);
                         }
                     });
                 }
 
                 // Update production entries if present
                 if (data.production_entries) {
+                    console.log('Updating production entries:', data.production_entries);
                     data.production_entries.forEach(prod => {
                         const prodRow = document.querySelector(`.production-row[data-id="${prod.id}"]`);
+                        console.log(`Looking for production row with data-id="${prod.id}":`, prodRow);
                         if (prodRow) {
                             const kgCell = prodRow.querySelector('.kg-value');
                             const batchesCell = prodRow.querySelector('.batches-value');
                             if (kgCell) {
                                 kgCell.textContent = prod.total_kg.toFixed(1);
                                 prodRow.setAttribute('data-kg', prod.total_kg);
+                                console.log(`Updated production row ${prod.id} with total_kg: ${prod.total_kg}`);
                             }
                             if (batchesCell) {
                                 batchesCell.textContent = prod.batches.toFixed(4);
+                                console.log(`Updated production row ${prod.id} with batches: ${prod.batches}`);
                             }
+                        } else {
+                            console.log(`Production row with data-id="${prod.id}" not found`);
                         }
                     });
                 }
