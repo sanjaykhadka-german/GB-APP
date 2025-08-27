@@ -32,11 +32,11 @@
             <label for="special_order_kg">Special Order KG</label>
             <input type="number" step="0.01" class="form-control" id="special_order_kg" name="special_order_kg" value="0.0">
         </div>
-        <div class="form-group">
+        <!-- <div class="form-group">
             <label for="calculation_factor">Calculation Factor</label>
             <input type="number" step="0.01" class="form-control" id="calculation_factor" name="calculation_factor" value="0.0">
             <small class="form-text text-muted">Leave as 0.0 to use the calculation factor from Item Master</small>
-        </div>
+        </div> -->
         
         <!-- ItemMaster Info Display -->
         <div class="item-master-info" id="itemMasterInfo" style="display: none;">
@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('displayAvgWeight').textContent = (data.avg_weight_per_unit || 0).toFixed(4);
                 document.getElementById('displayMinLevel').textContent = (data.min_level || 0).toFixed(0);
                 document.getElementById('displayMaxLevel').textContent = (data.max_level || 0).toFixed(0);
-                document.getElementById('displayCalcFactor').textContent = (data.calculation_factor || 0).toFixed(4);
+                // document.getElementById('displayCalcFactor').textContent = (data.calculation_factor || 0).toFixed(4);
                     
                 // Update allergen checkboxes
                 if (data.allergens && Array.isArray(data.allergens)) {
@@ -441,7 +441,7 @@ function handleProductCodeSelection() {
                 document.getElementById('description').value = data.description || '';
                 
                 // Update numeric fields
-                document.getElementById('calculation_factor').value = data.calculation_factor || '';
+                // document.getElementById('calculation_factor').value = data.calculation_factor || '';
                 document.getElementById('kg_per_unit').value = data.kg_per_unit || '';
                 document.getElementById('units_per_bag').value = data.units_per_bag || '';
                 document.getElementById('avg_weight_per_unit').value = data.avg_weight_per_unit || '';

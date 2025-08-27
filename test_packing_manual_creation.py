@@ -81,13 +81,14 @@ def test_manual_packing_creation():
     avg_weight = fg_item.avg_weight_per_unit or fg_item.kg_per_unit or 1.0
     min_level = fg_item.min_level or 0.0
     max_level = fg_item.max_level or 200.0  # Set a reasonable max level
-    calc_factor = fg_item.calculation_factor or 1.0
+    # calc_factor = fg_item.calculation_factor or 1.0  # REMOVED - calculation_factor no longer exists
     
     # Calculate requirements (simulating packing controller logic)
     soh_units = soh_entry.soh_total_units
     soh_requirement_units = int(max_level - soh_units) if soh_units < min_level else 100  # Force some requirement
     soh_requirement_kg = soh_requirement_units * avg_weight
-    requirement_kg = soh_requirement_kg * calc_factor
+    # requirement_kg = soh_requirement_kg * calc_factor  # REMOVED - calculation_factor no longer exists
+    requirement_kg = soh_requirement_kg  # Use requirement_kg directly without calculation_factor
     
     print(f"Calculated values:")
     print(f"  SOH units: {soh_units}")
@@ -107,7 +108,7 @@ def test_manual_packing_creation():
         soh_kg=soh_units * avg_weight,
         soh_units=soh_units,
         avg_weight_per_unit=avg_weight,
-        calculation_factor=calc_factor,
+        # calculation_factor=calc_factor,  # REMOVED - calculation_factor no longer exists
         machinery_id=fg_item.machinery_id,
         department_id=fg_item.department_id
     )

@@ -146,9 +146,9 @@
                             <th class="sortable-header" data-sort="supplier_name">
                                 Supplier <i class="fas fa-sort sort-icon"></i>
                             </th>
-                            <th class="sortable-header" data-sort="calculation_factor">
+                            <!-- <th class="sortable-header" data-sort="calculation_factor">             
                                 Calc Factor <i class="fas fa-sort sort-icon"></i>
-                            </th>
+                            </th> -->
                             <th class="sortable-header" data-sort="units_per_bag">
                                 Units/Bag <i class="fas fa-sort sort-icon"></i>
                             </th>
@@ -590,7 +590,7 @@ function searchItems() {
                     <td>${item.price_per_kg ? '$' + parseFloat(item.price_per_kg).toFixed(2) : ''}</td>
                     <td>${item.price_per_uom ? '$' + parseFloat(item.price_per_uom).toFixed(2) : ''}</td>
                     <td>${item.supplier_name || ''}</td>
-                    <td>${item.calculation_factor || ''}</td>
+                    <!-- <td>${item.calculation_factor || ''}</td> -->
                     <td>${item.units_per_bag || ''}</td>
                     <td>${item.avg_weight_per_unit || ''}</td>
                     <td>${item.is_active ? 'Active' : 'Inactive'}</td>

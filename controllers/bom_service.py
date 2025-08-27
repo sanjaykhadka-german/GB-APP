@@ -49,7 +49,10 @@ class BOMService:
             'filling_description': None,
             'production_code': None,
             'production_description': None,
-            'calculation_factor': fg_item.calculation_factor or 1.0,
+            # edit 26/08/2025 - remove calculation_factor
+            #'calculation_factor': fg_item.calculation_factor or 1.0,
+            'min_level': fg_item.min_level or 0.0,
+            'max_level': fg_item.max_level or 0.0,
             'flow_type': 'Direct production (FG only)'
         }
         
@@ -86,7 +89,9 @@ class BOMService:
                 'fg_code': fg.item_code,
                 'filling_code': fg.wipf_item.item_code if fg.wipf_item else None,
                 'production_code': fg.wip_item.item_code if fg.wip_item else None,
-                'calculation_factor': fg.calculation_factor or 1.0,
+                # edit 26/08/2025 - remove calculation_factor
+                'min_level': fg.min_level or 0.0,
+                'max_level': fg.max_level or 0.0,
                 'flow_type': 'Direct production (FG only)'
             }
             
@@ -239,14 +244,22 @@ class BOMService:
             logger.warning(f"No hierarchy found for FG {fg_code}")
             return None
         
-        factor = hierarchy['calculation_factor']
-        adjusted_quantity = fg_quantity * factor
+        # edit 26/08/2025 - remove calculation_factor
+        min_level = hierarchy['min_level']
+        max_level = hierarchy['max_level']
+        stock_requirement = max_level - min_level if max_level > min_level else 0
+        adjusted_quantity = fg_quantity + stock_requirement
+        # factor = hierarchy['calculation_factor']
+        # adjusted_quantity = fg_quantity * factor
         
         requirements = {
             'fg_code': fg_code,
             'fg_quantity': fg_quantity,
             'adjusted_quantity': adjusted_quantity,
-            'calculation_factor': factor,
+            #'calculation_factor': factor,
+            'min_level': min_level,
+            'max_level': max_level,
+            'stock_requirement': stock_requirement,
             'flow_type': hierarchy['flow_type']
         }
         
@@ -503,7 +516,9 @@ class BOMService:
                 'fg_code': fg_code,
                 'description': hierarchy['fg_description'],
                 'flow_type': hierarchy['flow_type'],
-                'calculation_factor': hierarchy['calculation_factor'],
+                # edit 26/08/2025 - remove calculation_factor
+                'min_level': hierarchy['min_level'],
+                'max_level': hierarchy['max_level'],
                 'components': {
                     'production': [],
                     'filling': []

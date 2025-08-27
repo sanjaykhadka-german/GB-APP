@@ -73,10 +73,11 @@ try:
 except ImportError:
     BOMDetail = None
 
-try:
-    from .calculation_factor import CalculationFactor
-except ImportError:
-    CalculationFactor = None
+# try:
+#     from .calculation_factor import CalculationFactor
+# except ImportError:
+#     CalculationFactor = None
+# REMOVED - calculation_factor model no longer exists
 
 try:
     from .soh_detail import SOHDetail

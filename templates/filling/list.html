@@ -68,6 +68,7 @@
                         <th>WIPF Item</th>
                         <th>Description</th>
                         <th>Kilo per Size</th>
+                        <th>Priority</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -81,6 +82,7 @@
                         <td>{{ filling_data.filling.item.item_code if filling_data.filling.item else 'N/A' }}</td>
                         <td>{{ filling_data.filling.item.description if filling_data.filling.item else 'N/A' }}</td>
                         <td>{{ filling_data.filling.kilo_per_size | round(2) }}</td>
+                        <td data-field="priority" data-id="{{ filling_data.filling.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ filling_data.filling.priority or 0 }}</td>
                         <td>
                             <div class="btn-group" role="group">
                                 <a href="{{ url_for('filling.filling_edit', id=filling_data.filling.id) }}" class="btn btn-sm btn-primary">
@@ -97,7 +99,7 @@
                     {% endfor %}
                     {% else %}
                     <tr>
-                        <td colspan="7" class="no-results">No filling entries found.</td>
+                        <td colspan="8" class="no-results">No filling entries found.</td>
                     </tr>
                     {% endif %}
                 </tbody>
@@ -271,6 +273,49 @@
     #search + #list {
         margin-top: 20px;
     }
+    
+    /* Editable cell styles */
+    .editable-cell {
+        position: relative;
+        cursor: pointer;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .editable-cell:hover {
+        background-color: #e9ecef;
+    }
+    
+    .editable-cell.editing {
+        padding: 0;
+        background-color: #fff3cd;
+    }
+    
+    .editable-cell input {
+        width: 100%;
+        height: 100%;
+        padding: 0.5rem;
+        border: 2px solid #007bff;
+        outline: none;
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+    
+    .editable-cell::after {
+        content: '✎';
+        position: absolute;
+        top: 50%;
+        right: 5px;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.2s;
+        color: #6c757d;
+        font-size: 0.75rem;
+    }
+    
+    .editable-cell:hover::after {
+        opacity: 0.7;
+    }
 </style>
 
 <!-- Add JavaScript for filling search -->
@@ -356,6 +401,7 @@ function fetchFillings() {
                         <td>${filling.fill_code || ''}</td>
                         <td>${filling.description || ''}</td>
                         <td>${filling.kilo_per_size ? parseFloat(filling.kilo_per_size).toFixed(2) : '0.00'}</td>
+                        <td data-field="priority" data-id="${filling.id}" class="editable-cell" ondblclick="makeEditable(this)">${filling.priority || 0}</td>
                         <td>
                             <div class="btn-group" role="group">
                                 <a href="${URLS.edit}${filling.id}" class="btn btn-sm btn-primary">
@@ -379,15 +425,132 @@ function fetchFillings() {
     }
 
 function exportToExcel() {
-        var searchParams = new URLSearchParams({
-        fill_code: $("#search_fill_code").val(),
-        description: $("#search_description").val(),
-        week_commencing: $("#search_week_commencing").val(),
-        filling_date_start: $("#search_filling_date_start").val(),
-        filling_date_end: $("#search_filling_date_end").val()
-        }).toString();
+        var searchData = {
+            fill_code: $("#search_fill_code").val(),
+            description: $("#search_description").val(),
+            week_commencing: $("#search_week_commencing").val(),
+            filling_date_start: $("#search_filling_date_start").val(),
+            filling_date_end: $("#search_filling_date_end").val()
+        };
 
-        window.location.href = "{{ url_for('filling.export_fillings_excel') }}?" + searchParams;
-}
+        var queryString = Object.keys(searchData)
+            .filter(key => searchData[key])
+            .map(key => key + '=' + encodeURIComponent(searchData[key]))
+            .join('&');
+
+        window.location.href = "{{ url_for('filling.export_fillings_excel') }}?" + queryString;
+    }
+
+    // Inline editing functionality for priority field
+    function makeEditable(cell) {
+        // Prevent multiple edits
+        if (cell.classList.contains('editing')) {
+            return;
+        }
+        
+        const currentValue = cell.textContent.trim();
+        const field = cell.dataset.field;
+        const fillingId = cell.dataset.id;
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '1';
+        input.min = '0';
+        input.value = currentValue;
+        
+        // Set cell to editing mode
+        cell.classList.add('editing');
+        cell.innerHTML = '';
+        cell.appendChild(input);
+        
+        // Focus and select the input
+        input.focus();
+        input.select();
+        
+        // Handle save and cancel
+        function saveEdit() {
+            const newValue = input.value;
+            updateCellValue(fillingId, field, newValue, cell, currentValue);
+        }
+        
+        function cancelEdit() {
+            cell.classList.remove('editing');
+            cell.textContent = currentValue;
+        }
+        
+        // Event listeners
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveEdit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            saveEdit();
+        });
+    }
+    
+    function updateCellValue(fillingId, field, value, cell, originalValue) {
+        fetch('/filling_update_cell', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: fillingId,
+                field: field,
+                value: value
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                cell.classList.remove('editing');
+                cell.textContent = value;
+                // Show success message
+                showMessage('Priority updated successfully!', 'success');
+            } else {
+                cell.classList.remove('editing');
+                cell.textContent = originalValue;
+                showMessage('Error updating priority: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            cell.classList.remove('editing');
+            cell.textContent = originalValue;
+            showMessage('Error updating priority: ' + error.message, 'error');
+        });
+    }
+    
+    function showMessage(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const alertHtml = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // Insert alert after the search section
+        const searchSection = document.getElementById('search');
+        searchSection.insertAdjacentHTML('afterend', alertHtml);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => alert.remove());
+        }, 5000);
+    }
 </script>
 {% endblock %}

@@ -250,7 +250,8 @@ def get_search_fillings():
                 "week_commencing": filling.week_commencing.strftime('%Y-%m-%d') if filling.week_commencing else "",
                 "fill_code": filling.item.item_code if filling.item else "",
                 "description": filling.item.description if filling.item else "",
-                "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else ""
+                "kilo_per_size": filling.kilo_per_size if filling.kilo_per_size is not None else "",
+                "priority": filling.priority if filling.priority is not None else 0
             }
             for filling in fillings
         ]
@@ -298,7 +299,7 @@ def export_fillings_excel():
         ws.title = "Fillings"
 
         # Define headers
-        headers = ["ID", "Week Commencing", "Filling Date", "Fill Code", "Description", "Kilo per Size"]
+        headers = ["ID", "Week Commencing", "Filling Date", "Fill Code", "Description", "Kilo per Size", "Priority"]
         ws.append(headers)
 
         # Add data rows
@@ -309,7 +310,8 @@ def export_fillings_excel():
                 filling.filling_date.strftime('%Y-%m-%d') if filling.filling_date else '',
                 filling.item.item_code if filling.item else '',
                 filling.item.description if filling.item else '',
-                filling.kilo_per_size if filling.kilo_per_size is not None else ''
+                filling.kilo_per_size if filling.kilo_per_size is not None else '',
+                filling.priority if filling.priority is not None else 0
             ])
 
         # Create a BytesIO object to save the Excel file
@@ -333,6 +335,43 @@ def export_fillings_excel():
         print("Error generating Excel file:", e)
         flash(f"Error generating Excel file: {str(e)}", 'error')
         return redirect(url_for('filling.filling_list'))
+
+@filling_bp.route('/filling_update_cell', methods=['POST'])
+def update_cell():
+    """Handle individual cell updates in the filling table"""
+    try:
+        data = request.get_json()
+        filling_id = data.get('id')
+        field = data.get('field')
+        value = data.get('value')
+        
+        if not all([filling_id, field, value is not None]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Get the filling record
+        filling = Filling.query.get(filling_id)
+        if not filling:
+            return jsonify({'success': False, 'error': 'Filling record not found'}), 404
+        
+        # Update the appropriate field
+        if field == 'priority':
+            try:
+                priority_value = int(value) if value else 0
+                if priority_value < 0:
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                filling.priority = priority_value
+                db.session.commit()
+                return jsonify({'success': True, 'updates': {'priority': filling.priority}})
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
+        else:
+            return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating filling cell: {str(e)}")
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
 
 def update_production_entry(filling_date, fill_code, fg_item, week_commencing=None):
     """

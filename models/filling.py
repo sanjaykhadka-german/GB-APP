@@ -14,6 +14,7 @@ class Filling(db.Model):
     # Filling-specific data
     kilo_per_size = db.Column(db.Float, default=0.0)
     requirement_kg = db.Column(db.Float, default=0.0)  # Add requirement_kg column
+    priority = db.Column(db.Integer, default=0)  # Add priority field
 
     # Relationships
     item = db.relationship('ItemMaster', backref='filling_records')

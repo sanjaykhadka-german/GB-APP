@@ -66,7 +66,7 @@ class EnhancedBOMService:
             'filling_description': None,
             'production_code': None,
             'production_description': None,
-            'calculation_factor': fg_item.calculation_factor or 1.0,
+            # 'calculation_factor': fg_item.calculation_factor or 1.0,  # REMOVED - calculation_factor no longer exists
             'flow_type': 'Direct production (FG only)'
         }
         
@@ -103,7 +103,7 @@ class EnhancedBOMService:
                 'fg_code': fg.item_code,
                 'filling_code': fg.wipf_item.item_code if fg.wipf_item else None,
                 'production_code': fg.wip_item.item_code if fg.wip_item else None,
-                'calculation_factor': fg.calculation_factor or 1.0,
+                # 'calculation_factor': fg.calculation_factor or 1.0,  # REMOVED - calculation_factor no longer exists
                 'flow_type': 'Direct production (FG only)'
             }
             
@@ -130,14 +130,15 @@ class EnhancedBOMService:
             logger.warning(f"No hierarchy found for FG {fg_code}")
             return None
         
-        factor = hierarchy['calculation_factor']
-        adjusted_quantity = fg_quantity * factor
+        # factor = hierarchy['calculation_factor']  # REMOVED - calculation_factor no longer exists
+        # adjusted_quantity = fg_quantity * factor  # REMOVED - calculation_factor no longer exists
+        adjusted_quantity = fg_quantity  # Use original quantity without calculation_factor
         
         requirements = {
             'fg_code': fg_code,
             'fg_quantity': fg_quantity,
             'adjusted_quantity': adjusted_quantity,
-            'calculation_factor': factor,
+            # 'calculation_factor': factor,  # REMOVED - calculation_factor no longer exists
             'flow_type': hierarchy['flow_type']
         }
         

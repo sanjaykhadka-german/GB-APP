@@ -132,7 +132,7 @@ def import_joining_data():
                             filling_item_id=filling_item.id if filling_item else None,
                             production_item_id=production_item.id if production_item else None,
                             weekly_average=0.0,  # Default value, can be updated later
-                            calculation_factor=1.0  # Default value
+                            # calculation_factor=1.0  # Default value  # REMOVED - calculation_factor no longer exists
                         )
                         
                         db.session.add(joining)

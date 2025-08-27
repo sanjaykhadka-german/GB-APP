@@ -57,7 +57,7 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
     min_level = item.min_level or 0.0
     max_level = item.max_level or 0.0
-    calculation_factor = item.calculation_factor or 1.0
+    # calculation_factor = item.calculation_factor or 1.0
     
     # Calculate SOH requirement: how many units we need to reach max_level
     soh_requirement_units_week = max(0, int(max_level - soh_total_units))
@@ -88,13 +88,16 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
         packing.soh_units = soh_total_units
         packing.soh_kg = soh_kg
         packing.avg_weight_per_unit = avg_weight_per_unit
-        packing.calculation_factor = calculation_factor
+        # packing.calculation_factor = calculation_factor
         packing.requirement_kg = requirement_kg
         packing.requirement_unit = requirement_unit
         packing.department_id = item.department_id
         packing.machinery_id = item.machinery_id
         packing.total_stock_kg = total_stock_kg
         packing.total_stock_units = total_stock_units
+        # Add min_level and max_level from item_master
+        packing.min_level = min_level
+        packing.max_level = max_level
     else:
         packing = Packing(
             packing_date=week_commencing,
@@ -105,13 +108,16 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
             soh_units=soh_total_units,
             soh_kg=soh_kg,
             avg_weight_per_unit=avg_weight_per_unit,
-            calculation_factor=calculation_factor,
+            # calculation_factor=calculation_factor,
             requirement_kg=requirement_kg,
             requirement_unit=requirement_unit,
             department_id=item.department_id,
             machinery_id=item.machinery_id,
             total_stock_kg=total_stock_kg,
-            total_stock_units=total_stock_units
+            total_stock_units=total_stock_units,
+            # Add min_level and max_level from item_master
+            min_level=min_level,
+            max_level=max_level
         )
         db.session.add(packing)
         

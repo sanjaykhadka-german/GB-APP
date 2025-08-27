@@ -138,7 +138,7 @@ def get_item_info_json(item_id):
             'kg_per_unit': item.kg_per_unit,
             'units_per_bag': item.units_per_bag,
             'avg_weight_per_unit': item.avg_weight_per_unit,
-            'calculation_factor': item.calculation_factor,
+            #'calculation_factor': item.calculation_factor,
             'item_type_id': item.item_type_id,
             'wip_item_id': item.wip_item_id,
             'wipf_item_id': item.wipf_item_id,
@@ -206,7 +206,7 @@ def save_item(id=None):
         item.kg_per_unit = float(data.get('kg_per_unit')) if data.get('kg_per_unit') else None
         item.units_per_bag = float(data.get('units_per_bag')) if data.get('units_per_bag') else None
         item.avg_weight_per_unit = float(data.get('avg_weight_per_unit')) if data.get('avg_weight_per_unit') else None
-        item.calculation_factor = float(data.get('calculation_factor')) if data.get('calculation_factor') else None
+        #item.calculation_factor = float(data.get('calculation_factor')) if data.get('calculation_factor') else None
         
         # Update component relationships
         item.wip_item_id = int(data.get('wip_item_id')) if data.get('wip_item_id') else None
@@ -302,7 +302,7 @@ def get_items():
             'item_type': ItemType.type_name,
             'category': Category.name,
             'department': Department.departmentName,
-            'calculation_factor': ItemMaster.calculation_factor,
+            #'calculation_factor': ItemMaster.calculation_factor,
             'units_per_bag': ItemMaster.units_per_bag,
             'avg_weight_per_unit': ItemMaster.avg_weight_per_unit,
             'is_active': ItemMaster.is_active
@@ -344,7 +344,7 @@ def get_items():
                 'price_per_kg': item.price_per_kg,
                 'price_per_uom': item.price_per_uom,
                 'supplier_name': item.supplier_name,
-                'calculation_factor': item.calculation_factor,
+                # 'calculation_factor': item.calculation_factor,
                 'units_per_bag': item.units_per_bag,
                 'avg_weight_per_unit': item.avg_weight_per_unit,
                 'is_active': item.is_active,
@@ -963,7 +963,7 @@ def get_item_info(id):
             'avg_weight_per_unit': float(item.avg_weight_per_unit) if item.avg_weight_per_unit else 0,
             'min_level': float(item.min_level) if item.min_level else 0,
             'max_level': float(item.max_level) if item.max_level else 0,
-            'calculation_factor': float(item.calculation_factor) if item.calculation_factor else 0,
+            #'calculation_factor': float(item.calculation_factor) if item.calculation_factor else 0,
             'allergens': [{
                 'allergens_id': allergen.allergens_id,
                 'name': allergen.name

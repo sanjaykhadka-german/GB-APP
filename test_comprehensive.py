@@ -442,7 +442,7 @@ class ComprehensiveTestSuite(unittest.TestCase):
                 'packing_ids': [1],
                 'updates': {
                     'special_order_kg': 10.5,
-                    'calculation_factor': 1.0,
+                    # 'calculation_factor': 1.0,  # REMOVED - calculation_factor no longer exists
                     'machinery': None,
                     'priority': 1
                 }

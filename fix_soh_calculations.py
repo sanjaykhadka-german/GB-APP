@@ -22,11 +22,12 @@ def update_soh_calculations():
                     logger.warning(f"Production entry {prod.id} has no associated item")
                     continue
                 
-                calculation_factor = float(item.calculation_factor or 1.0)
+                # calculation_factor = float(item.calculation_factor or 1.0)  # REMOVED - calculation_factor no longer exists
                 total_kg = float(prod.total_kg or 0.0)
                 
                 # Calculate total stock units using calculation factor
-                total_stock_units = total_kg / calculation_factor if calculation_factor > 0 else 0
+                # total_stock_units = total_kg / calculation_factor if calculation_factor > 0 else 0  # REMOVED - calculation_factor no longer exists
+                total_stock_units = total_kg  # Use total_kg directly without calculation_factor
                 
                 # Update the production entry
                 prod.total_kg = total_kg
@@ -35,7 +36,7 @@ def update_soh_calculations():
                 # Log the update
                 logger.info(f"Updated production {prod.id}:")
                 logger.info(f"  Item: {item.item_code}")
-                logger.info(f"  Calculation Factor: {calculation_factor}")
+                # logger.info(f"  Calculation Factor: {calculation_factor}")  # REMOVED - calculation_factor no longer exists
                 logger.info(f"  Total KG: {total_kg}")
                 logger.info(f"  Total Stock Units: {total_stock_units}")
                 logger.info(f"  Batches: {prod.batches}")
@@ -52,8 +53,9 @@ def update_soh_calculations():
                 if item:
                     print(f"Item: {item.item_code}")
                     print(f"  Total KG: {prod.total_kg}")
-                    print(f"  Calculation Factor: {item.calculation_factor}")
-                    print(f"  Total Stock Units: {prod.total_kg / float(item.calculation_factor) if item.calculation_factor else 0}")
+                    # print(f"  Calculation Factor: {item.calculation_factor}")  # REMOVED - calculation_factor no longer exists
+                    # print(f"  Total Stock Units: {prod.total_kg / float(item.calculation_factor) if item.calculation_factor else 0}")  # REMOVED - calculation_factor no longer exists
+                    print(f"  Total Stock Units: {prod.total_kg}")  # Use total_kg directly
                     print(f"  Batches: {prod.batches}")
                     print("-" * 40)
             

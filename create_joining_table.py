@@ -45,14 +45,14 @@ def create_joining_table():
                         'filling_code': '1002',
                         'production_code': None,
                         'weekly_average': 1000.0,
-                        'calculation_factor': 1.0
+                        # 'calculation_factor': 1.0  # REMOVED - calculation_factor no longer exists
                     },
                     {
                         'fg_code': '9004.11',
                         'filling_code': None,
                         'production_code': '1003',
                         'weekly_average': 500.0,
-                        'calculation_factor': 1.0
+                        # 'calculation_factor': 1.0  # REMOVED - calculation_factor no longer exists
                     }
                 ]
                 
@@ -98,7 +98,7 @@ def create_joining_table():
                         filling_item_id=filling_item.id if filling_item else None,
                         production_item_id=production_item.id if production_item else None,
                         weekly_average=example['weekly_average'],
-                        calculation_factor=example['calculation_factor']
+                        # calculation_factor=example['calculation_factor']  # REMOVED - calculation_factor no longer exists
                     )
                     
                     db.session.add(joining)

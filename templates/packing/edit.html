@@ -37,7 +37,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
     <!-- Production List (Fixed/Read-only) -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Production List (Recipe Family: {{ production_data.recipe_family if production_data else 'N/A' }})</h4>
+            <h4 class="mb-0">Production List</h4>
                 </div>
                 <div class="card-body">
             {% if production_entries %}
@@ -109,7 +109,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                                 <th>Requirement<br>Unit</th>
                                 <th>Avg<br>Weight<br>per<br>Unit<br>(KG)</th>
                                 <th>SOH<br>Requirement<br>Units/Week</th>
-                                <th>Calculation<br>Factor</th>
+                                <!-- <th>Calculation<br>Factor</th> -->
                                 <th>Machinery</th>
                                 <th>Priority</th>
                                 <th>Actions</th>
@@ -139,7 +139,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                                 <td class="units-value">{{ pack.requirement_unit|int if pack.requirement_unit else '0' }}</td>
                                 <td>{{ "%.2f"|format(pack.avg_weight_per_unit|float) if pack.avg_weight_per_unit else '0.00' }}</td>
                                 <td>{{ pack.soh_requirement_units_week|int if pack.soh_requirement_units_week else '0' }}</td>
-                                <td>{{ "%.1f"|format(pack.calculation_factor|float) if pack.calculation_factor else '0.0' }}</td>
+                                <!-- <td>{{ "%.1f"|format(pack.calculation_factor|float) if pack.calculation_factor else '0.0' }}</td> -->
                                 <td>
                                     <select class="form-select form-select-sm" onchange="updateMachinery(this.getAttribute('data-packing-id'), this.value)" data-packing-id="{{ pack.id }}">
                                         <option value="">Select</option>

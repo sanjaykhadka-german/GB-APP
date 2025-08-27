@@ -28,11 +28,11 @@ class ItemMaster(db.Model):
     price_per_uom = db.Column(db.DECIMAL(12, 4), nullable=True)
     is_make_to_order = db.Column(db.Boolean, default=False)
     loss_percentage = db.Column(db.DECIMAL(5, 2), default=0.00)
-    calculation_factor = db.Column(db.DECIMAL(10, 4), default=1.0000)
+    # calculation_factor = db.Column(db.DECIMAL(10, 4), default=1.0000)
     
     # Additional columns that might exist in database
-    min_level = db.Column(db.DECIMAL(10, 2), nullable=True)
-    max_level = db.Column(db.DECIMAL(10, 2), nullable=True)
+    min_level = db.Column(db.Integer, default=0, nullable=True)
+    max_level = db.Column(db.Integer, default=0, nullable=True)
     kg_per_unit = db.Column(db.DECIMAL(10, 4), nullable=True)
     units_per_bag = db.Column(db.DECIMAL(10, 2), nullable=True)
     avg_weight_per_unit = db.Column(db.DECIMAL(10, 4), nullable=True)

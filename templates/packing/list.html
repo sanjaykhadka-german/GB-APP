@@ -77,8 +77,9 @@
             <div class="toggle-row">
                 <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Total Stock KG</label>
                 <label><input type="checkbox" data-col-index="17" onchange="toggleColumn(17)"> Total Stock Units</label>
-                <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Calculation Factor</label>
-                <label><input type="checkbox" checked data-col-index="19" onchange="toggleColumn(19)"> Priority</label>
+                <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Min Level</label>
+                <label><input type="checkbox" checked data-col-index="19" onchange="toggleColumn(19)"> Max Level</label>
+                <label><input type="checkbox" checked data-col-index="20" onchange="toggleColumn(20)"> Priority</label>
             </div>
             <div class="toggle-actions">
                 <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
@@ -126,9 +127,10 @@
                         <th data-column="machinery" data-col-index="15">Machinery <span class="sort-arrow"></span></th>
                         <th data-col-index="16">Total Stock KG</th>
                         <th data-col-index="17">Total Stock Units</th>
-                        <th data-column="calculation_factor" data-col-index="18">Calculation Factor <span class="sort-arrow"></span></th>
-                        <th data-column="priority" data-col-index="19">Priority <span class="sort-arrow"></span></th>
-                        <th data-col-index="20">Actions</th>
+                        <th data-column="min_level" data-col-index="18">Min Level <span class="sort-arrow"></span></th>
+                        <th data-column="max_level" data-col-index="19">Max Level <span class="sort-arrow"></span></th>
+                        <th data-column="priority" data-col-index="20">Priority <span class="sort-arrow"></span></th>
+                        <th data-col-index="21">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,17 +160,19 @@
                         </td>
                         <td data-field="total_stock_kg">{{ data.total_stock_kg }}</td>
                         <td data-field="total_stock_units">{{ data.total_stock_units }}</td>
-                        <td data-field="calculation_factor">{{ data.packing.calculation_factor }}</td>
+                        <!-- <td data-field="calculation_factor">{{ data.packing.calculation_factor }}</td> -->
+                        <td data-field="min_level" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.min_level }}</td>
+                        <td data-field="max_level" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.max_level }}</td>
                         <td data-field="priority" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.priority }}</td>
                         <td>
-                            <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-primary">Edit</a>
+                            <a href="{{ url_for('packing.packing_edit', id=data.packing.id) }}" class="btn btn-sm btn-primary" target="_blank">Edit</a>
                             <form action="{{ url_for('packing.packing_delete', id=data.packing.id) }}" method="POST" style="display: inline;">
                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing?')">Delete</button>
                             </form>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="20" class="no-results">No packing records found.</td></tr>
+                    <tr><td colspan="22" class="no-results">No packing records found.</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
@@ -176,7 +180,7 @@
                         <td style="text-align: right; font-weight: bold; border-right: none;" colspan="7">Total:</td>
                         <td id="total_requirement_kg" style="font-weight: bold; text-align: right; border-left: none; white-space: nowrap;">{{ total_requirement_kg }}</td>
                         <td id="total_requirement_unit" style="font-weight: bold; text-align: right; white-space: nowrap;">{{ total_requirement_unit }}</td>
-                        <td style="border: none;" colspan="11"></td>
+                        <td style="border: none;" colspan="13"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -197,9 +201,17 @@
                                 <input type="number" step="0.01" class="form-control" id="bulk_special_order_kg" name="special_order_kg">
                             </div>
                             <div class="mb-3">
+                                <label for="bulk_min_level" class="form-label">Min Level</label>
+                                <input type="number" step="1" class="form-control" id="bulk_min_level" name="min_level">
+                            </div>
+                            <div class="mb-3">
+                                <label for="bulk_max_level" class="form-label">Max Level</label>
+                                <input type="number" step="1" class="form-control" id="bulk_max_level" name="max_level">
+                            </div>
+                            <!-- <div class="mb-3">
                                 <label for="bulk_calculation_factor" class="form-label">Calculation Factor</label>
                                 <input type="number" step="0.01" class="form-control" id="bulk_calculation_factor" name="calculation_factor">
-                            </div>
+                            </div> -->
                             <div class="mb-3">
                                 <label for="bulk_machinery" class="form-label">Machinery</label>
                                 <select class="form-control" id="bulk_machinery" name="machinery">
@@ -440,15 +452,17 @@
     #packingListTable th:nth-child(18),
     #packingListTable td:nth-child(18),
     #packingListTable th:nth-child(19),
-    #packingListTable td:nth-child(19) {
+    #packingListTable td:nth-child(19),
+    #packingListTable th:nth-child(20),
+    #packingListTable td:nth-child(20) {
         text-align: right;
     }
 
     /* Center alignment for Checkbox and Actions columns */
     #packingListTable th:nth-child(1),
     #packingListTable td:nth-child(1),
-    #packingListTable th:nth-child(20),
-    #packingListTable td:nth-child(20) {
+    #packingListTable th:nth-child(22),
+    #packingListTable td:nth-child(22) {
         text-align: center;
     }
     
@@ -705,7 +719,7 @@
                 tbody.innerHTML = '';
 
                 if (data.packings.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="20" class="no-results">No packing records found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="22" class="no-results">No packing records found.</td></tr>';
                     document.getElementById('total_requirement_kg').textContent = '0';
                     document.getElementById('total_requirement_unit').textContent = '0';
         return;
@@ -745,7 +759,9 @@
                         </td>
                         <td data-field="total_stock_kg">${packing.total_stock_kg}</td>
                         <td data-field="total_stock_units">${packing.total_stock_units}</td>
-                        <td data-field="calculation_factor">${packing.calculation_factor}</td>
+                        <!-- <td data-field="calculation_factor">${packing.calculation_factor}</td> -->                         
+                        <td data-field="min_level" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.min_level}</td>
+                        <td data-field="max_level" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.max_level}</td>
                         <td data-field="priority" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.priority}</td>
                         <td>
                             <a href="/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
@@ -867,8 +883,8 @@
     }
 
     function showEssentialColumns() {
-        // Essential columns: Checkbox, Product Code, Description, Requirement KG, Requirement Unit, Machinery, Actions
-        const essentialColumns = [1, 4, 5, 8, 9, 15, 20];
+        // Essential columns: Checkbox, Product Code, Description, Requirement KG, Requirement Unit, Machinery, Min Level, Max Level, Actions
+        const essentialColumns = [1, 4, 5, 8, 9, 15, 18, 19, 21];
         
         // Update checkboxes and toggle columns
         document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
@@ -908,7 +924,7 @@
     }
 
     function resetToDefault() {
-        const defaultColumns = [2, 3, 6, 7, 10, 12, 15, 18, 19]; // Your default visible columns
+        const defaultColumns = [2, 3, 6, 7, 10, 12, 15, 17, 18, 19, 20]; // Your default visible columns
         document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
             const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
             checkbox.checked = defaultColumns.includes(colIndex);
@@ -922,6 +938,31 @@
         applyColumnVisibility();
     });
 
+    // Function to apply current column visibility settings
+    function applyColumnVisibility() {
+        document.querySelectorAll('.column-toggle input[type="checkbox"]').forEach(checkbox => {
+            const colIndex = parseInt(checkbox.getAttribute('data-col-index'));
+            const isVisible = checkbox.checked;
+            const displayValue = isVisible ? '' : 'none';
+            
+            // Toggle header cells
+            const table = document.getElementById('packingListTable');
+            const headerCells = table.querySelectorAll(`th[data-col-index="${colIndex}"]`);
+            headerCells.forEach(cell => {
+                cell.style.display = displayValue;
+            });
+            
+            // Toggle body cells
+            const bodyCells = table.querySelectorAll(`tbody td:nth-child(${colIndex})`);
+            bodyCells.forEach(cell => {
+                cell.style.display = displayValue;
+            });
+        });
+        
+        // Update total row colspan
+        updateTotalRowSpan();
+    }
+
     // Bulk edit functionality
 function submitBulkEdit() {
         const selectedIds = Array.from(document.querySelectorAll('.packing-select:checked')).map(cb => cb.value);
@@ -934,7 +975,9 @@ function submitBulkEdit() {
             packing_ids: selectedIds,
             updates: {
                 special_order_kg: document.getElementById('bulk_special_order_kg').value || null,
-                calculation_factor: document.getElementById('bulk_calculation_factor').value || null,
+                min_level: document.getElementById('bulk_min_level').value || null,
+                max_level: document.getElementById('bulk_max_level').value || null,
+                // calculation_factor: document.getElementById('bulk_calculation_factor').value || null,
                 machinery: document.getElementById('bulk_machinery').value || null,
                 priority: document.getElementById('bulk_priority').value || null
             }
@@ -995,10 +1038,21 @@ function submitBulkEdit() {
         
         // Create input element
         const input = document.createElement('input');
-        input.type = field === 'priority' ? 'number' : 'number';
-        input.step = field === 'special_order_kg' ? '0.01' : '1';
+        input.type = 'number';
+        
+        // Set appropriate step and min values based on field type
+        if (field === 'special_order_kg') {
+            input.step = '0.01';
+            input.min = '0';
+        } else if (field === 'min_level' || field === 'max_level') {
+            input.step = '1';
+            input.min = '0';
+        } else if (field === 'priority') {
+            input.step = '1';
+            input.min = '0';
+        }
+        
         input.value = currentValue;
-        input.min = '0';
         
         // Set cell to editing mode
         cell.classList.add('editing');

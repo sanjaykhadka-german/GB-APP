@@ -82,8 +82,10 @@ def create_or_update_soh_entry(product_code, week_commencing, soh_units=0):
         logger.error(f"Error creating SOH entry for {product_code}: {str(e)}")
         return None
 
+# def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
+#                          soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-                         soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
+                         soh_requirement_units_week=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
     try:
         # Convert packing_date to date object if it's a string
         if isinstance(packing_date, str):
@@ -125,7 +127,11 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.special_order_kg = special_order_kg
         packing.avg_weight_per_unit = avg_weight_per_unit
         packing.soh_requirement_units_week = soh_requirement_units_week
-        packing.calculation_factor = calculation_factor
+        # packing.calculation_factor = calculation_factor
+        
+        # Add min_level and max_level from item_master
+        packing.min_level = item.min_level or 0.0
+        packing.max_level = item.max_level or 0.0
         
         # Calculate requirement_kg and requirement_unit based on SOH requirements
         if soh_requirement_units_week and avg_weight_per_unit:
@@ -225,13 +231,22 @@ def packing_list():
 
         # Get Item Master data using foreign key relationship
         item = packing.item
+
+        
+
         avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
 
         # Excel-style calculations for display only (leave for other fields)
         special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         soh_requirement_kg_week = int((packing.soh_requirement_units_week or 0) * avg_weight_per_unit) if avg_weight_per_unit else 0
-        total_stock_kg = soh_requirement_kg_week * (packing.calculation_factor or 1)
+        # total_stock_kg = soh_requirement_kg_week * (packing.calculation_factor or 1)
+
+        # new update 26/08/2025
+        min_level = item.min_level or 0.0
+        max_level = item.max_level or 0.0
+        stock_requirement = max_level - min_level if max_level > min_level else 0
+        total_stock_kg = soh_requirement_kg_week + stock_requirement
         total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
 
         # Use stored values for requirement_kg and requirement_unit
@@ -254,7 +269,9 @@ def packing_list():
             'total_stock_units': total_stock_units,
             'week_commencing': packing.week_commencing.strftime('%Y-%m-%d') if packing.week_commencing else '',
             'machinery': {'machine_name': packing.machinery.machineryName} if packing.machinery else None,
-            'priority': packing.priority
+            'priority': packing.priority,
+            'min_level': int(packing.min_level) if packing.min_level else 0,
+            'max_level': int(packing.max_level) if packing.max_level else 0,
         })
 
     return render_template('packing/list.html',
@@ -294,12 +311,13 @@ def packing_create():
             except ValueError:
                 flash('Invalid special order kg value. Please enter a valid number.', 'danger')
                 return redirect(url_for('packing.packing_create'))
-                
-            try:
-                calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
-            except ValueError:
-                flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing.packing_create'))
+
+            # edit 26/08/2025 - remove calculation_factor
+            # try:
+            #     calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
+            # except ValueError:
+            #     flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
+            #     return redirect(url_for('packing.packing_create'))
                 
             try:
                 week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form.get('week_commencing') else None
@@ -359,11 +377,11 @@ def packing_create():
             min_level = item.min_level or 0.0
             max_level = item.max_level or 0.0
             
-            # Use calculation_factor from item_master if not provided by user, otherwise use user input
-            if calculation_factor == 0.0:  # If user didn't provide calculation_factor, use from item_master
-                calculation_factor = item.calculation_factor or 0.0
+            # # Use calculation_factor from item_master if not provided by user, otherwise use user input
+            # if calculation_factor == 0.0:  # If user didn't provide calculation_factor, use from item_master
+            #     calculation_factor = item.calculation_factor or 0.0
             
-            logger.info(f"Item Master data for {product_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
+            # logger.info(f"Item Master data for {product_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
 
             # Get create_soh parameter from form
             create_soh = bool(request.form.get('create_soh_entry'))
@@ -393,7 +411,7 @@ def packing_create():
                 special_order_kg=special_order_kg,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=soh_requirement_units_week,
-                calculation_factor=calculation_factor,
+                # calculation_factor=calculation_factor,
                 week_commencing=week_commencing,
                 machinery=machinery,
                 create_soh=create_soh,
@@ -472,12 +490,13 @@ def packing_edit(id):
             except ValueError:
                 flash('Invalid special order kg value. Please enter a valid number.', 'danger')
                 return redirect(url_for('packing.packing_edit', id=id))
-                
-            try:
-                calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
-            except ValueError:
-                flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
-                return redirect(url_for('packing.packing_edit', id=id))
+            
+            # edit 26/08/2025 - remove calculation_factor
+            # try:
+            #     calculation_factor = float(request.form['calculation_factor']) if request.form.get('calculation_factor') else 0.0
+            # except ValueError:
+            #     flash('Invalid calculation factor value. Please enter a valid number.', 'danger')
+            #     return redirect(url_for('packing.packing_edit', id=id))
                 
             try:
                 week_commencing = datetime.strptime(request.form['week_commencing'], '%Y-%m-%d').date() if request.form.get('week_commencing') else None
@@ -533,11 +552,12 @@ def packing_edit(id):
             min_level = item.min_level or 0.0
             max_level = item.max_level or 0.0
             
-            # Use calculation_factor from item_master if not provided by user, otherwise use user input
-            if calculation_factor == 0.0:  # If user didn't provide calculation_factor, use from item_master
-                calculation_factor = item.calculation_factor or 0.0
+            # edit 26/08/2025 - remove calculation_factor
+            # # Use calculation_factor from item_master if not provided by user, otherwise use user input
+            # if calculation_factor == 0.0:  # If user didn't provide calculation_factor, use from item_master
+            #     calculation_factor = item.calculation_factor or 0.0
             
-            logger.info(f"Item Master data for {item.item_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
+            # logger.info(f"Item Master data for {item.item_code}: avg_weight_per_unit={avg_weight_per_unit}, min_level={min_level}, max_level={max_level}, calculation_factor={calculation_factor}")
 
             # Fetch SOH data and calculate soh_requirement_units_week
             soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
@@ -562,7 +582,7 @@ def packing_edit(id):
                 special_order_kg=special_order_kg,
                 avg_weight_per_unit=avg_weight_per_unit,
                 soh_requirement_units_week=soh_requirement_units_week,
-                calculation_factor=calculation_factor,
+                #calculation_factor=calculation_factor,
                 week_commencing=week_commencing,
                 machinery=machinery,
                 create_soh=False  # Don't create SOH in edit mode
@@ -755,7 +775,12 @@ def get_search_packings():
         special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
         soh_requirement_kg_week = int(p.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-        total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
+        # total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
+        # edit 26/08/2025 - remove calculation_factor
+        min_level = int(p.item.min_level) if p.item.min_level else 0
+        max_level = int(p.item.max_level) if p.item.max_level else 0
+        stock_requirement = max_level - min_level if max_level > min_level else 0
+        total_stock_kg = soh_requirement_kg_week + stock_requirement
         total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
 
         # Use stored values for requirement_kg and requirement_unit
@@ -776,7 +801,9 @@ def get_search_packings():
             'soh_units': soh_units,
             'total_stock_kg': total_stock_kg,
             'total_stock_units': total_stock_units,
-            'calculation_factor': p.calculation_factor,
+            'min_level': int(p.min_level) if p.min_level else 0,
+            'max_level': int(p.max_level) if p.max_level else 0,
+            #'calculation_factor': p.calculation_factor,
             'priority': p.priority,
             'machinery': {'machine_name': p.machinery.machineryName} if p.machinery else None,
             'item': {
@@ -849,7 +876,7 @@ def get_item_master_info(item_id):
             'department_id': item.department_id,
             'machinery_id': item.machinery_id,
             'uom_id': item.uom_id,
-            'calculation_factor': float(item.calculation_factor) if item.calculation_factor else None,
+            #'calculation_factor': float(item.calculation_factor) if item.calculation_factor else None,
             'kg_per_unit': float(item.kg_per_unit) if item.kg_per_unit else None,
             'units_per_bag': float(item.units_per_bag) if item.units_per_bag else None,
             'avg_weight_per_unit': float(item.avg_weight_per_unit) if item.avg_weight_per_unit else None
@@ -934,15 +961,51 @@ def bulk_edit():
                 except (ValueError, TypeError):
                     pass
 
-            # Update calculation_factor if provided
-            if 'calculation_factor' in updates:
+            # Update min_level if provided
+            if 'min_level' in updates:
                 try:
-                    new_value = float(updates['calculation_factor'])
-                    if packing.calculation_factor != new_value:
-                        packing.calculation_factor = new_value
+                    new_value = int(updates['min_level'])
+                    if new_value < 0:
+                        return jsonify({'error': 'Min level cannot be negative'}), 400
+                    
+                    # Get current max_level for validation
+                    current_max_level = packing.max_level or 0
+                    if new_value > current_max_level:
+                        return jsonify({'error': f'Min level ({new_value}) cannot be greater than max level ({current_max_level})'}), 400
+                    
+                    if packing.min_level != new_value:
+                        packing.min_level = new_value
                         modified = True
                 except (ValueError, TypeError):
                     pass
+
+            # Update max_level if provided
+            if 'max_level' in updates:
+                try:
+                    new_value = int(updates['max_level'])
+                    if new_value < 0:
+                        return jsonify({'error': 'Max level cannot be negative'}), 400
+                    
+                    # Get current min_level for validation
+                    current_min_level = packing.min_level or 0
+                    if new_value < current_min_level:
+                        return jsonify({'error': f'Max level ({new_value}) cannot be less than min level ({current_min_level})'}), 400
+                    
+                    if packing.max_level != new_value:
+                        packing.max_level = new_value
+                        modified = True
+                except (ValueError, TypeError):
+                    pass
+
+            # Update calculation_factor if provided
+            # if 'calculation_factor' in updates:
+            #     try:
+            #         new_value = float(updates['calculation_factor'])
+            #         if packing.calculation_factor != new_value:
+            #             packing.calculation_factor = new_value
+            #             modified = True
+            #     except (ValueError, TypeError):
+            #         pass
 
             # Update priority if provided
             if 'priority' in updates:
@@ -974,8 +1037,16 @@ def bulk_edit():
                 # Calculate derived values
                 special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
                 soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-                soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-                total_stock_kg = soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
+                
+                # Recalculate SOH requirement based on current min/max levels
+                min_level = packing.min_level or 0
+                max_level = packing.max_level or 0
+                soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
+                packing.soh_requirement_units_week = soh_requirement_units_week
+                
+                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+                stock_requirement = max_level - min_level if max_level > min_level else 0
+                total_stock_kg = soh_requirement_kg_week + stock_requirement
                 total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
                 
                 # Update packing values
@@ -1028,6 +1099,8 @@ def update_cell():
         if not packing:
             return jsonify({'success': False, 'error': 'Packing entry not found'}), 404
 
+        logger.debug(f"Found packing entry: {packing.id}, current min_level: {packing.min_level}, current max_level: {packing.max_level}")
+
         try:
             # Handle different field types
             if field == 'special_order_kg':
@@ -1064,12 +1137,135 @@ def update_cell():
                         'requirement_unit': packing.requirement_unit
                     }
                 })
-            elif field == 'calculation_factor':
-                packing.calculation_factor = float(value) if value else 0.0
+            elif field == 'min_level':
+                logger.debug(f"Processing min_level update: value={value}, type={type(value)}")
+                # Validate min_level
+                new_min_level = int(value) if value else 0
+                logger.debug(f"Converted min_level to int: {new_min_level}")
+                
+                if new_min_level < 0:
+                    logger.debug(f"Min level validation failed: {new_min_level} < 0")
+                    return jsonify({'success': False, 'error': 'Min level cannot be negative'}), 400
+                
+                # Get current max_level for validation
+                current_max_level = packing.max_level or 0
+                logger.debug(f"Current max_level: {current_max_level}")
+                
+                if new_min_level > current_max_level:
+                    logger.debug(f"Min level validation failed: {new_min_level} > {current_max_level}")
+                    return jsonify({'success': False, 'error': f'Min level ({new_min_level}) cannot be greater than max level ({current_max_level})'}), 400
+                
+                logger.debug(f"Min level validation passed, updating to: {new_min_level}")
+                # Update min_level
+                packing.min_level = new_min_level
+                
+                # Recalculate dependent fields
+                item = packing.item
+                avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+                soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
+                soh_units = soh.soh_total_units if soh else 0
+                
+                # Recalculate SOH requirement based on new min/max levels
+                soh_requirement_units_week = int(current_max_level - soh_units) if soh_units < new_min_level else 0
+                packing.soh_requirement_units_week = soh_requirement_units_week
+                
+                # Recalculate other dependent fields
+                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+                soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                stock_requirement = current_max_level - new_min_level if current_max_level > new_min_level else 0
+                total_stock_kg = soh_requirement_kg_week + stock_requirement
+                total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                
+                # Update packing values
+                packing.total_stock_kg = total_stock_kg
+                packing.total_stock_units = total_stock_units
+                packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
+                packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                
                 db.session.commit()
-                # Optionally, re-aggregate if calculation_factor affects requirements
+                
+                # Re-aggregate downstream
                 re_aggregate_filling_and_production_for_week(packing.week_commencing)
-                return jsonify({'success': True, 'updates': {'calculation_factor': packing.calculation_factor}})
+                
+                return jsonify({
+                    'success': True,
+                    'updates': {
+                        'min_level': packing.min_level,
+                        'soh_requirement_units_week': packing.soh_requirement_units_week,
+                        'total_stock_kg': packing.total_stock_kg,
+                        'total_stock_units': packing.total_stock_units,
+                        'requirement_kg': packing.requirement_kg,
+                        'requirement_unit': packing.requirement_unit
+                    }
+                })
+            elif field == 'max_level':
+                logger.debug(f"Processing max_level update: value={value}, type={type(value)}")
+                # Validate max_level
+                new_max_level = int(value) if value else 0
+                logger.debug(f"Converted max_level to int: {new_max_level}")
+                
+                if new_max_level < 0:
+                    logger.debug(f"Max level validation failed: {new_max_level} < 0")
+                    return jsonify({'success': False, 'error': 'Max level cannot be negative'}), 400
+                
+                # Get current min_level for validation
+                current_min_level = packing.min_level or 0
+                logger.debug(f"Current min_level: {current_min_level}")
+                
+                if new_max_level < current_min_level:
+                    logger.debug(f"Max level validation failed: {new_max_level} < {current_min_level}")
+                    return jsonify({'success': False, 'error': f'Max level ({new_max_level}) cannot be less than min level ({current_min_level})'}), 400
+                
+                logger.debug(f"Max level validation passed, updating to: {new_max_level}")
+                # Update max_level
+                packing.max_level = new_max_level
+                
+                # Recalculate dependent fields
+                item = packing.item
+                avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+                soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
+                soh_units = soh.soh_total_units if soh else 0
+                
+                # Recalculate SOH requirement based on new min/max levels
+                soh_requirement_units_week = int(new_max_level - soh_units) if soh_units < current_min_level else 0
+                packing.soh_requirement_units_week = soh_requirement_units_week
+                
+                # Recalculate other dependent fields
+                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+                soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                stock_requirement = new_max_level - current_min_level if new_max_level > current_min_level else 0
+                total_stock_kg = soh_requirement_kg_week + stock_requirement
+                total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                
+                # Update packing values
+                packing.total_stock_kg = total_stock_kg
+                packing.total_stock_units = total_stock_units
+                packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
+                packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                
+                db.session.commit()
+                
+                # Re-aggregate downstream
+                re_aggregate_filling_and_production_for_week(packing.week_commencing)
+                
+                return jsonify({
+                    'success': True,
+                    'updates': {
+                        'max_level': packing.max_level,
+                        'soh_requirement_units_week': packing.soh_requirement_units_week,
+                        'total_stock_kg': packing.total_stock_kg,
+                        'total_stock_units': packing.total_stock_units,
+                        'requirement_kg': packing.requirement_kg,
+                        'requirement_unit': packing.requirement_unit
+                    }
+                })
+            # edit 26/08/2025 - remove calculation_factor
+            # elif field == 'calculation_factor':
+            #     packing.calculation_factor = float(value) if value else 0.0
+            #     db.session.commit()
+            #     # Optionally, re-aggregate if calculation_factor affects requirements
+            #     re_aggregate_filling_and_production_for_week(packing.week_commencing)
+            #     return jsonify({'success': True, 'updates': {'calculation_factor': packing.calculation_factor}})
             elif field == 'priority':
                 packing.priority = int(value) if value else 0
                 db.session.commit()
@@ -1089,52 +1285,14 @@ def update_cell():
             else:
                 return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
 
-            # Recalculate values
-            item = packing.item
-            avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
-            soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
-            soh_units = soh.soh_total_units if soh else 0
-
-            # Calculate derived values
-            special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            soh_requirement_kg_week = int(packing.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            total_stock_kg = soh_requirement_kg_week * packing.calculation_factor if packing.calculation_factor is not None else 0
-            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-
-            # Update packing values
-            packing.special_order_unit = special_order_unit
-            packing.soh_kg = soh_kg
-            packing.total_stock_kg = total_stock_kg
-            packing.total_stock_units = total_stock_units
-            packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-            packing.requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
-
-            db.session.commit()
-            
-            # Re-aggregate filling and production
-            re_aggregate_filling_and_production_for_week(packing.week_commencing)
-
-            # Return updated values
-            return jsonify({
-                'success': True,
-                'updates': {
-                    'special_order_kg': packing.special_order_kg,
-                    'special_order_unit': packing.special_order_unit,
-                    'requirement_kg': packing.requirement_kg,
-                    'requirement_unit': packing.requirement_unit,
-                    'soh_kg': packing.soh_kg,
-                    'total_stock_kg': packing.total_stock_kg,
-                    'total_stock_units': packing.total_stock_units,
-                    'calculation_factor': packing.calculation_factor,
-                    'priority': packing.priority,
-                    'machinery_id': packing.machinery_id
-                }
-            })
-
         except (ValueError, TypeError) as e:
             db.session.rollback()
+            logger.error(f"Value/Type error updating {field}: {str(e)}")
             return jsonify({'success': False, 'error': f'Invalid value for {field}: {str(e)}'}), 400
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Unexpected error updating {field}: {str(e)}")
+            return jsonify({'success': False, 'error': f'Unexpected error updating {field}: {str(e)}'}), 500
 
     except Exception as e:
         db.session.rollback()
@@ -1185,7 +1343,11 @@ def export_packings():
             special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
             soh_requirement_kg_week = int(p.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
+            # total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
+            min_level = int(p.item.min_level) if p.item.min_level else 0
+            max_level = int(p.item.max_level) if p.item.max_level else 0
+            stock_requirement = max_level - min_level if max_level > min_level else 0
+            total_stock_kg = soh_requirement_kg_week + stock_requirement
             total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             requirement_kg = round(total_stock_kg - soh_kg + p.special_order_kg, 0) if (total_stock_kg - soh_kg + p.special_order_kg) > 0 else 0
             requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
@@ -1207,7 +1369,9 @@ def export_packings():
                 'Machinery': p.machinery.machineryName if p.machinery else '',
                 'Total Stock KG': total_stock_kg,
                 'Total Stock Units': total_stock_units,
-                'Calculation Factor': p.calculation_factor,
+                'Min Level': int(p.min_level) if p.min_level else 0,
+                'Max Level': int(p.max_level) if p.max_level else 0,
+                #'Calculation Factor': p.calculation_factor,
                 'Priority': p.priority
             })
 
@@ -1447,6 +1611,114 @@ def update_field(id):
                     'requirement_unit': packing.requirement_unit,
                     'filling_entries': filling_data,
                     'production_entries': production_data
+                })
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400
+        elif field == 'min_level':
+            try:
+                value = int(value)
+                if value < 0:
+                    return jsonify({'success': False, 'error': 'Min level cannot be negative'}), 400
+                
+                # Get current max_level for validation
+                current_max_level = packing.max_level or 0
+                if value > current_max_level:
+                    return jsonify({'success': False, 'error': f'Min level ({value}) cannot be greater than max level ({current_max_level})'}), 400
+                
+                packing.min_level = value
+                
+                # Recalculate dependent fields
+                if packing.avg_weight_per_unit:
+                    # Recalculate SOH requirement based on new min/max levels
+                    soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=packing.week_commencing).first()
+                    soh_units = soh.soh_total_units if soh else 0
+                    
+                    soh_requirement_units_week = int(current_max_level - soh_units) if soh_units < value else 0
+                    packing.soh_requirement_units_week = soh_requirement_units_week
+                    
+                    # Recalculate other dependent fields
+                    soh_requirement_kg_week = int(soh_requirement_units_week * packing.avg_weight_per_unit)
+                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
+                    stock_requirement = current_max_level - value if current_max_level > value else 0
+                    total_stock_kg = soh_requirement_kg_week + stock_requirement
+                    total_stock_units = math.ceil(total_stock_kg / packing.avg_weight_per_unit)
+                    
+                    # Update packing values
+                    packing.total_stock_kg = total_stock_kg
+                    packing.total_stock_units = total_stock_units
+                    packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
+                    packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                
+                db.session.commit()
+                
+                # Update downstream entries
+                success, message = re_aggregate_filling_and_production_for_week(packing.week_commencing)
+                if not success:
+                    logger.warning(f"Warning while updating downstream entries: {message}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Min level updated successfully',
+                    'min_level': packing.min_level,
+                    'soh_requirement_units_week': packing.soh_requirement_units_week,
+                    'total_stock_kg': packing.total_stock_kg,
+                    'total_stock_units': packing.total_stock_units,
+                    'requirement_kg': packing.requirement_kg,
+                    'requirement_unit': packing.requirement_unit
+                })
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400
+        elif field == 'max_level':
+            try:
+                value = int(value)
+                if value < 0:
+                    return jsonify({'success': False, 'error': 'Max level cannot be negative'}), 400
+                
+                # Get current min_level for validation
+                current_min_level = packing.min_level or 0
+                if value < current_min_level:
+                    return jsonify({'success': False, 'error': f'Max level ({value}) cannot be less than min level ({current_min_level})'}), 400
+                
+                packing.max_level = value
+                
+                # Recalculate dependent fields
+                if packing.avg_weight_per_unit:
+                    # Recalculate SOH requirement based on new min/max levels
+                    soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=packing.week_commencing).first()
+                    soh_units = soh.soh_total_units if soh else 0
+                    
+                    soh_requirement_units_week = int(value - soh_units) if soh_units < current_min_level else 0
+                    packing.soh_requirement_units_week = soh_requirement_units_week
+                    
+                    # Recalculate other dependent fields
+                    soh_requirement_kg_week = int(soh_requirement_units_week * packing.avg_weight_per_unit)
+                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
+                    stock_requirement = value - current_min_level if value > current_min_level else 0
+                    total_stock_kg = soh_requirement_kg_week + stock_requirement
+                    total_stock_units = math.ceil(total_stock_kg / packing.avg_weight_per_unit)
+                    
+                    # Update packing values
+                    packing.total_stock_kg = total_stock_kg
+                    packing.total_stock_units = total_stock_units
+                    packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
+                    packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                
+                db.session.commit()
+                
+                # Update downstream entries
+                success, message = re_aggregate_filling_and_production_for_week(packing.week_commencing)
+                if not success:
+                    logger.warning(f"Warning while updating downstream entries: {message}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Max level updated successfully',
+                    'max_level': packing.max_level,
+                    'soh_requirement_units_week': packing.soh_requirement_units_week,
+                    'total_stock_kg': packing.total_stock_kg,
+                    'total_stock_units': packing.total_stock_units,
+                    'requirement_kg': packing.requirement_kg,
+                    'requirement_unit': packing.requirement_unit
                 })
             except ValueError:
                 return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400

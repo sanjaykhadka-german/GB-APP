@@ -21,24 +21,24 @@ def verify_calculation_factors():
             for item in wip_items:
                 print(f"\nItem: {item.item_code}")
                 print(f"  Description: {item.description}")
-                print(f"  Current Calculation Factor: {item.calculation_factor}")
+                # print(f"  Current Calculation Factor: {item.calculation_factor}")  # REMOVED - calculation_factor no longer exists
                 print(f"  Current kg_per_unit: {item.kg_per_unit}")
                 print(f"  Current units_per_bag: {item.units_per_bag}")
                 print(f"  Current avg_weight_per_unit: {item.avg_weight_per_unit}")
                 
                 # If calculation_factor is None or 0, try to calculate it
-                if not item.calculation_factor or float(item.calculation_factor) == 0:
-                    # Try to calculate from other fields
-                    if item.kg_per_unit and float(item.kg_per_unit) > 0:
-                        item.calculation_factor = float(item.kg_per_unit)
-                        print(f"  Setting calculation_factor to kg_per_unit: {item.calculation_factor}")
-                    elif item.avg_weight_per_unit and float(item.avg_weight_per_unit) > 0:
-                        item.calculation_factor = float(item.avg_weight_per_unit)
-                        print(f"  Setting calculation_factor to avg_weight_per_unit: {item.calculation_factor}")
-                    else:
-                        # Default to 1.0 if no other value available
-                        item.calculation_factor = 1.0
-                        print("  Setting default calculation_factor: 1.0")
+                # if not item.calculation_factor or float(item.calculation_factor) == 0:  # REMOVED - calculation_factor no longer exists
+                #     # Try to calculate from other fields
+                #     if item.kg_per_unit and float(item.kg_per_unit) > 0:
+                #         item.calculation_factor = float(item.kg_per_unit)  # REMOVED - calculation_factor no longer exists
+                #         print(f"  Setting calculation_factor to kg_per_unit: {item.calculation_factor}")  # REMOVED - calculation_factor no longer exists
+                #     elif item.avg_weight_per_unit and float(item.avg_weight_per_unit) > 0:
+                #         item.calculation_factor = float(item.avg_weight_per_unit)  # REMOVED - calculation_factor no longer exists
+                #         print(f"  Setting calculation_factor to avg_weight_per_unit: {item.calculation_factor}")  # REMOVED - calculation_factor no longer exists
+                #     else:
+                #         # Default to 1.0 if no other value available
+                #         item.calculation_factor = 1.0  # REMOVED - calculation_factor no longer exists
+                #         print("  Setting default calculation_factor: 1.0")  # REMOVED - calculation_factor no longer exists
             
             # Commit changes
             db.session.commit()
@@ -50,7 +50,7 @@ def verify_calculation_factors():
             for item in wip_items:
                 print(f"Item: {item.item_code}")
                 print(f"  Description: {item.description}")
-                print(f"  Calculation Factor: {item.calculation_factor}")
+                # print(f"  Calculation Factor: {item.calculation_factor}")  # REMOVED - calculation_factor no longer exists
                 print("-" * 40)
             
         except Exception as e:

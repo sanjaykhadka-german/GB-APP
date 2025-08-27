@@ -203,14 +203,21 @@ def update_production_soh_calculations(production):
         return
         
     # Get calculation factor from item_master
-    calculation_factor = float(production.item.calculation_factor or 1.0)
+    # calculation_factor = float(production.item.calculation_factor or 1.0)
     total_kg = float(production.total_kg or 0.0)
     
     # Calculate batches
     production.batches = total_kg / 300 if total_kg > 0 else 0
     
     # Calculate total stock units
-    total_stock_units = total_kg / calculation_factor if calculation_factor > 0 else 0
+    # edit 26/08/2025 - remove calculation_factor
+    # total_stock_units = total_kg / calculation_factor if calculation_factor > 0 else 0
+    min_level = int(production.item.min_level) if production.item.min_level else 0
+    max_level = int(production.item.max_level) if production.item.max_level else 0
+    stock_requirement = max_level - min_level if max_level > min_level else 0
+    total_stock_units = total_kg + stock_requirement
+
+    print(f"Total stock units in production: {total_stock_units}")    
     
     return total_stock_units
 
@@ -362,7 +369,8 @@ def get_search_productions():
                 "production_code": production.production_code or "",
                 "description": production.description or "",
                 "batches": production.batches if production.batches is not None else "",
-                "total_kg": production.total_kg if production.total_kg is not None else ""
+                "total_kg": production.total_kg if production.total_kg is not None else "",
+                "priority": production.priority if production.priority is not None else 0
             }
             for production in productions
         ]
@@ -428,7 +436,7 @@ def export_productions_excel():
         ws.title = "Productions"
 
         # Define headers
-        headers = ["ID", "Week Commencing", "Production Date", "Production Code", "Description", "Batches", "Total KG"]
+        headers = ["ID", "Week Commencing", "Production Date", "Production Code", "Description", "Batches", "Total KG", "Priority"]
         ws.append(headers)
 
         # Add data rows
@@ -440,7 +448,8 @@ def export_productions_excel():
                 production.production_code or '',
                 production.description or '',
                 production.batches if production.batches is not None else '',
-                production.total_kg if production.total_kg is not None else ''
+                production.total_kg if production.total_kg is not None else '',
+                production.priority if production.priority is not None else 0
             ])
 
         # Create a BytesIO object to save the Excel file
@@ -715,6 +724,43 @@ def update_production_totals():
     except Exception as e:
         db.session.rollback()
         return False, f"Error updating production totals: {str(e)}"
+
+@production_bp.route('/production_update_cell', methods=['POST'])
+def update_cell():
+    """Handle individual cell updates in the production table"""
+    try:
+        data = request.get_json()
+        production_id = data.get('id')
+        field = data.get('field')
+        value = data.get('value')
+        
+        if not all([production_id, field, value is not None]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # Get the production record
+        production = Production.query.get(production_id)
+        if not production:
+            return jsonify({'success': False, 'error': 'Production record not found'}), 404
+        
+        # Update the appropriate field
+        if field == 'priority':
+            try:
+                priority_value = int(value) if value else 0
+                if priority_value < 0:
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                production.priority = priority_value
+                db.session.commit()
+                return jsonify({'success': True, 'updates': {'priority': production.priority}})
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
+        else:
+            return jsonify({'success': False, 'error': f'Invalid field: {field}'}), 400
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating production cell: {str(e)}")
+        return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
     
     
 @production_bp.route('/update_daily_plan', methods=['POST'])

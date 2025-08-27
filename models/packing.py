@@ -25,8 +25,12 @@ class Packing(db.Model):
     soh_units = db.Column(db.Float, default=0.0, nullable=True)
     total_stock_kg = db.Column(db.Float, default=0.0, nullable=True)
     total_stock_units = db.Column(db.Integer, default=0, nullable=True)
-    calculation_factor = db.Column(db.Float, default=0.0, nullable=True)
+    # calculation_factor = db.Column(db.Float, default=0.0, nullable=True)
     priority = db.Column(db.Integer, default=0, nullable=True)
+    
+    # New columns for min_level and max_level from item_master
+    min_level = db.Column(db.Integer, default=0, nullable=True)
+    max_level = db.Column(db.Integer, default=0, nullable=True)
 
     # Relationships
     item = db.relationship('ItemMaster', backref='packing_records')
