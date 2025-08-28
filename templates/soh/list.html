@@ -21,6 +21,7 @@
             </div>
 
             <button type="button" onclick="fetchSOHs()">Search</button>
+            <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
     </section>
@@ -737,16 +738,16 @@ $(document).ready(function() {
         window.location.href = `{{ url_for('soh.soh_create') }}?fg_code=${fgCode}`;
     }
 
-
-
-    // Bind search button click event
-    $('#searchForm button[type="button"]').click(function() {
-       console.log('Search button clicked');
-       fetchSOHs();
-    });
-
     // Initial call to fetch SOHs and initialize editable table on page load
     fetchSOHs();
 });
+
+// Reset filters function
+function resetFilters() {
+    $("#search_fg_code").val('');
+    $("#search_description").val('');
+    $("#search_week_commencing").val('');
+    fetchSOHs();
+}
 </script>
 {% endblock %}

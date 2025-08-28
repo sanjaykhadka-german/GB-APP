@@ -59,18 +59,34 @@ def create_packing_entry_from_soh(fg_code, description, week_commencing, soh_tot
     max_level = item.max_level or 0.0
     # calculation_factor = item.calculation_factor or 1.0
     
+    # NEW CALCULATION LOGIC
     # Calculate SOH requirement: how many units we need to reach max_level
-    soh_requirement_units_week = max(0, int(max_level - soh_total_units))
+    # soh_requirement_units_week = max(0, int(max_level - soh_total_units))
+    if soh_total_units < min_level:
+        soh_requirement_units_week = int(max_level - soh_total_units)
+    else:
+        soh_requirement_units_week = 0
     
     # Calculate the requirement in KG
-    soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+    soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
     
     # Current SOH in KG
     soh_kg = round(soh_total_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
     
-    # Requirement calculations for packing
-    requirement_kg = soh_requirement_kg_week  # This is what we need to pack
-    requirement_unit = soh_requirement_units_week  # This is how many units we need to pack
+    # NEW REQUIREMENT CALCULATIONS based on your Excel formulas
+    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), "")
+    requirement_kg_calc = soh_requirement_kg_week - soh_kg + 0  # special_order_kg is 0 for SOH uploads
+    if requirement_kg_calc > 0:
+        requirement_kg = round(requirement_kg_calc, 0)
+    else:
+        requirement_kg = 0
+    
+    # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, "")
+    requirement_unit_calc = soh_requirement_units_week - soh_total_units + 0  # special_order_unit is 0 for SOH uploads
+    if requirement_unit_calc > 0:
+        requirement_unit = requirement_unit_calc
+    else:
+        requirement_unit = 0
     
     # Total stock calculations (includes what we have + what we'll pack)
     total_stock_kg = soh_kg + requirement_kg

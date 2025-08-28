@@ -82,8 +82,6 @@ def create_or_update_soh_entry(product_code, week_commencing, soh_units=0):
         logger.error(f"Error creating SOH entry for {product_code}: {str(e)}")
         return None
 
-# def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
-#                          soh_requirement_units_week=None, calculation_factor=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
 def update_packing_entry(fg_code, description, packing_date=None, special_order_kg=0.0, avg_weight_per_unit=None, 
                          soh_requirement_units_week=None, week_commencing=None, machinery=None, create_soh=False, current_soh_units=0):
     try:
@@ -127,26 +125,39 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
         packing.special_order_kg = special_order_kg
         packing.avg_weight_per_unit = avg_weight_per_unit
         packing.soh_requirement_units_week = soh_requirement_units_week
-        # packing.calculation_factor = calculation_factor
         
         # Add min_level and max_level from item_master
         packing.min_level = item.min_level or 0.0
         packing.max_level = item.max_level or 0.0
         
-        # Calculate requirement_kg and requirement_unit based on SOH requirements
+        # NEW CALCULATION LOGIC - Replace the existing requirement calculation
         if soh_requirement_units_week and avg_weight_per_unit:
-            # Calculate what we need to pack in KG
-            requirement_kg = soh_requirement_units_week * avg_weight_per_unit
-            requirement_unit = soh_requirement_units_week
+            # Get current SOH data for calculations
+            soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
+            soh_units = soh.soh_total_units if soh else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
             
-            # Add special order to requirements
-            if special_order_kg and special_order_kg > 0:
-                requirement_kg += special_order_kg
-                special_order_units = special_order_kg / avg_weight_per_unit if avg_weight_per_unit > 0 else 0
-                requirement_unit += special_order_units
+            # Calculate SOH requirement KG/week
+            soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            
+            # NEW REQUIREMENT CALCULATIONS based on your Excel formulas
+            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), "")
+            requirement_kg_calc = soh_requirement_kg_week - soh_kg + special_order_kg
+            if requirement_kg_calc > 0:
+                requirement_kg = round(requirement_kg_calc, 0)
+            else:
+                requirement_kg = 0
+            
+            # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, "")
+            special_order_units = int(special_order_kg / avg_weight_per_unit) if avg_weight_per_unit > 0 else 0
+            requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_units
+            if requirement_unit_calc > 0:
+                requirement_unit = requirement_unit_calc
+            else:
+                requirement_unit = 0
                 
-            packing.requirement_kg = round(requirement_kg, 0)
-            packing.requirement_unit = int(requirement_unit)
+            packing.requirement_kg = requirement_kg
+            packing.requirement_unit = requirement_unit
         else:
             # If no requirements, set to 0
             packing.requirement_kg = 0.0
@@ -231,27 +242,50 @@ def packing_list():
 
         # Get Item Master data using foreign key relationship
         item = packing.item
-
         
+        # Use kg_per_unit first, then fallback to avg_weight_per_unit
+        avg_weight_per_unit = item.kg_per_unit or item.avg_weight_per_unit or 0.0
 
-        avg_weight_per_unit = item.avg_weight_per_unit if item else 0.0
-
-        # Excel-style calculations for display only (leave for other fields)
+        # NEW CALCULATIONS based on your Excel formulas
+        # Special Order Unit = iferror(int(special_order_kg / avg_weight_per_unit), "")
         special_order_unit = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+        
+        # SOH KG = Round(SOH Units * Avg weight per unit)
         soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+        
+        # SOH Req KG/Week = iferror(int(SOH req units/week * avg weight per unit), "")
         soh_requirement_kg_week = int((packing.soh_requirement_units_week or 0) * avg_weight_per_unit) if avg_weight_per_unit else 0
-        # total_stock_kg = soh_requirement_kg_week * (packing.calculation_factor or 1)
-
-        # new update 26/08/2025
+        
+        # SOH Req Units/Week = iferror(int(max_level - soh_units) if soh_units < min_level else 0, "")
         min_level = item.min_level or 0.0
         max_level = item.max_level or 0.0
-        stock_requirement = max_level - min_level if max_level > min_level else 0
-        total_stock_kg = soh_requirement_kg_week + stock_requirement
-        total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-
-        # Use stored values for requirement_kg and requirement_unit
-        requirement_kg = packing.requirement_kg if packing.requirement_kg is not None else 0
-        requirement_unit = packing.requirement_unit if packing.requirement_unit is not None else 0
+        
+        # Use stored value from database, but recalculate if needed for display
+        stored_soh_requirement = packing.soh_requirement_units_week or 0
+        
+        # Only recalculate if the stored value seems incorrect (negative)
+        if stored_soh_requirement < 0:
+            if soh_units < min_level:
+                soh_requirement_units_week = int(max_level - soh_units)
+            else:
+                soh_requirement_units_week = 0
+        else:
+            soh_requirement_units_week = stored_soh_requirement
+        
+        # NEW REQUIREMENT CALCULATIONS
+        # Requirement KG = iferror(if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), ""), "")
+        requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+        if requirement_kg_calc > 0:
+            requirement_kg = round(requirement_kg_calc, 0)
+        else:
+            requirement_kg = 0
+        
+        # Requirement Unit = iferror(if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, ""), "")
+        requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_unit
+        if requirement_unit_calc > 0:
+            requirement_unit = requirement_unit_calc
+        else:
+            requirement_unit = 0
 
         # Update totals
         total_requirement_kg += requirement_kg
@@ -265,8 +299,8 @@ def packing_list():
             'soh_requirement_kg_week': soh_requirement_kg_week,
             'soh_kg': soh_kg,
             'soh_units': soh_units,
-            'total_stock_kg': total_stock_kg,
-            'total_stock_units': total_stock_units,
+            # REMOVED: 'total_stock_kg': total_stock_kg,
+            # REMOVED: 'total_stock_units': total_stock_units,
             'week_commencing': packing.week_commencing.strftime('%Y-%m-%d') if packing.week_commencing else '',
             'machinery': {'machine_name': packing.machinery.machineryName} if packing.machinery else None,
             'priority': packing.priority,
@@ -1044,18 +1078,28 @@ def bulk_edit():
                 soh_requirement_units_week = int(max_level - soh_units) if soh_units < min_level else 0
                 packing.soh_requirement_units_week = soh_requirement_units_week
                 
-                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
+                soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
                 stock_requirement = max_level - min_level if max_level > min_level else 0
                 total_stock_kg = soh_requirement_kg_week + stock_requirement
                 total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
                 
-                # Update packing values
+                # Update packing values using NEW EXCEL FORMULA LOGIC
                 packing.special_order_unit = special_order_unit
                 packing.soh_kg = soh_kg
-                packing.total_stock_kg = total_stock_kg
-                packing.total_stock_units = total_stock_units
-                packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-                packing.requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+                
+                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+                if requirement_kg_calc > 0:
+                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                else:
+                    packing.requirement_kg = 0
+                
+                # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+                requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_unit
+                if requirement_unit_calc > 0:
+                    packing.requirement_unit = requirement_unit_calc
+                else:
+                    packing.requirement_unit = 0
 
                 # Add this date to re-aggregation set
                 dates_to_reaggregate.add((packing.packing_date, packing.week_commencing))
@@ -1105,23 +1149,38 @@ def update_cell():
             # Handle different field types
             if field == 'special_order_kg':
                 new_special_order_kg = float(value) if value else 0.0
-                old_special_order_kg = packing.special_order_kg or 0.0
-                old_requirement_kg = packing.requirement_kg or 0.0
-                old_requirement_unit = packing.requirement_unit or 0
-
-                # Calculate base requirement (without special order)
-                base_requirement_kg = old_requirement_kg - old_special_order_kg
-                base_requirement_unit = old_requirement_unit
+                
+                # Update special order
+                packing.special_order_kg = new_special_order_kg
+                
+                # Recalculate requirements using NEW EXCEL FORMULA LOGIC
                 item = packing.item
                 avg_weight_per_unit = item.avg_weight_per_unit or item.kg_per_unit or 0.0
+                
+                # Get current SOH data for calculations
+                soh = SOH.query.filter_by(item_id=item.id, week_commencing=packing.week_commencing).first()
+                soh_units = soh.soh_total_units if soh else 0
+                soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                
+                # Get SOH requirement data
+                soh_requirement_units_week = packing.soh_requirement_units_week or 0
+                soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                
+                # NEW REQUIREMENT CALCULATIONS based on your Excel formulas
+                # Requirement KG = iferror(if(soh_req_kg_week + special_order_kg - soh_kg > 0, soh_req_kg_week + special_order_kg - soh_kg, ""), "")
+                requirement_kg_calc = soh_requirement_kg_week + new_special_order_kg - soh_kg
+                if requirement_kg_calc > 0:
+                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                else:
+                    packing.requirement_kg = 0
+                
+                # Requirement Unit = iferror(if(soh_req_units_week + special_order_unit - soh_units > 0, soh_req_units_week + special_order_unit - soh_units, ""), "")
                 new_special_order_unit = int(new_special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-                old_special_order_unit = int(old_special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-                base_requirement_unit = old_requirement_unit - old_special_order_unit
-
-                # Update special order and requirement
-                packing.special_order_kg = new_special_order_kg
-                packing.requirement_kg = round(base_requirement_kg + new_special_order_kg, 0)
-                packing.requirement_unit = base_requirement_unit + new_special_order_unit
+                requirement_unit_calc = soh_requirement_units_week + new_special_order_unit - soh_units
+                if requirement_unit_calc > 0:
+                    packing.requirement_unit = requirement_unit_calc
+                else:
+                    packing.requirement_unit = 0
 
                 db.session.commit()
 
@@ -1172,15 +1231,22 @@ def update_cell():
                 # Recalculate other dependent fields
                 soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
                 soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-                stock_requirement = current_max_level - new_min_level if current_max_level > new_min_level else 0
-                total_stock_kg = soh_requirement_kg_week + stock_requirement
-                total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
                 
-                # Update packing values
-                packing.total_stock_kg = total_stock_kg
-                packing.total_stock_units = total_stock_units
-                packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-                packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                # Update packing values using NEW EXCEL FORMULA LOGIC
+                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+                if requirement_kg_calc > 0:
+                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                else:
+                    packing.requirement_kg = 0
+                
+                # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+                special_order_units = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_units
+                if requirement_unit_calc > 0:
+                    packing.requirement_unit = requirement_unit_calc
+                else:
+                    packing.requirement_unit = 0
                 
                 db.session.commit()
                 
@@ -1192,8 +1258,6 @@ def update_cell():
                     'updates': {
                         'min_level': packing.min_level,
                         'soh_requirement_units_week': packing.soh_requirement_units_week,
-                        'total_stock_kg': packing.total_stock_kg,
-                        'total_stock_units': packing.total_stock_units,
                         'requirement_kg': packing.requirement_kg,
                         'requirement_unit': packing.requirement_unit
                     }
@@ -1233,15 +1297,22 @@ def update_cell():
                 # Recalculate other dependent fields
                 soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
                 soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-                stock_requirement = new_max_level - current_min_level if new_max_level > current_min_level else 0
-                total_stock_kg = soh_requirement_kg_week + stock_requirement
-                total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
                 
-                # Update packing values
-                packing.total_stock_kg = total_stock_kg
-                packing.total_stock_units = total_stock_units
-                packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-                packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                # Update packing values using NEW EXCEL FORMULA LOGIC
+                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+                if requirement_kg_calc > 0:
+                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                else:
+                    packing.requirement_kg = 0
+                
+                # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+                special_order_units = int(packing.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
+                requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_units
+                if requirement_unit_calc > 0:
+                    packing.requirement_unit = requirement_unit_calc
+                else:
+                    packing.requirement_unit = 0
                 
                 db.session.commit()
                 
@@ -1253,8 +1324,6 @@ def update_cell():
                     'updates': {
                         'max_level': packing.max_level,
                         'soh_requirement_units_week': packing.soh_requirement_units_week,
-                        'total_stock_kg': packing.total_stock_kg,
-                        'total_stock_units': packing.total_stock_units,
                         'requirement_kg': packing.requirement_kg,
                         'requirement_unit': packing.requirement_unit
                     }
@@ -1339,40 +1408,45 @@ def export_packings():
             soh_units = soh.soh_total_units if soh else 0
             avg_weight_per_unit = p.item.avg_weight_per_unit or p.item.kg_per_unit or 0.0
 
-            # Calculate derived values
+            # Calculate derived values using NEW EXCEL FORMULA LOGIC
             special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
             soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            soh_requirement_kg_week = int(p.soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-            # total_stock_kg = soh_requirement_kg_week * p.calculation_factor if p.calculation_factor is not None else 0
-            min_level = int(p.item.min_level) if p.item.min_level else 0
-            max_level = int(p.item.max_level) if p.item.max_level else 0
-            stock_requirement = max_level - min_level if max_level > min_level else 0
-            total_stock_kg = soh_requirement_kg_week + stock_requirement
-            total_stock_units = math.ceil(total_stock_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            requirement_kg = round(total_stock_kg - soh_kg + p.special_order_kg, 0) if (total_stock_kg - soh_kg + p.special_order_kg) > 0 else 0
-            requirement_unit = total_stock_units - soh_units + special_order_unit if (total_stock_units - soh_units + special_order_unit) > 0 else 0
+            soh_requirement_kg_week = round(p.soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            
+            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+            requirement_kg_calc = soh_requirement_kg_week - soh_kg + p.special_order_kg
+            if requirement_kg_calc > 0:
+                requirement_kg = round(requirement_kg_calc, 0)
+            else:
+                requirement_kg = 0
+            
+            # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+            requirement_unit_calc = (p.soh_requirement_units_week or 0) - soh_units + special_order_unit
+            if requirement_unit_calc > 0:
+                requirement_unit = requirement_unit_calc
+            else:
+                requirement_unit = 0
 
             data.append({
-                'Week Commencing': p.week_commencing.strftime('%Y-%m-%d'),
-                'Packing Date': p.packing_date.strftime('%Y-%m-%d'),
-                'Product Code': p.item.item_code,
-                'Product Description': p.item.description,
-                'Special Order KG': p.special_order_kg,
+                'Week Commencing': p.week_commencing.strftime('%Y-%m-%d') if p.week_commencing else '',
+                'Packing Date': p.packing_date.strftime('%Y-%m-%d') if p.packing_date else '',
+                'Product Code': p.item.item_code if p.item else '',
+                'Product Description': p.item.description if p.item else '',
+                'Special Order KG': p.special_order_kg or 0,
                 'Special Order Unit': special_order_unit,
                 'Requirement KG': requirement_kg,
                 'Requirement Unit': requirement_unit,
-                'AVG Weight per Unit': p.item.avg_weight_per_unit,
+                'AVG Weight per Unit': avg_weight_per_unit,
                 'SOH Req KG/Week': soh_requirement_kg_week,
-                'SOH Req Units/Week': p.soh_requirement_units_week,
+                'SOH Req Units/Week': p.soh_requirement_units_week or 0,
                 'SOH KG': soh_kg,
                 'SOH Units': soh_units,
                 'Machinery': p.machinery.machineryName if p.machinery else '',
-                'Total Stock KG': total_stock_kg,
-                'Total Stock Units': total_stock_units,
-                'Min Level': int(p.min_level) if p.min_level else 0,
-                'Max Level': int(p.max_level) if p.max_level else 0,
-                #'Calculation Factor': p.calculation_factor,
-                'Priority': p.priority
+                # REMOVED: 'Total Stock KG': total_stock_kg,
+                # REMOVED: 'Total Stock Units': total_stock_units,
+                'Min Level': p.min_level or 0,
+                'Max Level': p.max_level or 0,
+                'Priority': p.priority or 0
             })
 
         # Create DataFrame
@@ -1559,18 +1633,32 @@ def update_field(id):
                 value = float(value)
                 packing.special_order_kg = value
                 
-                # Recalculate requirement_kg and requirement_unit
+                # Recalculate requirements using NEW EXCEL FORMULA LOGIC
                 if packing.avg_weight_per_unit:
-                    # Calculate special order units
-                    special_order_units = value / packing.avg_weight_per_unit if value > 0 else 0
+                    # Get current SOH data for calculations
+                    soh = SOH.query.filter_by(item_id=packing.item_id, week_commencing=packing.week_commencing).first()
+                    soh_units = soh.soh_total_units if soh else 0
+                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
                     
-                    # Base requirements from SOH
-                    base_kg = (packing.soh_requirement_units_week or 0) * packing.avg_weight_per_unit
-                    base_units = packing.soh_requirement_units_week or 0
+                    # Get SOH requirement data
+                    soh_requirement_units_week = packing.soh_requirement_units_week or 0
+                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 0)
                     
-                    # Add special order to requirements
-                    packing.requirement_kg = round(base_kg + value, 1)
-                    packing.requirement_unit = int(base_units + special_order_units)
+                    # NEW REQUIREMENT CALCULATIONS based on your Excel formulas
+                    # Requirement KG = iferror(if(soh_req_kg_week + special_order_kg - soh_kg > 0, soh_req_kg_week + special_order_kg - soh_kg, ""), "")
+                    requirement_kg_calc = soh_requirement_kg_week + value - soh_kg
+                    if requirement_kg_calc > 0:
+                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                    else:
+                        packing.requirement_kg = 0
+                    
+                    # Requirement Unit = iferror(if(soh_req_units_week + special_order_unit - soh_units > 0, soh_req_units_week + special_order_unit - soh_units, ""), "")
+                    special_order_units = int(value / packing.avg_weight_per_unit) if value > 0 else 0
+                    requirement_unit_calc = soh_requirement_units_week + special_order_units - soh_units
+                    if requirement_unit_calc > 0:
+                        packing.requirement_unit = requirement_unit_calc
+                    else:
+                        packing.requirement_unit = 0
                 else:
                     # If no avg_weight_per_unit, just add special order to requirement_kg
                     packing.requirement_kg = value
@@ -1637,17 +1725,24 @@ def update_field(id):
                     packing.soh_requirement_units_week = soh_requirement_units_week
                     
                     # Recalculate other dependent fields
-                    soh_requirement_kg_week = int(soh_requirement_units_week * packing.avg_weight_per_unit)
+                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 0)
                     soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
-                    stock_requirement = current_max_level - value if current_max_level > value else 0
-                    total_stock_kg = soh_requirement_kg_week + stock_requirement
-                    total_stock_units = math.ceil(total_stock_kg / packing.avg_weight_per_unit)
                     
-                    # Update packing values
-                    packing.total_stock_kg = total_stock_kg
-                    packing.total_stock_units = total_stock_units
-                    packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-                    packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                    # Update packing values using NEW EXCEL FORMULA LOGIC
+                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                    requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+                    if requirement_kg_calc > 0:
+                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                    else:
+                        packing.requirement_kg = 0
+                    
+                    # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+                    special_order_units = int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                    requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_units
+                    if requirement_unit_calc > 0:
+                        packing.requirement_unit = requirement_unit_calc
+                    else:
+                        packing.requirement_unit = 0
                 
                 db.session.commit()
                 
@@ -1661,8 +1756,6 @@ def update_field(id):
                     'message': 'Min level updated successfully',
                     'min_level': packing.min_level,
                     'soh_requirement_units_week': packing.soh_requirement_units_week,
-                    'total_stock_kg': packing.total_stock_kg,
-                    'total_stock_units': packing.total_stock_units,
                     'requirement_kg': packing.requirement_kg,
                     'requirement_unit': packing.requirement_unit
                 })
@@ -1691,17 +1784,24 @@ def update_field(id):
                     packing.soh_requirement_units_week = soh_requirement_units_week
                     
                     # Recalculate other dependent fields
-                    soh_requirement_kg_week = int(soh_requirement_units_week * packing.avg_weight_per_unit)
+                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 0)
                     soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
-                    stock_requirement = value - current_min_level if value > current_min_level else 0
-                    total_stock_kg = soh_requirement_kg_week + stock_requirement
-                    total_stock_units = math.ceil(total_stock_kg / packing.avg_weight_per_unit)
                     
-                    # Update packing values
-                    packing.total_stock_kg = total_stock_kg
-                    packing.total_stock_units = total_stock_units
-                    packing.requirement_kg = round(total_stock_kg - soh_kg + packing.special_order_kg, 0) if (total_stock_kg - soh_kg + packing.special_order_kg) > 0 else 0
-                    packing.requirement_unit = total_stock_units - soh_units + int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                    # Update packing values using NEW EXCEL FORMULA LOGIC
+                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                    requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
+                    if requirement_kg_calc > 0:
+                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                    else:
+                        packing.requirement_kg = 0
+                    
+                    # Requirement Unit = if(soh_req_units_week - SOH_units + special_order_unit > 0, soh_req_units_week - SOH_units + special_order_unit, 0)
+                    special_order_units = int(packing.special_order_kg / packing.avg_weight_per_unit) if packing.avg_weight_per_unit else 0
+                    requirement_unit_calc = soh_requirement_units_week - soh_units + special_order_units
+                    if requirement_unit_calc > 0:
+                        packing.requirement_unit = requirement_unit_calc
+                    else:
+                        packing.requirement_unit = 0
                 
                 db.session.commit()
                 
@@ -1715,17 +1815,177 @@ def update_field(id):
                     'message': 'Max level updated successfully',
                     'max_level': packing.max_level,
                     'soh_requirement_units_week': packing.soh_requirement_units_week,
-                    'total_stock_kg': packing.total_stock_kg,
-                    'total_stock_units': packing.total_stock_units,
                     'requirement_kg': packing.requirement_kg,
                     'requirement_unit': packing.requirement_unit
                 })
             except ValueError:
                 return jsonify({'success': False, 'error': 'Invalid numeric value'}), 400
+        elif field == 'priority':
+            try:
+                value = int(value) if value else 0
+                if value < 0:
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                packing.priority = value
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Priority updated successfully',
+                    'priority': packing.priority
+                })
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
         else:
             return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
 
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error updating field: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/update_priority/<int:id>', methods=['POST'])
+def update_priority(id):
+    """Update priority field for any table type (production, packing, or filling)"""
+    try:
+        data = request.get_json()
+        if not data or 'field' not in data or 'value' not in data:
+            logger.error(f"Invalid request data: {data}")
+            return jsonify({'success': False, 'error': 'Missing field or value in request'}), 400
+
+        field = data['field']
+        value = data['value']
+        
+        logger.debug(f"Priority update request: id={id}, field={field}, value={value}")
+        
+        if field != 'priority':
+            logger.error(f"Invalid field requested: {field}")
+            return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
+
+        # Try to find the record in each table - check filling first since it's most likely to be updated
+        from models.filling import Filling
+        logger.debug(f"Searching for filling record with id {id}")
+        filling = Filling.query.get(id)
+        if filling:
+            logger.debug(f"Found filling record with id {id}, current priority: {filling.priority}")
+            logger.debug(f"Filling record details: item_id={filling.item_id}, week_commencing={filling.week_commencing}")
+            try:
+                priority_value = int(value) if value else 0
+                if priority_value < 0:
+                    logger.warning(f"Negative priority value requested: {priority_value}")
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                # Update the priority
+                old_priority = filling.priority
+                filling.priority = priority_value
+                logger.debug(f"Updating filling priority from {old_priority} to {priority_value}")
+                
+                # Check if the change is pending
+                logger.debug(f"Filling priority before commit: {filling.priority}")
+                
+                # Commit the change
+                db.session.commit()
+                logger.debug(f"Successfully committed filling priority update to {priority_value}")
+                
+                # Verify the change was saved
+                db.session.refresh(filling)
+                logger.debug(f"After refresh, filling priority is: {filling.priority}")
+                
+                # Double-check by querying again
+                fresh_filling = Filling.query.get(id)
+                logger.debug(f"Fresh query shows filling priority: {fresh_filling.priority if fresh_filling else 'Not found'}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Filling priority updated successfully',
+                    'priority': filling.priority
+                })
+            except (ValueError, TypeError) as e:
+                logger.error(f"Value/Type error updating filling priority: {str(e)}")
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
+            except Exception as e:
+                logger.error(f"Unexpected error updating filling priority: {str(e)}")
+                db.session.rollback()
+                return jsonify({'success': False, 'error': f'Database error: {str(e)}'}), 500
+        else:
+            logger.debug(f"No filling record found with id {id}")
+
+        # Try production table
+        from models.production import Production
+        production = Production.query.get(id)
+        if production:
+            logger.debug(f"Found production record with id {id}")
+            try:
+                priority_value = int(value) if value else 0
+                if priority_value < 0:
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                production.priority = priority_value
+                db.session.commit()
+                logger.debug(f"Successfully updated production priority to {priority_value}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Production priority updated successfully',
+                    'priority': production.priority
+                })
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
+
+        # Try packing table last
+        packing = Packing.query.get(id)
+        if packing:
+            logger.debug(f"Found packing record with id {id}")
+            try:
+                priority_value = int(value) if value else 0
+                if priority_value < 0:
+                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+                
+                packing.priority = priority_value
+                db.session.commit()
+                logger.debug(f"Successfully updated packing priority to {priority_value}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Packing priority updated successfully',
+                    'priority': packing.priority
+                })
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
+
+        # If we get here, no record was found
+        logger.warning(f"No record found with id {id} in any table")
+        return jsonify({'success': False, 'error': 'Record not found in any table'}), 404
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating priority: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/test_priority_update', methods=['GET'])
+def test_priority_update():
+    """Test endpoint to verify priority update functionality"""
+    try:
+        # Test if we can query the filling table
+        from models.filling import Filling
+        filling_count = Filling.query.count()
+        
+        # Test if we can query the production table
+        from models.production import Production
+        production_count = Production.query.count()
+        
+        # Test if we can query the packing table
+        packing_count = Packing.query.count()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Priority update endpoint is working',
+            'table_counts': {
+                'filling': filling_count,
+                'production': production_count,
+                'packing': packing_count
+            }
+        })
+    except Exception as e:
+        logger.error(f"Test endpoint error: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500

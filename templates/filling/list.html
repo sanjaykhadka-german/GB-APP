@@ -27,6 +27,7 @@
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
             <button type="button" onclick="fetchFillings()">Search</button>
+            <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fill_code_suggestions" class="suggestion-list"></div>
         </form>
@@ -551,6 +552,15 @@ function exportToExcel() {
             const alerts = document.querySelectorAll('.alert');
             alerts.forEach(alert => alert.remove());
         }, 5000);
+    }
+
+    function resetFilters() {
+        $("#search_fill_code").val('').trigger('keyup'); // Clear fill code and trigger autocomplete
+        $("#search_description").val('');
+        $("#search_filling_date_start").val('');
+        $("#search_filling_date_end").val('');
+        $("#search_week_commencing").val('');
+        fetchFillings(); // Re-fetch with default filters
     }
 </script>
 {% endblock %}

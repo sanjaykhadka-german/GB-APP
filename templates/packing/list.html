@@ -51,6 +51,7 @@
                 </div>
             </div>
             <button type="button" onclick="fetchPackings()">Search</button>
+            <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
@@ -75,11 +76,9 @@
                 <label><input type="checkbox" checked data-col-index="15" onchange="toggleColumn(15)"> Machinery</label>
             </div>
             <div class="toggle-row">
-                <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Total Stock KG</label>
-                <label><input type="checkbox" data-col-index="17" onchange="toggleColumn(17)"> Total Stock Units</label>
-                <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Min Level</label>
-                <label><input type="checkbox" checked data-col-index="19" onchange="toggleColumn(19)"> Max Level</label>
-                <label><input type="checkbox" checked data-col-index="20" onchange="toggleColumn(20)"> Priority</label>
+                <label><input type="checkbox" checked data-col-index="16" onchange="toggleColumn(16)"> Min Level</label>
+                <label><input type="checkbox" checked data-col-index="17" onchange="toggleColumn(17)"> Max Level</label>
+                <label><input type="checkbox" checked data-col-index="18" onchange="toggleColumn(18)"> Priority</label>
             </div>
             <div class="toggle-actions">
                 <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
@@ -125,12 +124,10 @@
                         <th data-col-index="13">SOH KG</th>
                         <th data-col-index="14">SOH Units</th>
                         <th data-column="machinery" data-col-index="15">Machinery <span class="sort-arrow"></span></th>
-                        <th data-col-index="16">Total Stock KG</th>
-                        <th data-col-index="17">Total Stock Units</th>
-                        <th data-column="min_level" data-col-index="18">Min Level <span class="sort-arrow"></span></th>
-                        <th data-column="max_level" data-col-index="19">Max Level <span class="sort-arrow"></span></th>
-                        <th data-column="priority" data-col-index="20">Priority <span class="sort-arrow"></span></th>
-                        <th data-col-index="21">Actions</th>
+                        <th data-column="min_level" data-col-index="16">Min Level <span class="sort-arrow"></span></th>
+                        <th data-column="max_level" data-col-index="17">Max Level <span class="sort-arrow"></span></th>
+                        <th data-column="priority" data-col-index="18">Priority <span class="sort-arrow"></span></th>
+                        <th data-col-index="19">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,9 +155,7 @@
                                 {% endfor %}
                             </select>
                         </td>
-                        <td data-field="total_stock_kg">{{ data.total_stock_kg }}</td>
-                        <td data-field="total_stock_units">{{ data.total_stock_units }}</td>
-                        <!-- <td data-field="calculation_factor">{{ data.packing.calculation_factor }}</td> -->
+                        
                         <td data-field="min_level" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.min_level }}</td>
                         <td data-field="max_level" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.max_level }}</td>
                         <td data-field="priority" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.priority }}</td>
@@ -172,15 +167,15 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="22" class="no-results">No packing records found.</td></tr>
+                    <tr><td colspan="19" class="no-results">No packing records found.</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td style="text-align: right; font-weight: bold; border-right: none;" colspan="7">Total:</td>
+                        <td style="text-align: right; font-weight: bold; border-right: none;" colspan="6">Total:</td>
                         <td id="total_requirement_kg" style="font-weight: bold; text-align: right; border-left: none; white-space: nowrap;">{{ total_requirement_kg }}</td>
                         <td id="total_requirement_unit" style="font-weight: bold; text-align: right; white-space: nowrap;">{{ total_requirement_unit }}</td>
-                        <td style="border: none;" colspan="13"></td>
+                        <td style="border: none;" colspan="11"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -719,7 +714,7 @@
                 tbody.innerHTML = '';
 
                 if (data.packings.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="22" class="no-results">No packing records found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="19" class="no-results">No packing records found.</td></tr>';
                     document.getElementById('total_requirement_kg').textContent = '0';
                     document.getElementById('total_requirement_unit').textContent = '0';
         return;
@@ -757,9 +752,6 @@
                                 ${machineryOptionsHtml}
                             </select>
                         </td>
-                        <td data-field="total_stock_kg">${packing.total_stock_kg}</td>
-                        <td data-field="total_stock_units">${packing.total_stock_units}</td>
-                        <!-- <td data-field="calculation_factor">${packing.calculation_factor}</td> -->                         
                         <td data-field="min_level" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.min_level}</td>
                         <td data-field="max_level" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.max_level}</td>
                         <td data-field="priority" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.priority}</td>
@@ -1231,6 +1223,18 @@ function submitBulkEdit() {
             alert('Error updating machinery: ' + error.message);
             selectElement.value = originalValue;
         });
+    }
+
+    // Function to reset all filter fields
+    function resetFilters() {
+        document.getElementById('product_code_search').value = '';
+        document.getElementById('search_fg_code').value = '';
+        document.getElementById('search_description').value = '';
+        document.getElementById('search_packing_date_start').value = '';
+        document.getElementById('search_packing_date_end').value = '';
+        document.getElementById('search_week_commencing').value = '';
+        document.getElementById('search_machinery').value = '';
+        fetchPackings(); // Re-fetch with default filters
     }
 </script>
 {% endblock %}

@@ -30,6 +30,7 @@
             </div>
             <div class="search-field">
                 <button class="btn btn-primary" onclick="fetchRecipes()">Search</button>
+                <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
             </div>
             <div class="nav-buttons">
                 <button class="btn btn-success" onclick="openAddRecipePopup()">Add Recipe</button>
@@ -653,6 +654,13 @@ function deleteRecipeHandler(id) {
 document.addEventListener('DOMContentLoaded', function() {
     fetchRecipes();
 });
+
+// Reset filters function
+function resetFilters() {
+    document.getElementById('search-input').value = '';
+    document.getElementById('search_description').value = '';
+    fetchRecipes();
+}
 
 $(document).ready(function() {
     // Auto-suggestion for recipe code

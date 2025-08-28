@@ -176,6 +176,7 @@
                     <label>&nbsp;</label>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">Search</button>
+                        <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
                         <button type="button" class="btn btn-success" onclick="exportToExcel()">Export to Excel</button>
                     </div>
                 </div>
@@ -553,6 +554,12 @@ function exportToExcel() {
     }
     const url = `/inventory/export?week_commencing=${weekCommencing}`;
     window.location.href = url;
+}
+
+function resetFilters() {
+    document.getElementById('week_commencing').value = '';
+    document.getElementById('item_code_search').value = '';
+    document.querySelector('form').submit();
 }
 </script>
 {% endblock %}

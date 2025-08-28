@@ -28,6 +28,7 @@
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
             <button type="button" onclick="fetchProductions()">Search</button>
+            <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
             <button type="button" class="btn btn-primary" onclick="exportToExcel()">Export to Excel</button>
             <div id="production_code_suggestions" class="suggestion-list"></div>
         </form>
@@ -610,6 +611,15 @@
             .join('&');
 
         window.location.href = "{{ url_for('production.export_productions_excel') }}?" + queryString;
+    }
+
+    function resetFilters() {
+        $("#search_production_code").val('').trigger('keyup'); // Clear input and trigger keyup for autocomplete
+        $("#search_description").val('');
+        $("#search_production_date_start").val('');
+        $("#search_production_date_end").val('');
+        $("#search_week_commencing").val('');
+        fetchProductions(); // Re-fetch with all filters cleared
     }
 
     // Inline editing functionality for priority field
