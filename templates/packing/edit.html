@@ -115,6 +115,8 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                                 <th>Avg<br>Weight<br>per<br>Unit<br>(KG)</th>
                                 <th>SOH<br>Requirement<br>Units/Week</th>
                                 <!-- <th>Calculation<br>Factor</th> -->
+                                <th>Min<br>Level</th>
+                                <th>Max<br>Level</th>
                                 <th>Machinery</th>
                                 <th>Priority</th>
                                 <th>Actions</th>
@@ -122,7 +124,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                         </thead>
                         <tbody>
                             {% for pack in packing_entries %}
-                            <tr class="packing-row" data-id="{{ pack.id }}" data-family="{{ pack.item.item_code.split('.')[0] if pack.item and pack.item.item_code else '' }}" data-kg="{{ pack.requirement_kg or 0 }}" data-units="{{ pack.requirement_unit or 0 }}">
+                            <tr class="packing-row" data-id="{{ pack.id }}" data-family="{{ pack.item.item_code.split('.')[0] if pack.item and pack.item.item_code else '' }}" data-kg="{{ pack.requirement_kg or 0 }}" data-units="{{ pack.requirement_unit or 0 }}" data-min-level="{{ pack.min_level or 0 }}" data-max-level="{{ pack.max_level or 0 }}">
                                 <td>{{ pack.week_commencing.strftime('%Y-%m-%d') }}</td>
                                 <td>{{ pack.packing_date.strftime('%Y-%m-%d') if pack.packing_date else 'N/A' }}</td>
                                 <td>
@@ -145,6 +147,14 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
                                 <td>{{ "%.2f"|format(pack.avg_weight_per_unit|float) if pack.avg_weight_per_unit else '0.00' }}</td>
                                 <td>{{ pack.soh_requirement_units_week|int if pack.soh_requirement_units_week else '0' }}</td>
                                 <!-- <td>{{ "%.1f"|format(pack.calculation_factor|float) if pack.calculation_factor else '0.0' }}</td> -->
+                                <td class="editable-cell" 
+                                    data-field="min_level" 
+                                    data-id="{{ pack.id }}" 
+                                    ondblclick="makeEditable(this)">{{ "%.1f"|format(pack.min_level|float) if pack.min_level else '0.0' }}</td>
+                                <td class="editable-cell" 
+                                    data-field="max_level" 
+                                    data-id="{{ pack.id }}" 
+                                    ondblclick="makeEditable(this)">{{ "%.1f"|format(pack.max_level|float) if pack.max_level else '0.0' }}</td>
                                 <td>
                                     <select class="form-select form-select-sm" onchange="updateMachinery(this.getAttribute('data-packing-id'), this.value)" data-packing-id="{{ pack.id }}">
                                         <option value="">Select</option>
@@ -299,8 +309,8 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
     .card:nth-child(3) .table-responsive .table td:nth-child(3),
     .card:nth-child(3) .table-responsive .table th:nth-child(4),
     .card:nth-child(3) .table-responsive .table td:nth-child(4),
-    .card:nth-child(3) .table-responsive .table th:nth-child(12),
-    .card:nth-child(3) .table-responsive .table td:nth-child(12) {
+    .card:nth-child(3) .table-responsive .table th:nth-child(14),
+    .card:nth-child(3) .table-responsive .table td:nth-child(14) {
         text-align: left;
     }
 
@@ -318,13 +328,17 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
     .card:nth-child(3) .table-responsive .table td:nth-child(10),
     .card:nth-child(3) .table-responsive .table th:nth-child(11),
     .card:nth-child(3) .table-responsive .table td:nth-child(11),
+    .card:nth-child(3) .table-responsive .table th:nth-child(12),
+    .card:nth-child(3) .table-responsive .table td:nth-child(12),
     .card:nth-child(3) .table-responsive .table th:nth-child(13),
-    .card:nth-child(3) .table-responsive .table td:nth-child(13) {
+    .card:nth-child(3) .table-responsive .table td:nth-child(13),
+    .card:nth-child(3) .table-responsive .table th:nth-child(16),
+    .card:nth-child(3) .table-responsive .table td:nth-child(16) {
         text-align: right;
     }
 
-    .card:nth-child(3) .table-responsive .table th:nth-child(14),
-    .card:nth-child(3) .table-responsive .table td:nth-child(14) {
+    .card:nth-child(3) .table-responsive .table th:nth-child(17),
+    .card:nth-child(3) .table-responsive .table td:nth-child(17) {
         text-align: center;
     }
 
@@ -358,7 +372,7 @@ const familyToDescription = {{ (family_to_description or {})|tojson|safe }};
     }
 
     /* Ensure select elements in Machinery column are left-aligned */
-    .card:nth-child(3) .table-responsive .table td:nth-child(12) select {
+    .card:nth-child(3) .table-responsive .table td:nth-child(13) select {
         text-align: left;
     }
 
@@ -743,6 +757,10 @@ function makeEditable(cell) {
         input.type = 'number';
         input.step = '1';
         input.min = '0';
+    } else if (field === 'min_level' || field === 'max_level') {
+        input.type = 'number';
+        input.step = '0.1';
+        input.min = '0';
     } else {
         input.type = 'number';
         input.step = '0.1';
@@ -787,6 +805,9 @@ function finishEditing(cell, input) {
     if (field === 'priority') {
         parsedNewValue = parseInt(newValue) || 0;
         parsedOriginalValue = parseInt(originalValue) || 0;
+    } else if (field === 'min_level' || field === 'max_level') {
+        parsedNewValue = parseFloat(newValue) || 0;
+        parsedOriginalValue = parseFloat(originalValue) || 0;
     } else {
         parsedNewValue = parseFloat(newValue) || 0;
         parsedOriginalValue = parseFloat(originalValue) || 0;
@@ -799,6 +820,8 @@ function finishEditing(cell, input) {
         console.log(`Values are the same, no update needed`);
         if (field === 'priority') {
             cell.textContent = parsedOriginalValue;
+        } else if (field === 'min_level' || field === 'max_level') {
+            cell.textContent = parsedOriginalValue.toFixed(1);
         } else {
             cell.textContent = parsedOriginalValue.toFixed(1);
         }
@@ -808,6 +831,8 @@ function finishEditing(cell, input) {
     // Optimistically update the UI first
     if (field === 'priority') {
         cell.textContent = parsedNewValue;
+    } else if (field === 'min_level' || field === 'max_level') {
+        cell.textContent = parsedNewValue.toFixed(1);
     } else {
         cell.textContent = parsedNewValue.toFixed(1);
     }
@@ -930,112 +955,74 @@ function finishEditing(cell, input) {
             // Show network error toast
             showToast('Error', `Network error occurred: ${error.message}`, 'danger');
         });
-            } else {
-            // Use the existing endpoint for other fields (packing only)
-            fetch('/update_field/' + recordId, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    field: field,
-                    value: parsedNewValue
-                })
+    } else if (field === 'min_level' || field === 'max_level') {
+        // Handle min_level and max_level updates for packing entries
+        fetch('/update_field/' + recordId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                field: field,
+                value: parsedNewValue
             })
+        })
         .then(response => response.json())
         .then(data => {
             // Remove loading indicator
             loadingIndicator.remove();
             
-            console.log('Server response:', data);
+            console.log('Min/Max level update server response:', data);
 
             if (data.success) {
                 // Update row data attributes for filtering
                 const row = cell.closest('tr');
+                if (data.min_level !== undefined) {
+                    row.setAttribute('data-min-level', data.min_level);
+                }
+                if (data.max_level !== undefined) {
+                    row.setAttribute('data-max-level', data.max_level);
+                }
+
+                // Update other dependent fields if they were recalculated
                 if (data.requirement_kg !== undefined) {
                     row.setAttribute('data-kg', data.requirement_kg);
+                    const requirementKgCell = row.querySelector('.kg-value');
+                    if (requirementKgCell) {
+                        requirementKgCell.textContent = data.requirement_kg.toFixed(1);
+                    }
                 }
                 if (data.requirement_unit !== undefined) {
                     row.setAttribute('data-units', data.requirement_unit);
+                    const requirementUnitCell = row.querySelector('.units-value');
+                    if (requirementUnitCell) {
+                        requirementUnitCell.textContent = data.requirement_unit;
+                    }
+                }
+                if (data.soh_requirement_units_week !== undefined) {
+                    const sohReqCell = row.querySelector('td:nth-child(10)');
+                    if (sohReqCell) {
+                        sohReqCell.textContent = data.soh_requirement_units_week;
+                    }
                 }
 
-                // Batch DOM updates for better performance
-                requestAnimationFrame(() => {
-                    // Update requirement cells in the same row if they exist
-                    if (data.requirement_kg !== undefined) {
-                        const requirementKgCell = row.querySelector('.kg-value');
-                        if (requirementKgCell) {
-                            requirementKgCell.textContent = data.requirement_kg.toFixed(1);
-                        }
-                    }
-                    if (data.requirement_unit !== undefined) {
-                        const requirementUnitCell = row.querySelector('.units-value');
-                        if (requirementUnitCell) {
-                            requirementUnitCell.textContent = data.requirement_unit;
-                        }
-                    }
+                // Update totals after all changes
+                updateTotals();
 
-                    // Update filling entries if present
-                    if (data.filling_entries) {
-                        console.log('Updating filling entries:', data.filling_entries);
-                        data.filling_entries.forEach(fill => {
-                            const fillRow = document.querySelector(`.filling-row[data-id="${fill.id}"]`);
-                            console.log(`Looking for filling row with data-id="${fill.id}":`, fillRow);
-                            if (fillRow) {
-                                const kiloCell = fillRow.querySelector('.kg-value');
-                                if (kiloCell) {
-                                    kiloCell.textContent = fill.kilo_per_size.toFixed(1);
-                                    fillRow.setAttribute('data-kg', fill.kilo_per_size);
-                                    console.log(`Updated filling row ${fill.id} with kilo_per_size: ${fill.kilo_per_size}`);
-                                }
-                            } else {
-                                console.log(`Filling row with data-id="${fill.id}" not found`);
-                            }
-                        });
-                    }
-
-                    // Update production entries if present
-                    if (data.production_entries) {
-                        console.log('Updating production entries:', data.production_entries);
-                        data.production_entries.forEach(prod => {
-                            const prodRow = document.querySelector(`.production-row[data-id="${prod.id}"]`);
-                            console.log(`Looking for production row with data-id="${prod.id}":`, prodRow);
-                            if (prodRow) {
-                                const kgCell = prodRow.querySelector('.kg-value');
-                                const batchesCell = prodRow.querySelector('.batches-value');
-                                if (kgCell) {
-                                    kgCell.textContent = prod.total_kg.toFixed(1);
-                                    prodRow.setAttribute('data-kg', prod.total_kg);
-                                    console.log(`Updated production row ${prod.id} with total_kg: ${prod.total_kg}`);
-                                }
-                                if (batchesCell) {
-                                    batchesCell.textContent = prod.batches.toFixed(4);
-                                    console.log(`Updated production row ${prod.id} with batches: ${prod.batches}`);
-                                }
-                            } else {
-                                console.log(`Production row with data-id="${prod.id}" not found`);
-                            }
-                        });
-                    }
-
-                    // Update totals after all changes
-                    updateTotals();
-
-                    // Show success indicator
-                    const successIndicator = document.createElement('span');
-                    successIndicator.className = 'text-success ms-2';
-                    successIndicator.innerHTML = '✓';
-                    cell.appendChild(successIndicator);
-                    
-                    // Remove success indicator after 1 second
-                    setTimeout(() => {
-                        successIndicator.remove();
-                    }, 1000);
-                });
+                // Show success indicator
+                const successIndicator = document.createElement('span');
+                successIndicator.className = 'text-success ms-2';
+                successIndicator.innerHTML = '✓';
+                cell.appendChild(successIndicator);
+                
+                // Remove success indicator after 1 second
+                setTimeout(() => {
+                    successIndicator.remove();
+                }, 1000);
             } else {
                 // Revert the cell value on error
-                if (field === 'priority') {
-                    cell.textContent = parsedOriginalValue;
+                if (field === 'min_level' || field === 'max_level') {
+                    cell.textContent = parsedOriginalValue.toFixed(1);
                 } else {
                     cell.textContent = parsedOriginalValue.toFixed(1);
                 }
@@ -1061,8 +1048,8 @@ function finishEditing(cell, input) {
             loadingIndicator.remove();
             
             // Revert the cell value
-            if (field === 'priority') {
-                cell.textContent = parsedOriginalValue;
+            if (field === 'min_level' || field === 'max_level') {
+                cell.textContent = parsedOriginalValue.toFixed(1);
             } else {
                 cell.textContent = parsedOriginalValue.toFixed(1);
             }
@@ -1081,6 +1068,175 @@ function finishEditing(cell, input) {
             // Show network error toast
             showToast('Error', 'Network error occurred. Please try again.', 'danger');
         });
+    } else {
+        // Use the existing endpoint for other fields (packing only)
+        fetch('/update_field/' + recordId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                field: field,
+                value: parsedNewValue
+            })
+        })
+    .then(response => response.json())
+    .then(data => {
+        // Remove loading indicator
+        loadingIndicator.remove();
+        
+        console.log('Server response:', data);
+
+        if (data.success) {
+            // Update row data attributes for filtering
+            const row = cell.closest('tr');
+            if (data.requirement_kg !== undefined) {
+                row.setAttribute('data-kg', data.requirement_kg);
+            }
+            if (data.requirement_unit !== undefined) {
+                row.setAttribute('data-units', data.requirement_unit);
+            }
+            if (data.min_level !== undefined) {
+                row.setAttribute('data-min-level', data.min_level);
+            }
+            if (data.max_level !== undefined) {
+                row.setAttribute('data-max-level', data.max_level);
+            }
+
+            // Batch DOM updates for better performance
+            requestAnimationFrame(() => {
+                // Update requirement cells in the same row if they exist
+                if (data.requirement_kg !== undefined) {
+                    const requirementKgCell = row.querySelector('.kg-value');
+                    if (requirementKgCell) {
+                        requirementKgCell.textContent = data.requirement_kg.toFixed(1);
+                    }
+                }
+                if (data.requirement_unit !== undefined) {
+                    const requirementUnitCell = row.querySelector('.units-value');
+                    if (requirementUnitCell) {
+                        requirementUnitCell.textContent = data.requirement_unit;
+                    }
+                }
+                if (data.min_level !== undefined) {
+                    const minLevelCell = row.querySelector('.editable-cell[data-field="min_level"]');
+                    if (minLevelCell) {
+                        minLevelCell.textContent = data.min_level.toFixed(1);
+                    }
+                }
+                if (data.max_level !== undefined) {
+                    const maxLevelCell = row.querySelector('.editable-cell[data-field="max_level"]');
+                    if (maxLevelCell) {
+                        maxLevelCell.textContent = data.max_level.toFixed(1);
+                    }
+                }
+
+                // Update filling entries if present
+                if (data.filling_entries) {
+                    console.log('Updating filling entries:', data.filling_entries);
+                    data.filling_entries.forEach(fill => {
+                        const fillRow = document.querySelector(`.filling-row[data-id="${fill.id}"]`);
+                        console.log(`Looking for filling row with data-id="${fill.id}":`, fillRow);
+                        if (fillRow) {
+                            const kiloCell = fillRow.querySelector('.kg-value');
+                            if (kiloCell) {
+                                kiloCell.textContent = fill.kilo_per_size.toFixed(1);
+                                fillRow.setAttribute('data-kg', fill.kilo_per_size);
+                                console.log(`Updated filling row ${fill.id} with kilo_per_size: ${fill.kilo_per_size}`);
+                            }
+                        } else {
+                            console.log(`Filling row with data-id="${fill.id}" not found`);
+                        }
+                    });
+                }
+
+                // Update production entries if present
+                if (data.production_entries) {
+                    console.log('Updating production entries:', data.production_entries);
+                    data.production_entries.forEach(prod => {
+                        const prodRow = document.querySelector(`.production-row[data-id="${prod.id}"]`);
+                        console.log(`Looking for production row with data-id="${prod.id}":`, prodRow);
+                        if (prodRow) {
+                            const kgCell = prodRow.querySelector('.kg-value');
+                            const batchesCell = prodRow.querySelector('.batches-value');
+                            if (kgCell) {
+                                kgCell.textContent = prod.total_kg.toFixed(1);
+                                prodRow.setAttribute('data-kg', prod.total_kg);
+                                console.log(`Updated production row ${prod.id} with total_kg: ${prod.total_kg}`);
+                            }
+                            if (batchesCell) {
+                                batchesCell.textContent = prod.batches.toFixed(4);
+                                console.log(`Updated production row ${prod.id} with batches: ${prod.batches}`);
+                            }
+                        } else {
+                            console.log(`Production row with data-id="${prod.id}" not found`);
+                        }
+                    });
+                }
+
+                // Update totals after all changes
+                updateTotals();
+
+                // Show success indicator
+                const successIndicator = document.createElement('span');
+                successIndicator.className = 'text-success ms-2';
+                successIndicator.innerHTML = '✓';
+                cell.appendChild(successIndicator);
+                
+                // Remove success indicator after 1 second
+                setTimeout(() => {
+                    successIndicator.remove();
+                }, 1000);
+            });
+        } else {
+            // Revert the cell value on error
+            if (field === 'priority') {
+                cell.textContent = parsedOriginalValue;
+            } else {
+                cell.textContent = parsedOriginalValue.toFixed(1);
+            }
+            
+            // Show error indicator
+            const errorIndicator = document.createElement('span');
+            errorIndicator.className = 'text-danger ms-2';
+            errorIndicator.innerHTML = '✗';
+            cell.appendChild(errorIndicator);
+            
+            // Remove error indicator after 2 seconds
+            setTimeout(() => {
+                errorIndicator.remove();
+            }, 2000);
+
+            // Show error toast
+            const errorMessage = data.error || 'Unknown error occurred';
+            showToast('Error', errorMessage, 'danger');
+        }
+    })
+    .catch(error => {
+        // Remove loading indicator
+        loadingIndicator.remove();
+        
+        // Revert the cell value
+        if (field === 'priority') {
+            cell.textContent = parsedOriginalValue;
+        } else {
+            cell.textContent = parsedOriginalValue.toFixed(1);
+        }
+        
+        // Show error indicator
+        const errorIndicator = document.createElement('span');
+        errorIndicator.className = 'text-danger ms-2';
+        errorIndicator.innerHTML = '✗';
+        cell.appendChild(errorIndicator);
+        
+        // Remove error indicator after 2 seconds
+        setTimeout(() => {
+            errorIndicator.remove();
+        }, 2000);
+
+        // Show network error toast
+        showToast('Error', 'Network error occurred. Please try again.', 'danger');
+    });
     }
 }
 

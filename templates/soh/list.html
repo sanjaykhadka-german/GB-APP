@@ -4,7 +4,7 @@
 <div class="container mt-2">
     <section id="search">
         <h2>SOH Search</h2>
-        <form id="searchForm" onsubmit="return false;">
+        <form id="searchForm" method="GET" action="{{ url_for('soh.soh_list') }}">
             <div class="form-group">
                 <label for="search_fg_code">FG Code:</label>
                 <input type="text" id="search_fg_code" name="fg_code" value="{{ search_fg_code | default('') }}" autocomplete="off">
@@ -20,11 +20,12 @@
                 <input type="date" id="search_week_commencing" name="week_commencing" value="{{ search_week_commencing | default('') }}">
             </div>
 
-            <button type="button" onclick="fetchSOHs()">Search</button>
+            <button type="submit">Search</button>
             <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset</button>
-            <div id="fg_code_suggestions" class="suggestion-list"></div>
         </form>
+    <div id="fg_code_suggestions" class="suggestion-list"></div>
     </section>
+    
 
     <section id="list">
         <h2>SOH List</h2>
@@ -105,6 +106,112 @@
         width: 100%;
         z-index: 1000;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* Search form styling */
+    #search {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+    }
+
+    #search h2 {
+        margin-bottom: 20px;
+        color: #495057;
+    }
+
+    #searchForm {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: end;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 200px;
+    }
+
+    .form-group label {
+        margin-bottom: 5px;
+        font-weight: 500;
+        color: #495057;
+    }
+
+    .form-group input {
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
+    }
+
+    #searchForm button[type="submit"] {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        min-height: 38px;
+    }
+
+    #searchForm button[type="submit"]:hover {
+        background-color: #0056b3;
+    }
+
+    #searchForm button[type="button"] {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        min-height: 38px;
+    }
+
+    #searchForm button[type="button"]:hover {
+        background-color: #545b62;
+    }
+
+    /* No results styling */
+    .no-results {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+
+    .no-results p {
+        margin-bottom: 20px;
+        font-size: 16px;
+    }
+
+    .add-soh-btn {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .add-soh-btn:hover {
+        background-color: #218838;
+        color: white;
+        text-decoration: none;
     }
 
     .sortable {
@@ -690,7 +797,7 @@ $(document).ready(function() {
                                 <td class="editable" tabindex="0" data-field="soh_dispatch_units" data-original-display="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}" data-original-input="${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}">${soh.soh_dispatch_units !== null && soh.soh_dispatch_units !== undefined ? soh.soh_dispatch_units : ''}</td>
                                 <td class="editable" tabindex="0" data-field="soh_packing_boxes" data-original-display="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}" data-original-input="${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}">${soh.soh_packing_boxes !== null && soh.soh_packing_boxes !== undefined ? soh.soh_packing_boxes : ''}</td>
                                 <td class="editable" tabindex="0" data-field="soh_packing_units" data-original-display="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}" data-original-input="${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}">${soh.soh_packing_units !== null && soh.soh_packing_units !== undefined ? soh.soh_packing_units : ''}</td>
-                                <td>${soh.soh_total_boxes !== null && soh.soh_total_boxes !== undefined ? soh.soh_total_boxes : ''}</td>
+                                <td>${soh.soh_total_boxes !== null && soh.soh_total_units !== undefined ? soh.soh_total_boxes : ''}</td>
                                 <td>${soh.soh_total_units !== null && soh.soh_total_units !== undefined ? soh.soh_total_units : ''}</td>
                                 <td>${soh.edit_date}</td>
                                 <td>
@@ -744,10 +851,7 @@ $(document).ready(function() {
 
 // Reset filters function
 function resetFilters() {
-    $("#search_fg_code").val('');
-    $("#search_description").val('');
-    $("#search_week_commencing").val('');
-    fetchSOHs();
+    window.location.href = "{{ url_for('soh.soh_list') }}";
 }
 </script>
 {% endblock %}

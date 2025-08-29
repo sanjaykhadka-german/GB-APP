@@ -203,13 +203,13 @@
                     <th rowspan="2" style="position: sticky; left: 80px; z-index: 3; background-color: #343a40;" class="sortable" data-sort="item">Item <span class="sort-icon">↕</span></th>
                     <th rowspan="2" class="sortable" data-sort="category">Category <span class="sort-icon">↕</span></th>
                     <th colspan="7">Weekly Summary</th>
-                    <th colspan="7" class="day-group col-monday">Monday</th>
-                    <th colspan="7" class="day-group col-tuesday">Tuesday</th>
-                    <th colspan="7" class="day-group col-wednesday">Wednesday</th>
-                    <th colspan="7" class="day-group col-thursday">Thursday</th>
-                    <th colspan="7" class="day-group col-friday">Friday</th>
-                    <th colspan="7" class="day-group col-saturday">Saturday</th>
-                    <th colspan="7" class="day-group col-sunday">Sunday</th>
+                    <th colspan="9" class="day-group col-monday">Monday</th>
+                    <th colspan="9" class="day-group col-tuesday">Tuesday</th>
+                    <th colspan="9" class="day-group col-wednesday">Wednesday</th>
+                    <th colspan="9" class="day-group col-thursday">Thursday</th>
+                    <th colspan="9" class="day-group col-friday">Friday</th>
+                    <th colspan="9" class="day-group col-saturday">Saturday</th>
+                    <th colspan="9" class="day-group col-sunday">Sunday</th>
                 </tr>
                 <tr class="sticky-column-header">
                     <!-- Summary Headers -->
@@ -292,9 +292,9 @@
                     <td class="col-monday">{{ "%.2f"|format(inv.monday_required_kg) }}</td>
                     <td data-field="monday_variance" class="col-monday">{{ "%.2f"|format(inv.monday_variance) }}</td>
                     <td class="editable col-monday" data-field="monday_to_be_ordered">{{ "%.2f"|format(inv.monday_to_be_ordered) }}</td>
-                    <td class="col-monday">{{ "%.2f"|format(inv.price_per_kg * inv.monday_to_be_ordered) }}</td>
+                    <td class="col-monday" data-field="monday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.monday_to_be_ordered) }}</td>
                     <td class="editable col-monday" data-field="monday_ordered_received">{{ "%.2f"|format(inv.monday_ordered_received) }}</td>
-                    <td class="col-monday">{{ "%.2f"|format(inv.price_per_kg * inv.monday_ordered_received) }}</td>
+                    <td class="col-monday" data-field="monday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.monday_ordered_received) }}</td>
                     <td class="editable col-monday" data-field="monday_consumed_kg">{{ "%.2f"|format(inv.monday_consumed_kg) }}</td>
                     <td data-field="monday_closing_stock" class="col-monday">{{ "%.2f"|format(inv.monday_closing_stock) }}</td>
 
@@ -303,9 +303,9 @@
                     <td class="col-tuesday">{{ "%.2f"|format(inv.tuesday_required_kg) }}</td>
                     <td data-field="tuesday_variance" class="col-tuesday">{{ "%.2f"|format(inv.tuesday_variance) }}</td>
                     <td class="editable col-tuesday" data-field="tuesday_to_be_ordered">{{ "%.2f"|format(inv.tuesday_to_be_ordered) }}</td>
-                    <td class="col-tuesday">{{ "%.2f"|format(inv.price_per_kg * inv.tuesday_to_be_ordered) }}</td>
+                    <td class="col-tuesday" data-field="tuesday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.tuesday_to_be_ordered) }}</td>
                     <td class="editable col-tuesday" data-field="tuesday_ordered_received">{{ "%.2f"|format(inv.tuesday_ordered_received) }}</td>
-                    <td class="col-tuesday">{{ "%.2f"|format(inv.price_per_kg * inv.tuesday_ordered_received) }}</td>
+                    <td class="col-tuesday" data-field="tuesday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.tuesday_ordered_received) }}</td>
                     <td class="editable col-tuesday" data-field="tuesday_consumed_kg">{{ "%.2f"|format(inv.tuesday_consumed_kg) }}</td>
                     <td data-field="tuesday_closing_stock" class="col-tuesday">{{ "%.2f"|format(inv.tuesday_closing_stock) }}</td>
 
@@ -314,9 +314,9 @@
                     <td class="col-wednesday">{{ "%.2f"|format(inv.wednesday_required_kg) }}</td>
                     <td data-field="wednesday_variance" class="col-wednesday">{{ "%.2f"|format(inv.wednesday_variance) }}</td>
                     <td class="editable col-wednesday" data-field="wednesday_to_be_ordered">{{ "%.2f"|format(inv.wednesday_to_be_ordered) }}</td>
-                    <td class="col-wednesday">{{ "%.2f"|format(inv.price_per_kg * inv.wednesday_to_be_ordered) }}</td>
+                    <td class="col-wednesday" data-field="wednesday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.wednesday_to_be_ordered) }}</td>
                     <td class="editable col-wednesday" data-field="wednesday_ordered_received">{{ "%.2f"|format(inv.wednesday_ordered_received) }}</td>
-                    <td class="col-wednesday">{{ "%.2f"|format(inv.price_per_kg * inv.wednesday_ordered_received) }}</td>
+                    <td class="col-wednesday" data-field="wednesday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.wednesday_ordered_received) }}</td>
                     <td class="editable col-wednesday" data-field="wednesday_consumed_kg">{{ "%.2f"|format(inv.wednesday_consumed_kg) }}</td>
                     <td data-field="wednesday_closing_stock" class="col-wednesday">{{ "%.2f"|format(inv.wednesday_closing_stock) }}</td>
 
@@ -325,9 +325,9 @@
                     <td class="col-thursday">{{ "%.2f"|format(inv.thursday_required_kg) }}</td>
                     <td data-field="thursday_variance" class="col-thursday">{{ "%.2f"|format(inv.thursday_variance) }}</td>
                     <td class="editable col-thursday" data-field="thursday_to_be_ordered">{{ "%.2f"|format(inv.thursday_to_be_ordered) }}</td>
-                    <td class="col-thursday">{{ "%.2f"|format(inv.price_per_kg * inv.thursday_to_be_ordered) }}</td>
+                    <td class="col-thursday" data-field="thursday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.thursday_to_be_ordered) }}</td>
                     <td class="editable col-thursday" data-field="thursday_ordered_received">{{ "%.2f"|format(inv.thursday_ordered_received) }}</td>
-                    <td class="col-thursday">{{ "%.2f"|format(inv.price_per_kg * inv.thursday_ordered_received) }}</td>
+                    <td class="col-thursday" data-field="thursday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.thursday_ordered_received) }}</td>
                     <td class="editable col-thursday" data-field="thursday_consumed_kg">{{ "%.2f"|format(inv.thursday_consumed_kg) }}</td>
                     <td data-field="thursday_closing_stock" class="col-thursday">{{ "%.2f"|format(inv.thursday_closing_stock) }}</td>
 
@@ -336,9 +336,9 @@
                     <td class="col-friday">{{ "%.2f"|format(inv.friday_required_kg) }}</td>
                     <td data-field="friday_variance" class="col-friday">{{ "%.2f"|format(inv.friday_variance) }}</td>
                     <td class="editable col-friday" data-field="friday_to_be_ordered">{{ "%.2f"|format(inv.friday_to_be_ordered) }}</td>
-                    <td class="col-friday">{{ "%.2f"|format(inv.price_per_kg * inv.friday_to_be_ordered) }}</td>
+                    <td class="col-friday" data-field="friday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.friday_to_be_ordered) }}</td>
                     <td class="editable col-friday" data-field="friday_ordered_received">{{ "%.2f"|format(inv.friday_ordered_received) }}</td>
-                    <td class="col-friday">{{ "%.2f"|format(inv.price_per_kg * inv.friday_ordered_received) }}</td>
+                    <td class="col-friday" data-field="friday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.friday_ordered_received) }}</td>
                     <td class="editable col-friday" data-field="friday_consumed_kg">{{ "%.2f"|format(inv.friday_consumed_kg) }}</td>
                     <td data-field="friday_closing_stock" class="col-friday">{{ "%.2f"|format(inv.friday_closing_stock) }}</td>
                     
@@ -347,9 +347,9 @@
                     <td class="col-saturday">{{ "%.2f"|format(inv.saturday_required_kg) }}</td>
                     <td data-field="saturday_variance" class="col-saturday">{{ "%.2f"|format(inv.saturday_variance) }}</td>
                     <td class="editable col-saturday" data-field="saturday_to_be_ordered">{{ "%.2f"|format(inv.saturday_to_be_ordered) }}</td>
-                    <td class="col-saturday">{{ "%.2f"|format(inv.price_per_kg * inv.saturday_to_be_ordered) }}</td>
+                    <td class="col-saturday" data-field="saturday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.saturday_to_be_ordered) }}</td>
                     <td class="editable col-saturday" data-field="saturday_ordered_received">{{ "%.2f"|format(inv.saturday_ordered_received) }}</td>
-                    <td class="col-saturday">{{ "%.2f"|format(inv.price_per_kg * inv.saturday_ordered_received) }}</td>
+                    <td class="col-saturday" data-field="saturday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.saturday_ordered_received) }}</td>
                     <td class="editable col-saturday" data-field="saturday_consumed_kg">{{ "%.2f"|format(inv.saturday_consumed_kg) }}</td>
                     <td data-field="saturday_closing_stock" class="col-saturday">{{ "%.2f"|format(inv.saturday_closing_stock) }}</td>
                     
@@ -358,9 +358,9 @@
                     <td class="col-sunday">{{ "%.2f"|format(inv.sunday_required_kg) }}</td>
                     <td data-field="sunday_variance" class="col-sunday">{{ "%.2f"|format(inv.sunday_variance) }}</td>
                     <td class="editable col-sunday" data-field="sunday_to_be_ordered">{{ "%.2f"|format(inv.sunday_to_be_ordered) }}</td>
-                    <td class="col-sunday">{{ "%.2f"|format(inv.price_per_kg * inv.sunday_to_be_ordered) }}</td>
+                    <td class="col-sunday" data-field="sunday_value_ordered">{{ "%.2f"|format(inv.price_per_kg * inv.sunday_to_be_ordered) }}</td>
                     <td class="editable col-sunday" data-field="sunday_ordered_received">{{ "%.2f"|format(inv.sunday_ordered_received) }}</td>
-                    <td class="col-sunday">{{ "%.2f"|format(inv.price_per_kg * inv.sunday_ordered_received) }}</td>
+                    <td class="col-sunday" data-field="sunday_value_received">{{ "%.2f"|format(inv.price_per_kg * inv.sunday_ordered_received) }}</td>
                     <td class="editable col-sunday" data-field="sunday_consumed_kg">{{ "%.2f"|format(inv.sunday_consumed_kg) }}</td>
                     <td data-field="sunday_closing_stock" class="col-sunday">{{ "%.2f"|format(inv.sunday_closing_stock) }}</td>
                 </tr>
