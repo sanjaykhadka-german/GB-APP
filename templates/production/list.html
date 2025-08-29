@@ -176,7 +176,7 @@
         border-top: none;
         max-height: 200px;
         overflow-y: auto;
-        z-index: 1000;
+        z-index: 10000;
         width: 100%;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -448,43 +448,26 @@
         initializeEditableCells();
 
         // Autocomplete for Production Code
-        $("#search_production_code").on('keyup', function() {
+        $("#search_production_code").keyup(function() {
             var productionCode = $(this).val().trim();
-            console.log("Keyup event triggered, productionCode:", productionCode);
             if (productionCode.length > 0) {
-                console.log("Making AJAX request to:", "{{ url_for('production.autocomplete_production') }}");
                 $.ajax({
-                    url: "{{ url_for('production.autocomplete_production') }}",
+                    url: URLS.autocomplete,
                     type: "GET",
                     data: { query: productionCode },
-                    dataType: "json",
                     success: function(response) {
-                        console.log("Autocomplete response:", response);
                         var suggestionsHtml = "<ul>";
-                        if (response && Array.isArray(response) && response.length > 0) {
-                            response.forEach(function(production) {
-                                if (production.production_code && production.description) {
-                                    suggestionsHtml += `<li data-production-code="${production.production_code}" data-description="${production.description}">${production.production_code} - ${production.description}</li>`;
-                                } else {
-                                    console.warn("Invalid production data:", production);
-                                }
-                            });
-                        } else {
-                            console.log("No suggestions found or invalid response format");
-                        }
+                        response.forEach(function(production) {
+                            suggestionsHtml += `<li data-production-code="${production.production_code}" data-description="${production.description}">${production.production_code} - ${production.description}</li>`;
+                        });
                         suggestionsHtml += "</ul>";
                         $("#production_code_suggestions").html(suggestionsHtml);
-                        console.log("Suggestions HTML set:", suggestionsHtml);
-                        // Ensure dropdown is visible
-                        $("#production_code_suggestions").show();
                     },
-                    error: function(xhr, status, error) {
-                        console.error("Autocomplete error:", status, error, xhr.responseText);
+                    error: function() {
                         $("#production_code_suggestions").empty();
                     }
                 });
             } else {
-                console.log("Empty input, clearing suggestions");
                 $("#production_code_suggestions").empty();
             }
         });
@@ -493,17 +476,15 @@
         $(document).on('click', '#production_code_suggestions li', function() {
             var productionCode = $(this).data('production-code');
             var description = $(this).data('description');
-            console.log("Suggestion clicked:", productionCode, description);
             $("#search_production_code").val(productionCode);
             $("#search_description").val(description);
             $("#production_code_suggestions").empty();
-            fetchProductions();
+            fetchProductions(); // Trigger search after selecting suggestion
         });
 
         // Hide suggestions when clicking outside
         $(document).on('click', function(e) {
             if (!$(e.target).closest('#search_production_code, #production_code_suggestions').length) {
-                console.log("Clicked outside, hiding suggestions");
                 $("#production_code_suggestions").empty();
             }
         });
@@ -545,7 +526,7 @@
                 tbody.empty();
 
                 if (!response.productions || response.productions.length === 0) {
-                    tbody.html('<tr><td colspan="17" class="no-results">No production entries found.</td></tr>');
+                    tbody.html('<tr><td colspan="18" class="no-results">No production entries found.</td></tr>');
                     return;
                 }
 

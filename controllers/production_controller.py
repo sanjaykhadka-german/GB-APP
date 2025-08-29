@@ -300,18 +300,19 @@ def autocomplete_production():
         return jsonify([])
 
     try:
-        # Use SQLAlchemy ORM query instead of raw SQL
-        productions = Production.query.filter(
-            Production.production_code.ilike(f"%{search}%")
+        # Search for WIP items that match the query (similar to filling autocomplete)
+        wip_items = ItemMaster.query.join(ItemMaster.item_type).filter(
+            ItemMaster.item_type.has(type_name='WIP'),
+            ItemMaster.item_code.ilike(f"%{search}%")
         ).limit(10).all()
         
         suggestions = [
             {
-                "production_code": production.production_code,
-                "description": production.description
+                "production_code": item.item_code,
+                "description": item.description
             }
-            for production in productions
-            if production.production_code and production.description
+            for item in wip_items
+            if item.item_code and item.description
         ]
         return jsonify(suggestions)
     except Exception as e:
@@ -349,11 +350,25 @@ def get_search_productions():
             except ValueError:
                 return jsonify({"error": "Invalid Production Date format"}), 400
 
+        # Always join with ItemMaster to ensure item relationship is available for description display
+        productions_query = productions_query.join(ItemMaster, Production.item_id == ItemMaster.id)
+        
         if search_production_code:
-            productions_query = productions_query.filter(Production.production_code == search_production_code)
+            # Search by production_code or by item_code from related ItemMaster
+            productions_query = productions_query.filter(
+                db.or_(
+                    Production.production_code == search_production_code,
+                    ItemMaster.item_code == search_production_code
+                )
+            )
 
         if search_description:
-            productions_query = productions_query.filter(Production.description.ilike(f"%{search_description}%"))
+            productions_query = productions_query.filter(
+                db.or_(
+                    Production.description.ilike(f"%{search_description}%"),
+                    ItemMaster.description.ilike(f"%{search_description}%")
+                )
+            )
 
         # Get all productions for the filtered criteria
         productions = productions_query.all()
@@ -367,9 +382,17 @@ def get_search_productions():
                 "production_date": production.production_date.strftime('%Y-%m-%d') if production.production_date else "",
                 "week_commencing": production.week_commencing.strftime('%Y-%m-%d') if production.week_commencing else "",
                 "production_code": production.production_code or "",
-                "description": production.description or "",
+                "description": production.description or (f"{production.item.item_code} - {production.item.description}" if production.item else ""),
                 "batches": production.batches if production.batches is not None else "",
                 "total_kg": production.total_kg if production.total_kg is not None else "",
+                "total_planned": production.total_planned if production.total_planned is not None else "",
+                "monday_planned": production.monday_planned if production.monday_planned is not None else "",
+                "tuesday_planned": production.tuesday_planned if production.tuesday_planned is not None else "",
+                "wednesday_planned": production.wednesday_planned if production.wednesday_planned is not None else "",
+                "thursday_planned": production.thursday_planned if production.thursday_planned is not None else "",
+                "friday_planned": production.friday_planned if production.friday_planned is not None else "",
+                "saturday_planned": production.saturday_planned if production.saturday_planned is not None else "",
+                "sunday_planned": production.sunday_planned if production.sunday_planned is not None else "",
                 "priority": production.priority if production.priority is not None else 0
             }
             for production in productions
