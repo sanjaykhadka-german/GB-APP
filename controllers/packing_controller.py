@@ -1844,123 +1844,167 @@ def update_field(id):
         logger.error(f"Error updating field: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@packing_bp.route('/update_priority/<int:id>', methods=['POST'])
-def update_priority(id):
-    """Update priority field for any table type (production, packing, or filling)"""
+# Individual priority update functions for each table type
+@packing_bp.route('/update_filling_priority/<int:id>', methods=['POST'])
+def update_filling_priority(id):
+    """Update priority field specifically for Filling table"""
+    logger.info(f"🔥 UPDATE_FILLING_PRIORITY ROUTE CALLED: ID={id}")
+    
     try:
         data = request.get_json()
         if not data or 'field' not in data or 'value' not in data:
-            logger.error(f"Invalid request data: {data}")
             return jsonify({'success': False, 'error': 'Missing field or value in request'}), 400
 
         field = data['field']
         value = data['value']
         
-        logger.debug(f"Priority update request: id={id}, field={field}, value={value}")
-        
         if field != 'priority':
-            logger.error(f"Invalid field requested: {field}")
             return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
-
-        # Try to find the record in each table - check filling first since it's most likely to be updated
+        
+        # Parse priority value
+        try:
+            priority_value = int(value) if value else 0
+            if priority_value < 0:
+                return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid priority value format'}), 400
+        
+        # Update filling priority
         from models.filling import Filling
-        logger.debug(f"Searching for filling record with id {id}")
         filling = Filling.query.get(id)
-        if filling:
-            logger.debug(f"Found filling record with id {id}, current priority: {filling.priority}")
-            logger.debug(f"Filling record details: item_id={filling.item_id}, week_commencing={filling.week_commencing}")
-            try:
-                priority_value = int(value) if value else 0
-                if priority_value < 0:
-                    logger.warning(f"Negative priority value requested: {priority_value}")
-                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
-                
-                # Update the priority
-                old_priority = filling.priority
-                filling.priority = priority_value
-                logger.debug(f"Updating filling priority from {old_priority} to {priority_value}")
-                
-                # Check if the change is pending
-                logger.debug(f"Filling priority before commit: {filling.priority}")
-                
-                # Commit the change
-                db.session.commit()
-                logger.debug(f"Successfully committed filling priority update to {priority_value}")
-                
-                # Verify the change was saved
-                db.session.refresh(filling)
-                logger.debug(f"After refresh, filling priority is: {filling.priority}")
-                
-                # Double-check by querying again
-                fresh_filling = Filling.query.get(id)
-                logger.debug(f"Fresh query shows filling priority: {fresh_filling.priority if fresh_filling else 'Not found'}")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Filling priority updated successfully',
-                    'priority': filling.priority
-                })
-            except (ValueError, TypeError) as e:
-                logger.error(f"Value/Type error updating filling priority: {str(e)}")
-                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
-            except Exception as e:
-                logger.error(f"Unexpected error updating filling priority: {str(e)}")
-                db.session.rollback()
-                return jsonify({'success': False, 'error': f'Database error: {str(e)}'}), 500
-        else:
-            logger.debug(f"No filling record found with id {id}")
-
-        # Try production table
-        from models.production import Production
-        production = Production.query.get(id)
-        if production:
-            logger.debug(f"Found production record with id {id}")
-            try:
-                priority_value = int(value) if value else 0
-                if priority_value < 0:
-                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
-                
-                production.priority = priority_value
-                db.session.commit()
-                logger.debug(f"Successfully updated production priority to {priority_value}")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Production priority updated successfully',
-                    'priority': production.priority
-                })
-            except (ValueError, TypeError):
-                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
-
-        # Try packing table last
-        packing = Packing.query.get(id)
-        if packing:
-            logger.debug(f"Found packing record with id {id}")
-            try:
-                priority_value = int(value) if value else 0
-                if priority_value < 0:
-                    return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
-                
-                packing.priority = priority_value
-                db.session.commit()
-                logger.debug(f"Successfully updated packing priority to {priority_value}")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Packing priority updated successfully',
-                    'priority': packing.priority
-                })
-            except (ValueError, TypeError):
-                return jsonify({'success': False, 'error': 'Invalid priority value'}), 400
-
-        # If we get here, no record was found
-        logger.warning(f"No record found with id {id} in any table")
-        return jsonify({'success': False, 'error': 'Record not found in any table'}), 404
-
+        if not filling:
+            return jsonify({'success': False, 'error': f'Filling record with ID {id} not found'}), 404
+        
+        old_priority = filling.priority
+        filling.priority = priority_value
+        
+        db.session.commit()
+        logger.info(f"Updated Filling priority from {old_priority} to {priority_value}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Filling priority updated successfully',
+            'priority': filling.priority,
+            'table': 'Filling'
+        })
+        
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating priority: {str(e)}", exc_info=True)
+        logger.error(f"Error updating filling priority: {str(e)}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/update_production_priority/<int:id>', methods=['POST'])
+def update_production_priority(id):
+    """Update priority field specifically for Production table"""
+    logger.info(f"🔥 UPDATE_PRODUCTION_PRIORITY ROUTE CALLED: ID={id}")
+    
+    try:
+        data = request.get_json()
+        if not data or 'field' not in data or 'value' not in data:
+            return jsonify({'success': False, 'error': 'Missing field or value in request'}), 400
+
+        field = data['field']
+        value = data['value']
+        
+        if field != 'priority':
+            return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
+        
+        # Parse priority value
+        try:
+            priority_value = int(value) if value else 0
+            if priority_value < 0:
+                return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid priority value format'}), 400
+        
+        # Update production priority
+        from models.production import Production
+        production = Production.query.get(id)
+        if not production:
+            return jsonify({'success': False, 'error': f'Production record with ID {id} not found'}), 404
+        
+        old_priority = production.priority
+        production.priority = priority_value
+        
+        db.session.commit()
+        logger.info(f"Updated Production priority from {old_priority} to {priority_value}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Production priority updated successfully',
+            'priority': production.priority,
+            'table': 'Production'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating production priority: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/update_packing_priority/<int:id>', methods=['POST'])
+def update_packing_priority(id):
+    """Update priority field specifically for Packing table"""
+    logger.info(f"🔥 UPDATE_PACKING_PRIORITY ROUTE CALLED: ID={id}")
+    
+    try:
+        data = request.get_json()
+        if not data or 'field' not in data or 'value' not in data:
+            return jsonify({'success': False, 'error': 'Missing field or value in request'}), 400
+
+        field = data['field']
+        value = data['value']
+        
+        if field != 'priority':
+            return jsonify({'success': False, 'error': f'Field {field} cannot be updated'}), 400
+        
+        # Parse priority value
+        try:
+            priority_value = int(value) if value else 0
+            if priority_value < 0:
+                return jsonify({'success': False, 'error': 'Priority cannot be negative'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid priority value format'}), 400
+        
+        # Update packing priority
+        packing = Packing.query.get(id)
+        if not packing:
+            return jsonify({'success': False, 'error': f'Packing record with ID {id} not found'}), 404
+        
+        old_priority = packing.priority
+        packing.priority = priority_value
+        
+        db.session.commit()
+        logger.info(f"Updated Packing priority from {old_priority} to {priority_value}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Packing priority updated successfully',
+            'priority': packing.priority,
+            'table': 'Packing'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating packing priority: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Keep the original unified function for backward compatibility
+@packing_bp.route('/update_priority/<int:id>', methods=['POST'])
+def update_priority(id):
+    """Update priority field for any table type (production, packing, or filling) - DEPRECATED"""
+    logger.warning(f"🔥 DEPRECATED UPDATE_PRIORITY ROUTE CALLED: ID={id}")
+    logger.warning("This route is deprecated. Use specific routes: /update_filling_priority/, /update_production_priority/, /update_packing_priority/")
+    
+    return jsonify({
+        'success': False, 
+        'error': 'This route is deprecated. Use specific routes for each table type.',
+        'routes': {
+            'filling': f'/update_filling_priority/{id}',
+            'production': f'/update_production_priority/{id}',
+            'packing': f'/update_packing_priority/{id}'
+        }
+    }), 400
+
 
 @packing_bp.route('/test_priority_update', methods=['GET'])
 def test_priority_update():
@@ -1977,6 +2021,24 @@ def test_priority_update():
         # Test if we can query the packing table
         packing_count = Packing.query.count()
         
+        # Test if we can access priority fields
+        try:
+            # Get a sample record from each table to test priority field access
+            sample_filling = Filling.query.first()
+            sample_production = Production.query.first()
+            sample_packing = Packing.query.first()
+            
+            priority_test = {
+                'filling_priority_accessible': sample_filling.priority is not None if sample_filling else False,
+                'production_priority_accessible': sample_production.priority is not None if sample_production else False,
+                'packing_priority_accessible': sample_packing.priority is not None if sample_packing else False,
+                'filling_priority_value': sample_filling.priority if sample_filling else None,
+                'production_priority_value': sample_production.priority if sample_production else None,
+                'packing_priority_value': sample_packing.priority if sample_packing else None
+            }
+        except Exception as priority_error:
+            priority_test = {'error': str(priority_error)}
+        
         return jsonify({
             'success': True,
             'message': 'Priority update endpoint is working',
@@ -1984,8 +2046,171 @@ def test_priority_update():
                 'filling': filling_count,
                 'production': production_count,
                 'packing': packing_count
-            }
+            },
+            'priority_field_test': priority_test
         })
     except Exception as e:
         logger.error(f"Test endpoint error: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/test_simple', methods=['GET'])
+def test_simple():
+    """Simple test endpoint to verify the blueprint is working"""
+    return jsonify({'success': True, 'message': 'Packing blueprint is working'})
+
+@packing_bp.route('/debug_tables', methods=['GET'])
+def debug_tables():
+    """Debug endpoint to see what's in each table"""
+    try:
+        from models.filling import Filling
+        from models.production import Production
+        
+        # Get sample records from each table
+        filling_samples = Filling.query.limit(5).all()
+        production_samples = Production.query.limit(5).all()
+        packing_samples = Packing.query.limit(5).all()
+        
+        # Get ID ranges
+        filling_ids = [f.id for f in filling_samples] if filling_samples else []
+        production_ids = [p.id for p in production_samples] if production_samples else []
+        packing_ids = [p.id for p in packing_samples] if packing_samples else []
+        
+        # Get priority values
+        filling_priorities = [f.priority for f in filling_samples] if filling_samples else []
+        production_priorities = [p.priority for p in production_samples] if production_samples else []
+        packing_priorities = [p.priority for p in packing_samples] if packing_samples else []
+        
+        # Get table info
+        table_info = {
+            'filling': {
+                'count': Filling.query.count(),
+                'sample_ids': filling_ids,
+                'sample_priorities': filling_priorities,
+                'endpoint': '/update_filling_priority/'
+            },
+            'production': {
+                'count': Production.query.count(),
+                'sample_ids': production_ids,
+                'sample_priorities': production_priorities,
+                'endpoint': '/update_production_priority/'
+            },
+            'packing': {
+                'count': Packing.query.count(),
+                'sample_ids': packing_ids,
+                'sample_priorities': packing_priorities,
+                'endpoint': '/update_packing_priority/'
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'message': 'Table information retrieved successfully',
+            'tables': table_info,
+            'note': 'Use the endpoints above to update priorities for each table type'
+        })
+        
+    except Exception as e:
+        logger.error(f"Debug tables error: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@packing_bp.route('/test_priority_update_simple/<int:id>', methods=['POST'])
+def test_priority_update_simple(id):
+    """Simple test endpoint to update priority directly"""
+    try:
+        data = request.get_json()
+        if not data or 'value' not in data:
+            return jsonify({'success': False, 'error': 'Missing value in request'}), 400
+        
+        value = data['value']
+        priority_value = int(value) if value else 0
+        
+        logger.info(f"Simple priority update test: ID {id}, value {priority_value}")
+        
+        # Try to update in each table
+        from models.filling import Filling
+        from models.production import Production
+        
+        # Test Filling
+        filling = Filling.query.get(id)
+        if filling:
+            logger.info(f"Found Filling record: ID {filling.id}, current priority: {filling.priority}")
+            old_priority = filling.priority
+            filling.priority = priority_value
+            logger.info(f"Set Filling priority to {filling.priority}")
+            
+            # Check if session is dirty
+            logger.info(f"Session is dirty: {db.session.is_modified(filling)}")
+            
+            db.session.commit()
+            logger.info(f"Committed Filling update")
+            
+            # Verify the change
+            db.session.refresh(filling)
+            logger.info(f"After refresh, Filling priority is: {filling.priority}")
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Filling priority updated from {old_priority} to {filling.priority}',
+                'table': 'Filling',
+                'old_priority': old_priority,
+                'new_priority': filling.priority
+            })
+        
+        # Test Production
+        production = Production.query.get(id)
+        if production:
+            logger.info(f"Found Production record: ID {production.id}, current priority: {production.priority}")
+            old_priority = production.priority
+            production.priority = priority_value
+            logger.info(f"Set Production priority to {production.priority}")
+            
+            # Check if session is dirty
+            logger.info(f"Session is dirty: {db.session.is_modified(production)}")
+            
+            db.session.commit()
+            logger.info(f"Committed Production update")
+            
+            # Verify the change
+            db.session.refresh(production)
+            logger.info(f"After refresh, Production priority is: {production.priority}")
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Production priority updated from {old_priority} to {production.priority}',
+                'table': 'Production',
+                'old_priority': old_priority,
+                'new_priority': production.priority
+            })
+        
+        # Test Packing
+        packing = Packing.query.get(id)
+        if packing:
+            logger.info(f"Found Packing record: ID {packing.id}, current priority: {packing.priority}")
+            old_priority = packing.priority
+            packing.priority = priority_value
+            logger.info(f"Set Packing priority to {packing.priority}")
+            
+            # Check if session is dirty
+            logger.info(f"Session is dirty: {db.session.is_modified(packing)}")
+            
+            db.session.commit()
+            logger.info(f"Committed Packing update")
+            
+            # Verify the change
+            db.session.refresh(packing)
+            logger.info(f"After refresh, Packing priority is: {packing.priority}")
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Packing priority updated from {old_priority} to {packing.priority}',
+                'table': 'Packing',
+                'old_priority': old_priority,
+                'new_priority': packing.priority
+            })
+        
+        return jsonify({'success': False, 'error': f'No record found with ID {id} in any table'}), 404
+        
+    except Exception as e:
+        logger.error(f"Simple priority update test failed: {str(e)}", exc_info=True)
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -735,6 +735,8 @@ function makeEditable(cell) {
     const input = document.createElement('input');
     
     console.log(`makeEditable called: field=${field}, currentValue=${currentValue}, cell=`, cell);
+    console.log('Cell data-id:', cell.getAttribute('data-id'));
+    console.log('Cell data-field:', cell.getAttribute('data-field'));
     
     // Set input type based on field
     if (field === 'priority') {
@@ -774,10 +776,10 @@ function makeEditable(cell) {
 function finishEditing(cell, input) {
     const newValue = input.value;
     const originalValue = input.getAttribute('data-original-value');
-    const packingId = cell.getAttribute('data-id');
+    const recordId = cell.getAttribute('data-id');
     const field = cell.getAttribute('data-field');
     
-    console.log(`finishEditing called: field=${field}, newValue=${newValue}, originalValue=${originalValue}, packingId=${packingId}`);
+    console.log(`finishEditing called: field=${field}, newValue=${newValue}, originalValue=${originalValue}, recordId=${recordId}`);
     
     let parsedNewValue, parsedOriginalValue;
     
@@ -818,9 +820,26 @@ function finishEditing(cell, input) {
 
     // Send update to server
     if (field === 'priority') {
-        // Use the priority-specific endpoint for all table types
-        console.log(`Updating priority for ${field} with ID ${packingId} to value ${parsedNewValue}`);
-        fetch('/update_priority/' + packingId, {
+        // Determine which table this priority update is for and use the appropriate endpoint
+        const row = cell.closest('tr');
+        let endpoint;
+        
+        if (row.classList.contains('filling-row')) {
+            endpoint = '/update_filling_priority/' + recordId;
+        } else if (row.classList.contains('production-row')) {
+            endpoint = '/update_production_priority/' + recordId;
+        } else if (row.classList.contains('packing-row')) {
+            endpoint = '/update_packing_priority/' + recordId;
+        } else {
+            // Fallback to deprecated unified endpoint
+            endpoint = '/update_priority/' + recordId;
+        }
+        
+        console.log(`Updating priority for ${field} with ID ${recordId} to value ${parsedNewValue} using endpoint ${endpoint}`);
+        console.log(`Row classes: ${row.className}`);
+        console.log(`Table type detected: ${row.classList.contains('filling-row') ? 'Filling' : row.classList.contains('production-row') ? 'Production' : row.classList.contains('packing-row') ? 'Packing' : 'Unknown'}`);
+        
+        fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -832,6 +851,10 @@ function finishEditing(cell, input) {
         })
         .then(response => {
             console.log(`Priority update response status: ${response.status}`);
+            console.log(`Priority update response headers:`, response.headers);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             return response.json();
         })
         .then(data => {
@@ -880,6 +903,11 @@ function finishEditing(cell, input) {
             loadingIndicator.remove();
             
             console.error('Priority update error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
             
             // Revert the cell value
             if (field === 'priority') {
@@ -900,20 +928,20 @@ function finishEditing(cell, input) {
             }, 2000);
 
             // Show network error toast
-            showToast('Error', 'Network error occurred. Please try again.', 'danger');
+            showToast('Error', `Network error occurred: ${error.message}`, 'danger');
         });
-    } else {
-        // Use the existing endpoint for other fields
-        fetch('/update_field/' + packingId, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                field: field,
-                value: parsedNewValue
+            } else {
+            // Use the existing endpoint for other fields (packing only)
+            fetch('/update_field/' + recordId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    field: field,
+                    value: parsedNewValue
+                })
             })
-        })
         .then(response => response.json())
         .then(data => {
             // Remove loading indicator
