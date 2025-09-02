@@ -284,6 +284,8 @@ def usage():
             RecipeMaster, ProductionItem.c.id == RecipeMaster.recipe_wip_id
         ).join(
             ComponentItem, RecipeMaster.component_item_id == ComponentItem.c.id
+        ).filter(
+            Production.total_kg > 0  # Only include productions with actual data
         )
         
         if from_date:
@@ -303,9 +305,6 @@ def usage():
             # Calculate the Monday of the week
             week_commencing = get_monday_date(production.production_date.strftime('%Y-%m-%d'))
             
-            # Calculate usage and percentage - same logic as download function
-            usage_kg = float(recipe.quantity_kg) * (production.batches or 0)
-            
             # Calculate percentage based on recipe component vs total recipe
             # Get total recipe quantity for percentage calculation
             total_recipe_kg = db.session.query(
@@ -313,6 +312,10 @@ def usage():
             ).filter(
                 RecipeMaster.recipe_wip_id == recipe.recipe_wip_id
             ).scalar() or 0.0
+            
+            # Calculate usage based on actual production weight and recipe proportion
+            # This matches the logic used in raw_material_report
+            usage_kg = (production.total_kg or 0) * (float(recipe.quantity_kg) / float(total_recipe_kg)) if total_recipe_kg > 0 else 0.0
             
             percentage = (float(recipe.quantity_kg) / float(total_recipe_kg) * 100) if total_recipe_kg > 0 else 0.0
             
@@ -360,6 +363,8 @@ def usage_download():
         RecipeMaster, ProductionItem.c.id == RecipeMaster.recipe_wip_id  # Join to RecipeMaster via recipe_wip_id
     ).join(
         ComponentItem, RecipeMaster.component_item_id == ComponentItem.c.id  # Join to component ItemMaster
+    ).filter(
+        Production.total_kg > 0  # Only include productions with actual data
     )
     
     # Apply date filters if provided
@@ -377,13 +382,25 @@ def usage_download():
     for production, recipe, component_name in usage_data:
         # Calculate the Monday of the week for the production_date
         week_commencing = get_monday_date(production.production_date.strftime('%Y-%m-%d'))
+        
+        # Calculate total recipe quantity for proper usage calculation
+        total_recipe_kg = db.session.query(
+            func.sum(RecipeMaster.quantity_kg)
+        ).filter(
+            RecipeMaster.recipe_wip_id == recipe.recipe_wip_id
+        ).scalar() or 0.0
+        
+        # Calculate usage based on actual production weight and recipe proportion
+        # This matches the corrected logic used in the usage() function
+        usage_kg = (production.total_kg or 0) * (float(recipe.quantity_kg) / float(total_recipe_kg)) if total_recipe_kg > 0 else 0.0
+        
         data.append({
             'Week Commencing': week_commencing.strftime('%Y-%m-%d'),
             'Production Date': production.production_date.strftime('%Y-%m-%d'),
             'Production Code': production.production_code,
             'Recipe Code': production.item.item_code if production.item else 'Unknown',  # Use actual item code
             'Component Material': component_name,
-            'Usage Kg': float(recipe.quantity_kg) * (production.batches or 0),  # Calculate actual usage
+            'Usage Kg': usage_kg,  # Use corrected calculation
             'Kg per Batch': float(recipe.quantity_kg)  # Use quantity_kg
         })
     
@@ -391,7 +408,7 @@ def usage_download():
     
     # Create Excel file
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='Usage Report', index=False)
     
     output.seek(0)
