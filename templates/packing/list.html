@@ -756,7 +756,7 @@
                         <td data-field="max_level" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.max_level}</td>
                         <td data-field="priority" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.priority}</td>
                         <td>
-                            <a href="/edit/${packing.id}" class="btn btn-sm btn-primary">Edit</a>
+                            <a href="/edit/${packing.id}" class="btn btn-sm btn-primary" target="_blank">Edit</a>
                             <form action="/delete/${packing.id}" method="POST" style="display: inline;">
                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this packing?')">Delete</button>
                             </form>

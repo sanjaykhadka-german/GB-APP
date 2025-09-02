@@ -51,14 +51,13 @@
                         <label><input type="checkbox" checked data-col-index="8" onchange="toggleColumn(8)"> Price/KG</label>
                         <label><input type="checkbox" checked data-col-index="9" onchange="toggleColumn(9)"> Price/UOM</label>
                         <label><input type="checkbox" data-col-index="10" onchange="toggleColumn(10)"> Supplier Name</label>
-                        <label><input type="checkbox" data-col-index="11" onchange="toggleColumn(11)"> Calc Factor</label>
-                        <label><input type="checkbox" data-col-index="12" onchange="toggleColumn(12)"> Units/Bag</label>
+                        <label><input type="checkbox" data-col-index="11" onchange="toggleColumn(11)"> Units/Bag</label>
                     </div>
                     <div class="toggle-row">
-                        <label><input type="checkbox" data-col-index="13" onchange="toggleColumn(13)"> Avg Weight/Unit</label>
-                        <label><input type="checkbox" checked data-col-index="14" onchange="toggleColumn(14)"> Status</label>
-                        <label><input type="checkbox" data-col-index="15" onchange="toggleColumn(15)"> User Info</label>
-                        <label><input type="checkbox" data-col-index="16" onchange="toggleColumn(16)"> Actions</label>
+                        <label><input type="checkbox" data-col-index="12" onchange="toggleColumn(12)"> Avg Weight/Unit</label>
+                        <label><input type="checkbox" checked data-col-index="13" onchange="toggleColumn(13)"> Status</label>
+                        <label><input type="checkbox" data-col-index="14" onchange="toggleColumn(14)"> User Info</label>
+                        <label><input type="checkbox" checked data-col-index="15" onchange="toggleColumn(15)"> Actions</label>
                     </div>
                     <div class="toggle-actions">
                         <button type="button" class="btn btn-sm btn-secondary" onclick="showEssentialColumns()">Show Essential Only</button>
@@ -267,9 +266,7 @@
     #items-table th:nth-child(11),
     #items-table td:nth-child(11),
     #items-table th:nth-child(15),
-    #items-table td:nth-child(15),
-    #items-table th:nth-child(16),
-    #items-table td:nth-child(16) {
+    #items-table td:nth-child(15) {
         text-align: left;
     }
 
@@ -292,8 +289,8 @@
     }
 
     /* Center alignment for Actions column */
-    #items-table th:nth-child(17),
-    #items-table td:nth-child(17) {
+    #items-table th:nth-child(16),
+    #items-table td:nth-child(16) {
         text-align: center;
     }
 
@@ -572,7 +569,7 @@ function searchItems() {
             tbody.innerHTML = '';
 
             if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="17" class="text-center">No items found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="16" class="text-center">No items found</td></tr>';
                 return;
             }
             
@@ -590,7 +587,6 @@ function searchItems() {
                     <td>${item.price_per_kg ? '$' + parseFloat(item.price_per_kg).toFixed(2) : ''}</td>
                     <td>${item.price_per_uom ? '$' + parseFloat(item.price_per_uom).toFixed(2) : ''}</td>
                     <td>${item.supplier_name || ''}</td>
-                    <!-- <td>${item.calculation_factor || ''}</td> -->
                     <td>${item.units_per_bag || ''}</td>
                     <td>${item.avg_weight_per_unit || ''}</td>
                     <td>${item.is_active ? 'Active' : 'Inactive'}</td>
@@ -802,7 +798,7 @@ function toggleColumn(colIndex) {
 
 function showEssentialColumns() {
     // Essential columns: Item Code, Description, Type, Status, Actions
-    const essentialColumns = [0, 1, 2, 14, 16];
+    const essentialColumns = [0, 1, 2, 13, 15];
     const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
     
     allCheckboxes.forEach(checkbox => {
@@ -834,12 +830,11 @@ function resetToDefault() {
         8: true,   // Price/KG
         9: true,   // Price/UOM
         10: false, // Supplier Name
-        11: false, // Calc Factor
-        12: false, // Units/Bag
-        13: false, // Avg Weight/Unit
-        14: true,  // Status
-        15: false, // User Info
-        16: true   // Actions
+        11: false, // Units/Bag
+        12: false, // Avg Weight/Unit
+        13: true,  // Status
+        14: false, // User Info
+        15: true   // Actions
     };
     
     const allCheckboxes = document.querySelectorAll('#column-toggle input[type="checkbox"]');
