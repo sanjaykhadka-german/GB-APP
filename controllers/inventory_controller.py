@@ -77,12 +77,31 @@ def list_inventory():
         inventory_records = query.all()
         categories = Category.query.all()
 
+        # Calculate totals for each day's value ordered and value received columns
+        daily_totals = {}
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        
+        for day in days:
+            daily_totals[f'{day}_value_ordered'] = sum(
+                inv.price_per_kg * getattr(inv, f'{day}_to_be_ordered') for inv in inventory_records
+            )
+            daily_totals[f'{day}_value_received'] = sum(
+                inv.price_per_kg * getattr(inv, f'{day}_ordered_received') for inv in inventory_records
+            )
+        
+        # Calculate overall totals
+        total_value_ordered = sum(daily_totals[f'{day}_value_ordered'] for day in days)
+        total_value_received = sum(daily_totals[f'{day}_value_received'] for day in days)
+
         return render_template(
             'inventory/list.html',
             inventory_records=inventory_records,
             categories=categories,
             search_week_commencing=search_week_commencing,
-            search_item_code=search_item_code
+            search_item_code=search_item_code,
+            daily_totals=daily_totals,
+            total_value_ordered=total_value_ordered,
+            total_value_received=total_value_received
         )
     except Exception as e:
         flash(f"Error loading inventory page: {str(e)}", 'danger')
@@ -108,6 +127,35 @@ def update_inventory_field():
         inventory_item = recalculate_row(inventory_item)
         
         db.session.commit()
+
+        # Get all inventory records for the same week to calculate updated totals
+        week_date = inventory_item.week_commencing
+        all_inventory_records = db.session.query(Inventory).options(
+            joinedload(Inventory.item).joinedload(ItemMaster.category)
+        ).filter_by(week_commencing=week_date).all()
+        
+        # Calculate updated daily totals
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        updated_daily_totals = {}
+        
+        for day in days:
+            updated_daily_totals[f'{day}_value_ordered'] = sum(
+                inv.price_per_kg * getattr(inv, f'{day}_to_be_ordered') for inv in all_inventory_records
+            )
+            updated_daily_totals[f'{day}_value_received'] = sum(
+                inv.price_per_kg * getattr(inv, f'{day}_ordered_received') for inv in all_inventory_records
+            )
+        
+        # Calculate other totals
+        total_required_in_total = sum(inv.required_in_total for inv in all_inventory_records)
+        total_value_required_rm = sum(inv.value_required_rm for inv in all_inventory_records)
+        total_monday_required_kg = sum(inv.monday_required_kg for inv in all_inventory_records)
+        total_tuesday_required_kg = sum(inv.tuesday_required_kg for inv in all_inventory_records)
+        total_wednesday_required_kg = sum(inv.wednesday_required_kg for inv in all_inventory_records)
+        total_thursday_required_kg = sum(inv.thursday_required_kg for inv in all_inventory_records)
+        total_friday_required_kg = sum(inv.friday_required_kg for inv in all_inventory_records)
+        total_saturday_required_kg = sum(inv.saturday_required_kg for inv in all_inventory_records)
+        total_sunday_required_kg = sum(inv.sunday_required_kg for inv in all_inventory_records)
 
         # Prepare the updated data to send back to the frontend
         updated_data = {
@@ -146,6 +194,19 @@ def update_inventory_field():
             'sunday_value_ordered': inventory_item.price_per_kg * inventory_item.sunday_to_be_ordered,
             'sunday_value_received': inventory_item.price_per_kg * inventory_item.sunday_ordered_received,
             'variance_week': inventory_item.variance_week,
+            # Include updated totals
+            'updated_totals': {
+                'required_in_total': total_required_in_total,
+                'value_required_rm': total_value_required_rm,
+                'monday_required_kg': total_monday_required_kg,
+                'tuesday_required_kg': total_tuesday_required_kg,
+                'wednesday_required_kg': total_wednesday_required_kg,
+                'thursday_required_kg': total_thursday_required_kg,
+                'friday_required_kg': total_friday_required_kg,
+                'saturday_required_kg': total_saturday_required_kg,
+                'sunday_required_kg': total_sunday_required_kg,
+                **updated_daily_totals
+            }
         }
 
         return jsonify({'success': True, 'data': updated_data})

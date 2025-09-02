@@ -69,18 +69,54 @@
                         <th>Production Date</th>
                         <th>Production Code</th>
                         <th>Description</th>
-                        <th>Batches</th>
-                        <th>Total KG</th>
-                        <th>TOTAL PLANNED</th>
-                        <th>Variance to Required</th>
-                        <th>Monday</th>
-                        <th>Tuesday</th>
-                        <th>Wednesday</th>
-                        <th>Thursday</th>
-                        <th>Friday</th>
-                        <th>Saturday</th>
-                        <th>Sunday</th>
-                        <th>Priority</th>
+                        <th class="sortable" data-sort="batches">
+                            Batches
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="total_kg">
+                            Total KG
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="total_planned">
+                            TOTAL PLANNED
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="variance">
+                            Variance to Required
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="monday_planned">
+                            Monday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="tuesday_planned">
+                            Tuesday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="wednesday_planned">
+                            Wednesday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="thursday_planned">
+                            Thursday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="friday_planned">
+                            Friday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="saturday_planned">
+                            Saturday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="sunday_planned">
+                            Sunday
+                            <span class="sort-indicator">↕</span>
+                        </th>
+                        <th class="sortable" data-sort="priority">
+                            Priority
+                            <span class="sort-indicator">↕</span>
+                        </th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -96,7 +132,7 @@
                         <td>{{ "%.2f"|format(production.batches|float) if production.batches else '0.00' }}</td>
                         <td class="total-kg">{{ "%.2f"|format(production.total_kg|float) if production.total_kg else '0.00' }}</td>
                         <td class="total-planned">{{ "%.2f"|format(production.total_planned|float) if production.total_planned else '0.00' }}</td>
-                        <td class="variance">{{ "%.2f"|format((production.total_planned - production.total_kg)|float) if production.total_planned and production.total_kg else '0.00' }}</td>
+                        <td class="variance">{{ "%.2f"|format((production.total_planned|float or 0) - (production.total_kg|float or 0)) }}</td>
                         <td class="editable-cell" data-id="{{ production.id }}" data-field="monday_planned">{{ "%.2f"|format(production.monday_planned|float) if production.monday_planned else '0.00' }}</td>
                         <td class="editable-cell" data-id="{{ production.id }}" data-field="tuesday_planned">{{ "%.2f"|format(production.tuesday_planned|float) if production.tuesday_planned else '0.00' }}</td>
                         <td class="editable-cell" data-id="{{ production.id }}" data-field="wednesday_planned">{{ "%.2f"|format(production.wednesday_planned|float) if production.wednesday_planned else '0.00' }}</td>
@@ -436,6 +472,42 @@
     .editable-cell:hover::after {
         opacity: 0.7;
     }
+    
+    /* Sortable column styles */
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .sortable:hover {
+        background-color: #e9ecef;
+    }
+    
+    .sort-indicator {
+        font-size: 0.8em;
+        margin-left: 5px;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+    }
+    
+    .sortable:hover .sort-indicator {
+        opacity: 1;
+    }
+    
+    .sortable.sorted-asc .sort-indicator::after {
+        content: " ↑";
+        opacity: 1;
+        color: #007bff;
+    }
+    
+    .sortable.sorted-desc .sort-indicator::after {
+        content: " ↓";
+        opacity: 1;
+        color: #007bff;
+    }
 </style>
 
 <!-- Add JavaScript for production planning -->
@@ -490,6 +562,14 @@
         });
 
         updateTotals(); // Initialize totals on page load
+
+        // Add click handlers for sortable columns
+        $(document).on('click', '.sortable', function() {
+            var column = $(this).data('sort');
+            if (column) {
+                handleSort(column);
+            }
+        });
     });
 
     // Store URL patterns for use in JavaScript
@@ -499,6 +579,12 @@
         autocomplete: "{{ url_for('production.autocomplete_production') }}",
         search: "{{ url_for('production.get_search_productions') }}",
         export: "{{ url_for('production.export_productions_excel') }}"
+    };
+
+    // Sorting state
+    let currentSort = {
+        column: null,
+        direction: 'asc'
     };
 
     function fetchProductions() {
@@ -530,7 +616,17 @@
                     return;
                 }
 
-                response.productions.forEach(function(production) {
+                // Apply sorting if active
+                var productions = response.productions;
+                if (currentSort.column) {
+                    productions = sortProductions(productions, currentSort.column, currentSort.direction);
+                }
+
+                productions.forEach(function(production) {
+                    // Calculate variance for sorting
+                    var variance = (parseFloat(production.total_planned) || 0) - (parseFloat(production.total_kg) || 0);
+                    production.variance = variance;
+                    
                     var row = `<tr data-id="${production.id}">
                         <td>${production.id}</td>
                         <td class="date-column">${production.week_commencing || ''}</td>
@@ -540,7 +636,7 @@
                         <td>${production.batches ? parseFloat(production.batches).toFixed(2) : '0.00'}</td>
                         <td class="total-kg">${production.total_kg ? parseFloat(production.total_kg).toFixed(2) : '0.00'}</td>
                         <td class="total-planned">${production.total_planned ? parseFloat(production.total_planned).toFixed(2) : '0.00'}</td>
-                        <td class="variance">${production.total_planned && production.total_kg ? (production.total_planned - production.total_kg).toFixed(2) : '0.00'}</td>
+                        <td class="variance">${variance.toFixed(2)}</td>
                         <td class="editable-cell" data-id="${production.id}" data-field="monday_planned">${production.monday_planned ? parseFloat(production.monday_planned).toFixed(2) : '0.00'}</td>
                         <td class="editable-cell" data-id="${production.id}" data-field="tuesday_planned">${production.tuesday_planned ? parseFloat(production.tuesday_planned).toFixed(2) : '0.00'}</td>
                         <td class="editable-cell" data-id="${production.id}" data-field="wednesday_planned">${production.wednesday_planned ? parseFloat(production.wednesday_planned).toFixed(2) : '0.00'}</td>
@@ -600,7 +696,60 @@
         $("#search_production_date_start").val('');
         $("#search_production_date_end").val('');
         $("#search_week_commencing").val('');
+        // Reset sorting
+        currentSort = { column: null, direction: 'asc' };
+        $('.sortable').removeClass('sorted-asc sorted-desc');
         fetchProductions(); // Re-fetch with all filters cleared
+    }
+
+    // Sorting functions
+    function sortProductions(productions, column, direction) {
+        return productions.sort(function(a, b) {
+            var aVal = a[column];
+            var bVal = b[column];
+            
+            // Handle variance calculation (total_planned - total_kg)
+            if (column === 'variance') {
+                aVal = (parseFloat(a.total_planned) || 0) - (parseFloat(a.total_kg) || 0);
+                bVal = (parseFloat(b.total_planned) || 0) - (parseFloat(b.total_kg) || 0);
+            }
+            // Handle numeric values
+            else if (column === 'total_kg' || column === 'total_planned' || column === 'batches' || 
+                     column === 'monday_planned' || column === 'tuesday_planned' || column === 'wednesday_planned' ||
+                     column === 'thursday_planned' || column === 'friday_planned' || column === 'saturday_planned' ||
+                     column === 'sunday_planned' || column === 'priority') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            }
+            // Handle string values
+            else if (typeof aVal === 'string') {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+            
+            if (direction === 'asc') {
+                return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+            } else {
+                return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+            }
+        });
+    }
+
+    function handleSort(column) {
+        // Toggle direction if same column, otherwise set to asc
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+        
+        // Update visual indicators
+        $('.sortable').removeClass('sorted-asc sorted-desc');
+        $(`.sortable[data-sort="${column}"]`).addClass(`sorted-${currentSort.direction}`);
+        
+        // Re-fetch and apply sorting
+        fetchProductions();
     }
 
     // Inline editing functionality for priority field

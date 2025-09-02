@@ -68,7 +68,10 @@
                         <th>Filling Date</th>
                         <th>WIPF Item</th>
                         <th>Description</th>
-                        <th>Kilo per Size</th>
+                        <th class="sortable" data-sort="kilo_per_size">
+                            Kilo per Size
+                            <span class="sort-indicator">↕</span>
+                        </th>
                         <th>Priority</th>
                         <th>Actions</th>
                     </tr>
@@ -98,6 +101,11 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr class="total-row">
+                        <td colspan="5" class="text-end"><strong>Total:</strong></td>
+                        <td class="text-end"><strong>{{ "%.2f"|format(total_kilo_per_size) }}</strong></td>
+                        <td colspan="2"></td>
+                    </tr>
                     {% else %}
                     <tr>
                         <td colspan="8" class="no-results">No filling entries found.</td>
@@ -317,6 +325,54 @@
     .editable-cell:hover::after {
         opacity: 0.7;
     }
+    
+    /* Sortable column styles */
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .sortable:hover {
+        background-color: #e9ecef;
+    }
+    
+    .sort-indicator {
+        font-size: 0.8em;
+        margin-left: 5px;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+    }
+    
+    .sortable:hover .sort-indicator {
+        opacity: 1;
+    }
+    
+    .sortable.sorted-asc .sort-indicator::after {
+        content: " ↑";
+        opacity: 1;
+        color: #007bff;
+    }
+    
+    .sortable.sorted-desc .sort-indicator::after {
+        content: " ↓";
+        opacity: 1;
+        color: #007bff;
+    }
+    
+    /* Total row styles */
+    .total-row {
+        background-color: #f8f9fa;
+        border-top: 2px solid #dee2e6;
+        font-weight: bold;
+    }
+    
+    .total-row td {
+        background-color: #f8f9fa !important;
+        border-top: 2px solid #dee2e6;
+    }
 </style>
 
 <!-- Add JavaScript for filling search -->
@@ -367,6 +423,12 @@
         export: "{{ url_for('filling.export_fillings_excel') }}"
     };
 
+    // Sorting state
+    let currentSort = {
+        column: null,
+        direction: 'asc'
+    };
+
 function fetchFillings() {
     var searchData = {
         fill_code: $("#search_fill_code").val(),
@@ -389,12 +451,21 @@ function fetchFillings() {
                 var tbody = $("#fillingListTable tbody");
                 tbody.empty();
 
-                if (!response || response.length === 0) {
-                    tbody.html('<tr><td colspan="7" class="no-results">No filling entries found.</td></tr>');
+                // Handle both old format (array) and new format (object with fillings and total)
+                var fillings = response.fillings || response;
+                var totalKiloPerSize = response.total_kilo_per_size || 0;
+
+                if (!fillings || fillings.length === 0) {
+                    tbody.html('<tr><td colspan="8" class="no-results">No filling entries found.</td></tr>');
                     return;
                 }
 
-                response.forEach(function(filling) {
+                // Apply sorting if active
+                if (currentSort.column) {
+                    fillings = sortFillings(fillings, currentSort.column, currentSort.direction);
+                }
+
+                fillings.forEach(function(filling) {
                     var row = `<tr data-id="${filling.id}">
                         <td>${filling.id}</td>
                         <td class="date-column">${filling.week_commencing || ''}</td>
@@ -418,6 +489,14 @@ function fetchFillings() {
                     </tr>`;
                     tbody.append(row);
                 });
+
+                // Add total row
+                var totalRow = `<tr class="total-row">
+                    <td colspan="5" class="text-end"><strong>Total:</strong></td>
+                    <td class="text-end"><strong>${parseFloat(totalKiloPerSize).toFixed(2)}</strong></td>
+                    <td colspan="2"></td>
+                </tr>`;
+                tbody.append(totalRow);
             },
             error: function(xhr, status, error) {
                 alert("Error fetching filling entries: " + error);
@@ -560,7 +639,63 @@ function exportToExcel() {
         $("#search_filling_date_start").val('');
         $("#search_filling_date_end").val('');
         $("#search_week_commencing").val('');
+        // Reset sorting
+        currentSort = { column: null, direction: 'asc' };
+        $('.sortable').removeClass('sorted-asc sorted-desc');
         fetchFillings(); // Re-fetch with default filters
     }
+
+    // Sorting functions
+    function sortFillings(fillings, column, direction) {
+        return fillings.sort(function(a, b) {
+            var aVal = a[column];
+            var bVal = b[column];
+            
+            // Handle numeric values
+            if (column === 'kilo_per_size') {
+                aVal = parseFloat(aVal) || 0;
+                bVal = parseFloat(bVal) || 0;
+            }
+            
+            // Handle string values
+            if (typeof aVal === 'string') {
+                aVal = aVal.toLowerCase();
+                bVal = bVal.toLowerCase();
+            }
+            
+            if (direction === 'asc') {
+                return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+            } else {
+                return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+            }
+        });
+    }
+
+    function handleSort(column) {
+        // Toggle direction if same column, otherwise set to asc
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = 'asc';
+        }
+        
+        // Update visual indicators
+        $('.sortable').removeClass('sorted-asc sorted-desc');
+        $(`.sortable[data-sort="${column}"]`).addClass(`sorted-${currentSort.direction}`);
+        
+        // Re-fetch and apply sorting
+        fetchFillings();
+    }
+
+    // Add click handlers for sortable columns
+    $(document).ready(function() {
+        $(document).on('click', '.sortable', function() {
+            var column = $(this).data('sort');
+            if (column) {
+                handleSort(column);
+            }
+        });
+    });
 </script>
 {% endblock %}

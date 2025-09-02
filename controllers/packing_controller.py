@@ -135,16 +135,16 @@ def update_packing_entry(fg_code, description, packing_date=None, special_order_
             # Get current SOH data for calculations
             soh = SOH.query.filter_by(item_id=item.id, week_commencing=week_commencing).first()
             soh_units = soh.soh_total_units if soh else 0
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
             
             # Calculate SOH requirement KG/week
-            soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
             
             # NEW REQUIREMENT CALCULATIONS based on your Excel formulas
-            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), "")
+            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), "")
             requirement_kg_calc = soh_requirement_kg_week - soh_kg + special_order_kg
             if requirement_kg_calc > 0:
-                requirement_kg = round(requirement_kg_calc, 0)
+                requirement_kg = round(requirement_kg_calc, 2)
             else:
                 requirement_kg = 0
             
@@ -273,10 +273,10 @@ def packing_list():
             soh_requirement_units_week = stored_soh_requirement
         
         # NEW REQUIREMENT CALCULATIONS
-        # Requirement KG = iferror(if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), ""), "")
+        # Requirement KG = iferror(if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), ""), "")
         requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
         if requirement_kg_calc > 0:
-            requirement_kg = round(requirement_kg_calc, 0)
+            requirement_kg = round(requirement_kg_calc, 2)
         else:
             requirement_kg = 0
         
@@ -760,8 +760,8 @@ def get_search_packings():
     sort_by = request.args.getlist('sort_by[]') or request.args.getlist('sort_by')
     sort_order = request.args.getlist('sort_order[]') or request.args.getlist('sort_order')
 
-    # Start building the query
-    query = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id)
+    # Start building the query with SOH table join for sorting
+    query = Packing.query.join(ItemMaster, Packing.item_id == ItemMaster.id).outerjoin(SOH, (Packing.item_id == SOH.item_id) & (Packing.week_commencing == SOH.week_commencing))
 
     # Apply filters
     if fg_code:
@@ -789,6 +789,18 @@ def get_search_packings():
                 query = query.order_by(desc(ItemMaster.description) if direction == 'desc' else asc(ItemMaster.description))
             elif column == 'avg_weight_per_unit':
                 query = query.order_by(desc(ItemMaster.avg_weight_per_unit) if direction == 'desc' else asc(ItemMaster.avg_weight_per_unit))
+            elif column == 'soh_requirement_kg_week':
+                # This is a calculated field, so we'll sort by the underlying soh_requirement_units_week * avg_weight_per_unit
+                query = query.order_by(desc(Packing.soh_requirement_units_week * ItemMaster.avg_weight_per_unit) if direction == 'desc' else asc(Packing.soh_requirement_units_week * ItemMaster.avg_weight_per_unit))
+            elif column == 'soh_kg':
+                # This is a calculated field from SOH table: soh_units * avg_weight_per_unit
+                query = query.order_by(desc(SOH.soh_total_units * ItemMaster.avg_weight_per_unit) if direction == 'desc' else asc(SOH.soh_total_units * ItemMaster.avg_weight_per_unit))
+            elif column == 'soh_units':
+                # This is a calculated field from SOH table: soh_total_units
+                query = query.order_by(desc(SOH.soh_total_units) if direction == 'desc' else asc(SOH.soh_total_units))
+            elif column == 'special_order_unit':
+                # This is a calculated field: special_order_kg / avg_weight_per_unit
+                query = query.order_by(desc(Packing.special_order_kg / ItemMaster.avg_weight_per_unit) if direction == 'desc' else asc(Packing.special_order_kg / ItemMaster.avg_weight_per_unit))
             else:
                 # For other columns, use the Packing model attributes
                 if hasattr(Packing, column):
@@ -1170,7 +1182,7 @@ def update_cell():
                 # Requirement KG = iferror(if(soh_req_kg_week + special_order_kg - soh_kg > 0, soh_req_kg_week + special_order_kg - soh_kg, ""), "")
                 requirement_kg_calc = soh_requirement_kg_week + new_special_order_kg - soh_kg
                 if requirement_kg_calc > 0:
-                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                    packing.requirement_kg = round(requirement_kg_calc, 2)
                 else:
                     packing.requirement_kg = 0
                 
@@ -1229,14 +1241,14 @@ def update_cell():
                 packing.soh_requirement_units_week = soh_requirement_units_week
                 
                 # Recalculate other dependent fields
-                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-                soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
+                soh_kg = round(soh_units * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
                 
                 # Update packing values using NEW EXCEL FORMULA LOGIC
-                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), 0)
                 requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
                 if requirement_kg_calc > 0:
-                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                    packing.requirement_kg = round(requirement_kg_calc, 2)
                 else:
                     packing.requirement_kg = 0
                 
@@ -1295,14 +1307,14 @@ def update_cell():
                 packing.soh_requirement_units_week = soh_requirement_units_week
                 
                 # Recalculate other dependent fields
-                soh_requirement_kg_week = int(soh_requirement_units_week * avg_weight_per_unit) if avg_weight_per_unit else 0
-                soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+                soh_requirement_kg_week = round(soh_requirement_units_week * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
+                soh_kg = round(soh_units * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
                 
                 # Update packing values using NEW EXCEL FORMULA LOGIC
-                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), 0)
                 requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
                 if requirement_kg_calc > 0:
-                    packing.requirement_kg = round(requirement_kg_calc, 0)
+                    packing.requirement_kg = round(requirement_kg_calc, 2)
                 else:
                     packing.requirement_kg = 0
                 
@@ -1410,13 +1422,13 @@ def export_packings():
 
             # Calculate derived values using NEW EXCEL FORMULA LOGIC
             special_order_unit = int(p.special_order_kg / avg_weight_per_unit) if avg_weight_per_unit else 0
-            soh_kg = round(soh_units * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
-            soh_requirement_kg_week = round(p.soh_requirement_units_week * avg_weight_per_unit, 0) if avg_weight_per_unit else 0
+            soh_kg = round(soh_units * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
+            soh_requirement_kg_week = round(p.soh_requirement_units_week * avg_weight_per_unit, 2) if avg_weight_per_unit else 0
             
-            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+            # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), 0)
             requirement_kg_calc = soh_requirement_kg_week - soh_kg + p.special_order_kg
             if requirement_kg_calc > 0:
-                requirement_kg = round(requirement_kg_calc, 0)
+                requirement_kg = round(requirement_kg_calc, 2)
             else:
                 requirement_kg = 0
             
@@ -1648,7 +1660,7 @@ def update_field(id):
                     # Requirement KG = iferror(if(soh_req_kg_week + special_order_kg - soh_kg > 0, soh_req_kg_week + special_order_kg - soh_kg, ""), "")
                     requirement_kg_calc = soh_requirement_kg_week + value - soh_kg
                     if requirement_kg_calc > 0:
-                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                        packing.requirement_kg = round(requirement_kg_calc, 2)
                     else:
                         packing.requirement_kg = 0
                     
@@ -1725,14 +1737,14 @@ def update_field(id):
                     packing.soh_requirement_units_week = soh_requirement_units_week
                     
                     # Recalculate other dependent fields
-                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 0)
-                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
+                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 2)
+                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 2)
                     
                     # Update packing values using NEW EXCEL FORMULA LOGIC
-                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), 0)
                     requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
                     if requirement_kg_calc > 0:
-                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                        packing.requirement_kg = round(requirement_kg_calc, 2)
                     else:
                         packing.requirement_kg = 0
                     
@@ -1784,14 +1796,14 @@ def update_field(id):
                     packing.soh_requirement_units_week = soh_requirement_units_week
                     
                     # Recalculate other dependent fields
-                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 0)
-                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 0)
+                    soh_requirement_kg_week = round(soh_requirement_units_week * packing.avg_weight_per_unit, 2)
+                    soh_kg = round(soh_units * packing.avg_weight_per_unit, 2)
                     
                     # Update packing values using NEW EXCEL FORMULA LOGIC
-                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 0), 0)
+                    # Requirement KG = if(soh_req_kg_week - SOH_kg + special_order_kg > 0, round(soh_req_kg_week - SOH_kg + special_order_kg, 2), 0)
                     requirement_kg_calc = soh_requirement_kg_week - soh_kg + packing.special_order_kg
                     if requirement_kg_calc > 0:
-                        packing.requirement_kg = round(requirement_kg_calc, 0)
+                        packing.requirement_kg = round(requirement_kg_calc, 2)
                     else:
                         packing.requirement_kg = 0
                     

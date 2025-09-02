@@ -246,32 +246,75 @@
                     <!-- Monday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='monday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.monday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.monday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Tuesday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='tuesday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.tuesday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.tuesday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Wednesday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='wednesday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.wednesday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.wednesday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Thursday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='thursday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.thursday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.thursday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Friday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='friday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.friday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.friday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Saturday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='saturday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.saturday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.saturday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                     <!-- Sunday -->
                     <td></td>
                     <td>{{ '%.2f'|format(inventory_records|sum(attribute='sunday_required_kg')) }}</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+                    <td></td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.sunday_value_ordered) }}</td>
+                    <td></td>
+                    <td>{{ '%.2f'|format(daily_totals.sunday_value_received) }}</td>
+                    <td></td>
+                    <td></td>
                 </tr>
+
             </thead>
             <tbody>
                 {% for inv in inventory_records %}
@@ -491,10 +534,17 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.success) {
                 // Update all recalculated fields in the row
                 for (const [key, value] of Object.entries(result.data)) {
-                    const fieldCell = row.querySelector(`td[data-field="${key}"]`);
-                    if (fieldCell) {
-                        fieldCell.textContent = parseFloat(value).toFixed(2);
+                    if (key !== 'updated_totals') {
+                        const fieldCell = row.querySelector(`td[data-field="${key}"]`);
+                        if (fieldCell) {
+                            fieldCell.textContent = parseFloat(value).toFixed(2);
+                        }
                     }
+                }
+                
+                // Update the totals row with server-calculated totals
+                if (result.data.updated_totals) {
+                    updateTotalsRowFromServer(result.data.updated_totals);
                 }
             } else {
                 alert('Error updating value: ' + result.error);
@@ -505,6 +555,164 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Update failed:', error);
             alert('Failed to update value: ' + error.message);
         }
+    }
+
+    function updateTotalsRow() {
+        const tbody = table.querySelector('tbody');
+        const rows = tbody.querySelectorAll('tr[data-id]');
+        const totalsRow = document.querySelector('.sticky-totals-row');
+        
+        if (!totalsRow || !rows.length) return;
+        
+        // Initialize totals
+        let totals = {
+            required_in_total: 0,
+            value_required_rm: 0,
+            monday_required_kg: 0,
+            tuesday_required_kg: 0,
+            wednesday_required_kg: 0,
+            thursday_required_kg: 0,
+            friday_required_kg: 0,
+            saturday_required_kg: 0,
+            sunday_required_kg: 0,
+            monday_value_ordered: 0,
+            monday_value_received: 0,
+            tuesday_value_ordered: 0,
+            tuesday_value_received: 0,
+            wednesday_value_ordered: 0,
+            wednesday_value_received: 0,
+            thursday_value_ordered: 0,
+            thursday_value_received: 0,
+            friday_value_ordered: 0,
+            friday_value_received: 0,
+            saturday_value_ordered: 0,
+            saturday_value_received: 0,
+            sunday_value_ordered: 0,
+            sunday_value_received: 0
+        };
+        
+        // Calculate totals from all rows
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            
+            // Get values from each row
+            totals.required_in_total += parseFloat(cells[3].textContent) || 0;
+            totals.value_required_rm += parseFloat(cells[5].textContent) || 0;
+            totals.monday_required_kg += parseFloat(cells[10].textContent) || 0;
+            totals.tuesday_required_kg += parseFloat(cells[19].textContent) || 0;
+            totals.wednesday_required_kg += parseFloat(cells[28].textContent) || 0;
+            totals.thursday_required_kg += parseFloat(cells[37].textContent) || 0;
+            totals.friday_required_kg += parseFloat(cells[46].textContent) || 0;
+            totals.saturday_required_kg += parseFloat(cells[55].textContent) || 0;
+            totals.sunday_required_kg += parseFloat(cells[64].textContent) || 0;
+            
+            // Calculate value totals (price_per_kg * quantity)
+            const pricePerKg = parseFloat(cells[4].textContent) || 0;
+            
+            // Monday values
+            const mondayToBeOrdered = parseFloat(cells[12].textContent) || 0;
+            const mondayOrderedReceived = parseFloat(cells[14].textContent) || 0;
+            totals.monday_value_ordered += pricePerKg * mondayToBeOrdered;
+            totals.monday_value_received += pricePerKg * mondayOrderedReceived;
+            
+            // Tuesday values
+            const tuesdayToBeOrdered = parseFloat(cells[21].textContent) || 0;
+            const tuesdayOrderedReceived = parseFloat(cells[23].textContent) || 0;
+            totals.tuesday_value_ordered += pricePerKg * tuesdayToBeOrdered;
+            totals.tuesday_value_received += pricePerKg * tuesdayOrderedReceived;
+            
+            // Wednesday values
+            const wednesdayToBeOrdered = parseFloat(cells[30].textContent) || 0;
+            const wednesdayOrderedReceived = parseFloat(cells[32].textContent) || 0;
+            totals.wednesday_value_ordered += pricePerKg * wednesdayToBeOrdered;
+            totals.wednesday_value_received += pricePerKg * wednesdayOrderedReceived;
+            
+            // Thursday values
+            const thursdayToBeOrdered = parseFloat(cells[39].textContent) || 0;
+            const thursdayOrderedReceived = parseFloat(cells[41].textContent) || 0;
+            totals.thursday_value_ordered += pricePerKg * thursdayToBeOrdered;
+            totals.thursday_value_received += pricePerKg * thursdayOrderedReceived;
+            
+            // Friday values
+            const fridayToBeOrdered = parseFloat(cells[48].textContent) || 0;
+            const fridayOrderedReceived = parseFloat(cells[50].textContent) || 0;
+            totals.friday_value_ordered += pricePerKg * fridayToBeOrdered;
+            totals.friday_value_received += pricePerKg * fridayOrderedReceived;
+            
+            // Saturday values
+            const saturdayToBeOrdered = parseFloat(cells[57].textContent) || 0;
+            const saturdayOrderedReceived = parseFloat(cells[59].textContent) || 0;
+            totals.saturday_value_ordered += pricePerKg * saturdayToBeOrdered;
+            totals.saturday_value_received += pricePerKg * saturdayOrderedReceived;
+            
+            // Sunday values
+            const sundayToBeOrdered = parseFloat(cells[66].textContent) || 0;
+            const sundayOrderedReceived = parseFloat(cells[68].textContent) || 0;
+            totals.sunday_value_ordered += pricePerKg * sundayToBeOrdered;
+            totals.sunday_value_received += pricePerKg * sundayOrderedReceived;
+        });
+        
+        // Update the totals row
+        const totalCells = totalsRow.querySelectorAll('td');
+        totalCells[3].textContent = totals.required_in_total.toFixed(2);
+        totalCells[5].textContent = totals.value_required_rm.toFixed(2);
+        totalCells[10].textContent = totals.monday_required_kg.toFixed(2);
+        totalCells[19].textContent = totals.tuesday_required_kg.toFixed(2);
+        totalCells[28].textContent = totals.wednesday_required_kg.toFixed(2);
+        totalCells[37].textContent = totals.thursday_required_kg.toFixed(2);
+        totalCells[46].textContent = totals.friday_required_kg.toFixed(2);
+        totalCells[55].textContent = totals.saturday_required_kg.toFixed(2);
+        totalCells[64].textContent = totals.sunday_required_kg.toFixed(2);
+        
+        // Update value totals
+        totalCells[12].textContent = totals.monday_value_ordered.toFixed(2);
+        totalCells[14].textContent = totals.monday_value_received.toFixed(2);
+        totalCells[21].textContent = totals.tuesday_value_ordered.toFixed(2);
+        totalCells[23].textContent = totals.tuesday_value_received.toFixed(2);
+        totalCells[30].textContent = totals.wednesday_value_ordered.toFixed(2);
+        totalCells[32].textContent = totals.wednesday_value_received.toFixed(2);
+        totalCells[39].textContent = totals.thursday_value_ordered.toFixed(2);
+        totalCells[41].textContent = totals.thursday_value_received.toFixed(2);
+        totalCells[48].textContent = totals.friday_value_ordered.toFixed(2);
+        totalCells[50].textContent = totals.friday_value_received.toFixed(2);
+        totalCells[57].textContent = totals.saturday_value_ordered.toFixed(2);
+        totalCells[59].textContent = totals.saturday_value_received.toFixed(2);
+        totalCells[66].textContent = totals.sunday_value_ordered.toFixed(2);
+        totalCells[68].textContent = totals.sunday_value_received.toFixed(2);
+    }
+
+    function updateTotalsRowFromServer(serverTotals) {
+        const totalsRow = document.querySelector('.sticky-totals-row');
+        if (!totalsRow) return;
+        
+        const totalCells = totalsRow.querySelectorAll('td');
+        
+        // Update basic totals
+        totalCells[3].textContent = serverTotals.required_in_total.toFixed(2);
+        totalCells[5].textContent = serverTotals.value_required_rm.toFixed(2);
+        totalCells[10].textContent = serverTotals.monday_required_kg.toFixed(2);
+        totalCells[19].textContent = serverTotals.tuesday_required_kg.toFixed(2);
+        totalCells[28].textContent = serverTotals.wednesday_required_kg.toFixed(2);
+        totalCells[37].textContent = serverTotals.thursday_required_kg.toFixed(2);
+        totalCells[46].textContent = serverTotals.friday_required_kg.toFixed(2);
+        totalCells[55].textContent = serverTotals.saturday_required_kg.toFixed(2);
+        totalCells[64].textContent = serverTotals.sunday_required_kg.toFixed(2);
+        
+        // Update value totals
+        totalCells[12].textContent = serverTotals.monday_value_ordered.toFixed(2);
+        totalCells[14].textContent = serverTotals.monday_value_received.toFixed(2);
+        totalCells[21].textContent = serverTotals.tuesday_value_ordered.toFixed(2);
+        totalCells[23].textContent = serverTotals.tuesday_value_received.toFixed(2);
+        totalCells[30].textContent = serverTotals.wednesday_value_ordered.toFixed(2);
+        totalCells[32].textContent = serverTotals.wednesday_value_received.toFixed(2);
+        totalCells[39].textContent = serverTotals.thursday_value_ordered.toFixed(2);
+        totalCells[41].textContent = serverTotals.thursday_value_received.toFixed(2);
+        totalCells[48].textContent = serverTotals.friday_value_ordered.toFixed(2);
+        totalCells[50].textContent = serverTotals.friday_value_received.toFixed(2);
+        totalCells[57].textContent = serverTotals.saturday_value_ordered.toFixed(2);
+        totalCells[59].textContent = serverTotals.saturday_value_received.toFixed(2);
+        totalCells[66].textContent = serverTotals.sunday_value_ordered.toFixed(2);
+        totalCells[68].textContent = serverTotals.sunday_value_received.toFixed(2);
     }
 });
 

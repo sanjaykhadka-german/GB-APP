@@ -119,10 +119,10 @@
                         <th data-column="requirement_kg" data-col-index="8">Requirement KG <span class="sort-arrow"></span></th>
                         <th data-column="requirement_unit" data-col-index="9">Requirement Unit <span class="sort-arrow"></span></th>
                         <th data-column="avg_weight_per_unit" data-col-index="10">AVG Weight per Unit <span class="sort-arrow"></span></th>
-                        <th data-col-index="11">SOH Req KG/Week</th>
+                        <th data-column="soh_requirement_kg_week" data-col-index="11">SOH Req KG/Week <span class="sort-arrow"></span></th>
                         <th data-column="soh_requirement_units_week" data-col-index="12">SOH Req Units/Week <span class="sort-arrow"></span></th>
-                        <th data-col-index="13">SOH KG</th>
-                        <th data-col-index="14">SOH Units</th>
+                        <th data-column="soh_kg" data-col-index="13">SOH KG <span class="sort-arrow"></span></th>
+                        <th data-column="soh_units" data-col-index="14">SOH Units <span class="sort-arrow"></span></th>
                         <th data-column="machinery" data-col-index="15">Machinery <span class="sort-arrow"></span></th>
                         <th data-column="min_level" data-col-index="16">Min Level <span class="sort-arrow"></span></th>
                         <th data-column="max_level" data-col-index="17">Max Level <span class="sort-arrow"></span></th>
@@ -140,7 +140,7 @@
                         <td>{{ data.packing.item.description }}</td>
                         <td data-field="special_order_kg" data-id="{{ data.packing.id }}" class="editable-cell" ondblclick="makeEditable(this)">{{ data.packing.special_order_kg }}</td>
                         <td data-field="special_order_unit">{{ data.special_order_unit }}</td>
-                        <td data-field="requirement_kg">{{ data.requirement_kg }}</td>
+                        <td data-field="requirement_kg">{{ "%.2f"|format(data.requirement_kg) if data.requirement_kg else "0.00" }}</td>
                         <td data-field="requirement_unit">{{ data.requirement_unit }}</td>
                         <td>{{ data.packing.item.avg_weight_per_unit }}</td>
                         <td data-field="soh_requirement_kg_week">{{ data.soh_requirement_kg_week }}</td>
@@ -740,7 +740,7 @@
                         <td>${packing.item.description}</td>
                         <td data-field="special_order_kg" data-id="${packing.id}" class="editable-cell" ondblclick="makeEditable(this)">${packing.special_order_kg}</td>
                         <td data-field="special_order_unit">${packing.special_order_unit}</td>
-                        <td data-field="requirement_kg">${packing.requirement_kg}</td>
+                        <td data-field="requirement_kg">${parseFloat(packing.requirement_kg || 0).toFixed(2)}</td>
                         <td data-field="requirement_unit">${packing.requirement_unit}</td>
                         <td>${packing.item.avg_weight_per_unit}</td>
                         <td data-field="soh_requirement_kg_week">${packing.soh_requirement_kg_week}</td>

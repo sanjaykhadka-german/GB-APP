@@ -65,8 +65,12 @@ def filling_list():
         for filling in fillings
     ]
 
+    # Calculate total kilo per size
+    total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in fillings)
+
     return render_template('filling/list.html',
                          filling_data=filling_data,
+                         total_kilo_per_size=total_kilo_per_size,
                          search_fill_code=search_fill_code,
                          search_description=search_description,
                          search_week_commencing=search_week_commencing,
@@ -256,7 +260,13 @@ def get_search_fillings():
             for filling in fillings
         ]
 
-        return jsonify(fillings_data)
+        # Calculate total kilo per size
+        total_kilo_per_size = sum(filling.kilo_per_size or 0 for filling in fillings)
+
+        return jsonify({
+            "fillings": fillings_data,
+            "total_kilo_per_size": total_kilo_per_size
+        })
     except Exception as e:
         print("Error fetching search fillings:", e)
         return jsonify({"error": "Failed to fetch filling entries"}), 500

@@ -108,6 +108,12 @@
         text-align: right;
     }
     
+    /* Smooth transitions for column visibility */
+    .recipe-table th,
+    .recipe-table td {
+        transition: all 0.2s ease-in-out;
+    }
+    
     .recipe-table th {
         background-color: #343a40;
         color: white;
@@ -153,6 +159,17 @@
         border-radius: 4px;
         margin-bottom: 15px;
         border: 1px solid #f5c6cb;
+    }
+    
+    .error-message a {
+        color: #007bff;
+        text-decoration: underline;
+        font-weight: bold;
+    }
+    
+    .error-message a:hover {
+        color: #0056b3;
+        text-decoration: none;
     }
     
     .success-message {
@@ -289,11 +306,11 @@
         <h4>Recipe Components</h4>
         <div class="toggle-container" style="margin-bottom: 10px; display: flex; gap: 40px;">
             <label class="toggle-checkbox">
-                <input type="checkbox" id="toggle-batch" checked onchange="toggleColumn(2)">
+                <input type="checkbox" id="toggle-batch" checked onchange="toggleColumns()">
                 <span>Quantity per Batch (kg)</span>
             </label>
             <label class="toggle-checkbox">
-                <input type="checkbox" id="toggle-total" checked onchange="toggleColumn(3)">
+                <input type="checkbox" id="toggle-total" checked onchange="toggleColumns()">
                 <span>Total Required (kg)</span>
             </label>
         </div>
@@ -345,7 +362,19 @@ function calculateRecipe() {
     // Make API call to get recipe data
     fetch(`/recipe_calculator/get_recipe_data?production_code=${productionCode}`)       
         .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Authentication required. Please log in and try again.');
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned non-JSON response. Please check your login status.');
+            }
+            
             return response.json();
         })
         .then(data => {
@@ -366,7 +395,13 @@ function calculateRecipe() {
         })
         .catch(error => {
             showLoading(false);
-            showError('An error occurred while calculating the recipe: ' + error.message);
+            if (error.message.includes('Authentication required')) {
+                showError('You are not logged in. Please <a href="/login" style="color: #007bff; text-decoration: underline;">log in</a> to use the recipe calculator.');
+            } else if (error.message.includes('non-JSON response')) {
+                showError('Authentication issue detected. Please <a href="/login" style="color: #007bff; text-decoration: underline;">log in</a> and try again.');
+            } else {
+                showError('An error occurred while calculating the recipe: ' + error.message);
+            }
         });
 }
 
@@ -394,8 +429,11 @@ function displayResults(recipeData, batchSize, productionRequirement) {
     tbody.innerHTML = '';
     
     recipeData.recipe_components.forEach(component => {
-        const totalRequired = (component.quantity_kg / totalRecipeWeight) * batchSize * numberOfBatches;
+        // Calculate percentage of this component in the base recipe
         const percentage = (component.quantity_kg / totalRecipeWeight) * 100;
+        
+        // NEW CALCULATION: Total Required = Production Requirement × Percentage
+        const totalRequired = (percentage / 100) * productionRequirement;
         
         const row = tbody.insertRow();
         row.innerHTML = `
@@ -415,11 +453,15 @@ function displayResults(recipeData, batchSize, productionRequirement) {
         productionRequirement,
         numberOfBatches,
         actualProduction,
-        recipeComponents: recipeData.recipe_components.map(component => ({
-            ...component,
-            totalRequired: (component.quantity_kg / totalRecipeWeight) * batchSize * numberOfBatches,
-            percentage: (component.quantity_kg / totalRecipeWeight) * 100
-        }))
+        recipeComponents: recipeData.recipe_components.map(component => {
+            const percentage = (component.quantity_kg / totalRecipeWeight) * 100;
+            const totalRequired = (percentage / 100) * productionRequirement;
+            return {
+                ...component,
+                totalRequired,
+                percentage
+            };
+        })
     };
     
     showResults();
@@ -456,17 +498,28 @@ function hideResults() {
     document.getElementById('results-section').style.display = 'none';
 }
 
-function toggleColumn(colIndex) {
-    // colIndex is 2 for Quantity per Batch, 3 for Total Required
+function toggleColumns() {
     const table = document.querySelector('.recipe-table');
     if (!table) return;
-    // Toggle header
-    const th = table.querySelector(`thead th:nth-child(${colIndex + 1})`);
-    if (th) th.style.display = (th.style.display === 'none' ? '' : 'none');
-    // Toggle all rows
+    
+    // Get the checkbox state
+    const isBatchChecked = document.getElementById('toggle-batch').checked;
+    const isTotalChecked = document.getElementById('toggle-total').checked;
+    
+    // Toggle header columns
+    const batchHeader = table.querySelector('thead th:nth-child(3)');
+    const totalHeader = table.querySelector('thead th:nth-child(4)');
+    
+    if (batchHeader) batchHeader.style.display = isBatchChecked ? '' : 'none';
+    if (totalHeader) totalHeader.style.display = isTotalChecked ? '' : 'none';
+    
+    // Toggle all data rows
     table.querySelectorAll('tbody tr').forEach(row => {
-        const td = row.querySelector(`td:nth-child(${colIndex + 1})`);
-        if (td) td.style.display = (td.style.display === 'none' ? '' : 'none');
+        const batchCell = row.querySelector('td:nth-child(3)');
+        const totalCell = row.querySelector('td:nth-child(4)');
+        
+        if (batchCell) batchCell.style.display = isBatchChecked ? '' : 'none';
+        if (totalCell) totalCell.style.display = isTotalChecked ? '' : 'none';
     });
 }
 
@@ -489,6 +542,39 @@ document.getElementById('production_code').addEventListener('change', function()
         // You could display the description somewhere if needed
         console.log('Selected:', selectedOption.dataset.description);
     }
+});
+
+// Check if user is logged in
+function checkLoginStatus() {
+    // Try to make a simple request to check if we're authenticated
+    fetch('/recipe_calculator/get_recipe_data?production_code=test', {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        if (response.status === 401) {
+            showError('You are not logged in. Please <a href="/login">log in</a> to use the recipe calculator.');
+            return;
+        }
+        if (response.status === 404) {
+            // This is expected for a test request, means we're authenticated
+            console.log('User is authenticated');
+        }
+    })
+    .catch(error => {
+        console.log('Login check failed:', error);
+    });
+}
+
+// Initialize column visibility on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure columns are visible by default (since checkboxes are checked by default)
+    toggleColumns();
+    
+    // Check login status
+    checkLoginStatus();
 });
 </script>
 {% endblock %} 

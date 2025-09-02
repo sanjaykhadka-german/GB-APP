@@ -62,7 +62,7 @@ def datetime_add_days(date_str, days):
 @app.before_request
 def require_login():
     # Allow access to login, register, and static files without authentication
-    allowed_routes = ['login.login', 'login.register', 'login.check_username', 'login.check_email', 'static']
+    allowed_routes = ['login.login', 'login.register', 'login.check_username', 'login.check_email', 'static', 'recipe_calculator.get_recipe_data']
     
     if request.endpoint in allowed_routes:
         return
