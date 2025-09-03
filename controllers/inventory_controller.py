@@ -238,6 +238,8 @@ def export_inventory():
         export_data = []
         for inv in inventory_records:
             data_row = {
+                'Week Commencing': inv.week_commencing.strftime('%Y-%m-%d') if inv.week_commencing else '',
+                'Item Code': inv.item.item_code or '',
                 'Item': inv.item.description,
                 'Category': inv.item.category.name if inv.item.category else '',
                 'Required Total': inv.required_in_total,
