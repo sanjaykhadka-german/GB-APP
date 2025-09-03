@@ -213,24 +213,24 @@
                 </tr>
                 <tr class="sticky-column-header">
                     <!-- Summary Headers -->
-                    <th>Required Total</th>
-                    <th>$/KG</th>
-                    <th>$ Value RM</th>
-                    <th>SOH</th>
-                    <th>Supplier Name</th>
-                    <th>Required for Plan</th>
-                    <th>Variance Week</th>
+                    <th class="sortable" data-sort="required_in_total" data-type="numeric">Required Total <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="price_per_kg" data-type="numeric">$/KG <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="value_required_rm" data-type="numeric">$ Value RM <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="soh" data-type="numeric">SOH <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="supplier_name" data-type="text">Supplier Name <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="required_for_plan" data-type="numeric">Required for Plan <span class="sort-icon">↕</span></th>
+                    <th class="sortable" data-sort="variance_week" data-type="numeric">Variance Week <span class="sort-icon">↕</span></th>
                     <!-- Daily Headers -->
                     {% for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
-                        <th class="day-group col-{{ day.lower() }}">{{ day }} Opening</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Required</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Variance</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} To Be Ordered</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Value Ordered</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Ordered/Received</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Value Received</th>
-                        <th class="col-{{ day.lower() }}">{{ day }} Consumed</th>
-                        <th class="day-group col-{{ day.lower() }}">{{ day }} Closing</th>
+                        <th class="day-group col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_opening_stock" data-type="numeric">{{ day }} Opening <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_required_kg" data-type="numeric">{{ day }} Required <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_variance" data-type="numeric">{{ day }} Variance <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_to_be_ordered" data-type="numeric">{{ day }} To Be Ordered <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_value_ordered" data-type="numeric">{{ day }} Value Ordered <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_ordered_received" data-type="numeric">{{ day }} Ordered/Received <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_value_received" data-type="numeric">{{ day }} Value Received <span class="sort-icon">↕</span></th>
+                        <th class="col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_consumed_kg" data-type="numeric">{{ day }} Consumed <span class="sort-icon">↕</span></th>
+                        <th class="day-group col-{{ day.lower() }} sortable" data-sort="{{ day.lower() }}_closing_stock" data-type="numeric">{{ day }} Closing <span class="sort-icon">↕</span></th>
                     {% endfor %}
                 </tr>
                 <!-- Totals Row -->
@@ -424,6 +424,7 @@ document.addEventListener('DOMContentLoaded', function() {
     sortableHeaders.forEach(header => {
         header.addEventListener('click', function() {
             const sortType = this.dataset.sort;
+            const dataType = this.dataset.type;
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
             
@@ -442,19 +443,183 @@ document.addEventListener('DOMContentLoaded', function() {
             // Sort the rows
             rows.sort((a, b) => {
                 let aValue, bValue;
+                let columnIndex = -1;
                 
+                // Find the column index based on sort type
                 if (sortType === 'item') {
-                    aValue = a.cells[1].textContent.trim().toLowerCase();
-                    bValue = b.cells[1].textContent.trim().toLowerCase();
+                    columnIndex = 1;
                 } else if (sortType === 'category') {
-                    aValue = a.cells[2].textContent.trim().toLowerCase();
-                    bValue = b.cells[2].textContent.trim().toLowerCase();
+                    columnIndex = 2;
+                } else if (sortType === 'required_in_total') {
+                    columnIndex = 3;
+                } else if (sortType === 'price_per_kg') {
+                    columnIndex = 4;
+                } else if (sortType === 'value_required_rm') {
+                    columnIndex = 5;
+                } else if (sortType === 'soh') {
+                    columnIndex = 6;
+                } else if (sortType === 'supplier_name') {
+                    columnIndex = 7;
+                } else if (sortType === 'required_for_plan') {
+                    columnIndex = 8;
+                } else if (sortType === 'variance_week') {
+                    columnIndex = 9;
+                } else if (sortType === 'monday_opening_stock') {
+                    columnIndex = 10;
+                } else if (sortType === 'monday_required_kg') {
+                    columnIndex = 11;
+                } else if (sortType === 'monday_variance') {
+                    columnIndex = 12;
+                } else if (sortType === 'monday_to_be_ordered') {
+                    columnIndex = 13;
+                } else if (sortType === 'monday_value_ordered') {
+                    columnIndex = 14;
+                } else if (sortType === 'monday_ordered_received') {
+                    columnIndex = 15;
+                } else if (sortType === 'monday_value_received') {
+                    columnIndex = 16;
+                } else if (sortType === 'monday_consumed_kg') {
+                    columnIndex = 17;
+                } else if (sortType === 'monday_closing_stock') {
+                    columnIndex = 18;
+                } else if (sortType === 'tuesday_opening_stock') {
+                    columnIndex = 19;
+                } else if (sortType === 'tuesday_required_kg') {
+                    columnIndex = 20;
+                } else if (sortType === 'tuesday_variance') {
+                    columnIndex = 21;
+                } else if (sortType === 'tuesday_to_be_ordered') {
+                    columnIndex = 22;
+                } else if (sortType === 'tuesday_value_ordered') {
+                    columnIndex = 23;
+                } else if (sortType === 'tuesday_ordered_received') {
+                    columnIndex = 24;
+                } else if (sortType === 'tuesday_value_received') {
+                    columnIndex = 25;
+                } else if (sortType === 'tuesday_consumed_kg') {
+                    columnIndex = 26;
+                } else if (sortType === 'tuesday_closing_stock') {
+                    columnIndex = 27;
+                } else if (sortType === 'wednesday_opening_stock') {
+                    columnIndex = 28;
+                } else if (sortType === 'wednesday_required_kg') {
+                    columnIndex = 29;
+                } else if (sortType === 'wednesday_variance') {
+                    columnIndex = 30;
+                } else if (sortType === 'wednesday_to_be_ordered') {
+                    columnIndex = 31;
+                } else if (sortType === 'wednesday_value_ordered') {
+                    columnIndex = 32;
+                } else if (sortType === 'wednesday_ordered_received') {
+                    columnIndex = 33;
+                } else if (sortType === 'wednesday_value_received') {
+                    columnIndex = 34;
+                } else if (sortType === 'wednesday_consumed_kg') {
+                    columnIndex = 35;
+                } else if (sortType === 'wednesday_closing_stock') {
+                    columnIndex = 36;
+                } else if (sortType === 'thursday_opening_stock') {
+                    columnIndex = 37;
+                } else if (sortType === 'thursday_required_kg') {
+                    columnIndex = 38;
+                } else if (sortType === 'thursday_variance') {
+                    columnIndex = 39;
+                } else if (sortType === 'thursday_to_be_ordered') {
+                    columnIndex = 40;
+                } else if (sortType === 'thursday_value_ordered') {
+                    columnIndex = 41;
+                } else if (sortType === 'thursday_ordered_received') {
+                    columnIndex = 42;
+                } else if (sortType === 'thursday_value_received') {
+                    columnIndex = 43;
+                } else if (sortType === 'thursday_consumed_kg') {
+                    columnIndex = 44;
+                } else if (sortType === 'thursday_closing_stock') {
+                    columnIndex = 45;
+                } else if (sortType === 'friday_opening_stock') {
+                    columnIndex = 46;
+                } else if (sortType === 'friday_required_kg') {
+                    columnIndex = 47;
+                } else if (sortType === 'friday_variance') {
+                    columnIndex = 48;
+                } else if (sortType === 'friday_to_be_ordered') {
+                    columnIndex = 49;
+                } else if (sortType === 'friday_value_ordered') {
+                    columnIndex = 50;
+                } else if (sortType === 'friday_ordered_received') {
+                    columnIndex = 51;
+                } else if (sortType === 'friday_value_received') {
+                    columnIndex = 52;
+                } else if (sortType === 'friday_consumed_kg') {
+                    columnIndex = 53;
+                } else if (sortType === 'friday_closing_stock') {
+                    columnIndex = 54;
+                } else if (sortType === 'saturday_opening_stock') {
+                    columnIndex = 55;
+                } else if (sortType === 'saturday_required_kg') {
+                    columnIndex = 56;
+                } else if (sortType === 'saturday_variance') {
+                    columnIndex = 57;
+                } else if (sortType === 'saturday_to_be_ordered') {
+                    columnIndex = 58;
+                } else if (sortType === 'saturday_value_ordered') {
+                    columnIndex = 59;
+                } else if (sortType === 'saturday_ordered_received') {
+                    columnIndex = 60;
+                } else if (sortType === 'saturday_value_received') {
+                    columnIndex = 61;
+                } else if (sortType === 'saturday_consumed_kg') {
+                    columnIndex = 62;
+                } else if (sortType === 'saturday_closing_stock') {
+                    columnIndex = 63;
+                } else if (sortType === 'sunday_opening_stock') {
+                    columnIndex = 64;
+                } else if (sortType === 'sunday_required_kg') {
+                    columnIndex = 65;
+                } else if (sortType === 'sunday_variance') {
+                    columnIndex = 66;
+                } else if (sortType === 'sunday_to_be_ordered') {
+                    columnIndex = 67;
+                } else if (sortType === 'sunday_value_ordered') {
+                    columnIndex = 68;
+                } else if (sortType === 'sunday_ordered_received') {
+                    columnIndex = 69;
+                } else if (sortType === 'sunday_value_received') {
+                    columnIndex = 70;
+                } else if (sortType === 'sunday_consumed_kg') {
+                    columnIndex = 71;
+                } else if (sortType === 'sunday_closing_stock') {
+                    columnIndex = 72;
                 }
                 
-                if (direction === 'asc') {
-                    return aValue.localeCompare(bValue);
+                if (columnIndex === -1) return 0;
+                
+                // Get cell values
+                const aCell = a.cells[columnIndex];
+                const bCell = b.cells[columnIndex];
+                
+                if (!aCell || !bCell) return 0;
+                
+                if (dataType === 'numeric') {
+                    aValue = parseFloat(aCell.textContent.trim()) || 0;
+                    bValue = parseFloat(bCell.textContent.trim()) || 0;
                 } else {
-                    return bValue.localeCompare(aValue);
+                    aValue = aCell.textContent.trim().toLowerCase();
+                    bValue = bCell.textContent.trim().toLowerCase();
+                }
+                
+                if (dataType === 'numeric') {
+                    if (direction === 'asc') {
+                        return aValue - bValue;
+                    } else {
+                        return bValue - aValue;
+                    }
+                } else {
+                    if (direction === 'asc') {
+                        return aValue.localeCompare(bValue);
+                    } else {
+                        return bValue.localeCompare(aValue);
+                    }
                 }
             });
             
