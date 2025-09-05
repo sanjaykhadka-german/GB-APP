@@ -405,6 +405,7 @@ def ingredients_upload():
 
         file = request.files['file']
         sheet_name = request.form.get('sheet_name', '').strip() or 'Stocktake'
+        week_commencing_override = request.form.get('week_commencing', '').strip()
 
         if file.filename == '':
             flash("No file selected!", "danger")
@@ -433,7 +434,10 @@ def ingredients_upload():
             df.columns = df.columns.str.strip()
 
             # Required columns for stocktake upload
-            required_columns = ['Week Commencing', 'Item Code', 'SOH']
+            required_columns = ['Item Code', 'SOH']
+            if not week_commencing_override:
+                required_columns.append('Week Commencing')
+            
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 flash(f"Missing required columns in file! Missing: {', '.join(missing_columns)}. Expected: {', '.join(required_columns)}", "danger")
@@ -447,19 +451,27 @@ def ingredients_upload():
             for _, row in df.iterrows():
                 try:
                     # Extract required data
-                    week_commencing_str = str(row['Week Commencing']).strip()
                     item_code = str(row['Item Code']).strip()
                     soh = float(row['SOH']) if pd.notnull(row['SOH']) else 0.0
 
-                    # Parse week commencing date
-                    try:
-                        week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
-                    except ValueError:
+                    # Determine week commencing date
+                    if week_commencing_override:
+                        # Use the override date from the form
                         try:
-                            # Try alternative date formats
-                            week_commencing = pd.to_datetime(week_commencing_str).date()
-                        except:
-                            raise ValueError(f"Invalid date format for Week Commencing: {week_commencing_str}")
+                            week_commencing = datetime.strptime(week_commencing_override, '%Y-%m-%d').date()
+                        except ValueError:
+                            raise ValueError(f"Invalid date format for Week Commencing override: {week_commencing_override}")
+                    else:
+                        # Use the date from the file
+                        week_commencing_str = str(row['Week Commencing']).strip()
+                        try:
+                            week_commencing = datetime.strptime(week_commencing_str, '%Y-%m-%d').date()
+                        except ValueError:
+                            try:
+                                # Try alternative date formats
+                                week_commencing = pd.to_datetime(week_commencing_str).date()
+                            except:
+                                raise ValueError(f"Invalid date format for Week Commencing: {week_commencing_str}")
 
                     # Check if item exists in Item Master as Raw Material
                     rm_type_id = get_rm_type_id()
